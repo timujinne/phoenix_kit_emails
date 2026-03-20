@@ -59,5 +59,6 @@ defmodule PhoenixKitEmailsTest do
     assert function_exported?(provider, :get_aws_secret_key, 0)
     assert function_exported?(provider, :aws_configured?, 0)
     assert function_exported?(provider, :adapter_to_provider_name, 2)
+    assert function_exported?(provider, :send_test_tracking_email, 2)
   end
 end

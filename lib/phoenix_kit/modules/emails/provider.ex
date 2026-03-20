@@ -72,4 +72,32 @@ defmodule PhoenixKit.Modules.Emails.Provider do
   def adapter_to_provider_name(adapter, default) do
     PhoenixKit.Modules.Emails.Utils.adapter_to_provider_name(adapter, default)
   end
+
+  # Test tracking email — sends a test email with tracking enabled
+  @impl true
+  def send_test_tracking_email(recipient_email, _user_uuid) do
+    require Logger
+
+    from_email = PhoenixKit.Settings.get_setting("from_email", "noreply@example.com")
+    from_name = PhoenixKit.Settings.get_setting("from_name", "PhoenixKit")
+    timestamp = DateTime.utc_now() |> Calendar.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    email =
+      Swoosh.Email.new()
+      |> Swoosh.Email.to(recipient_email)
+      |> Swoosh.Email.from({from_name, from_email})
+      |> Swoosh.Email.subject("Test Tracking Email - #{timestamp}")
+      |> Swoosh.Email.html_body("""
+      <h1>Test Email</h1>
+      <p>This is a test tracking email sent at #{timestamp}.</p>
+      <p>Recipient: #{recipient_email}</p>
+      """)
+      |> Swoosh.Email.text_body("Test Email\nSent at #{timestamp}\nRecipient: #{recipient_email}")
+
+    PhoenixKit.Mailer.deliver_email(email)
+  rescue
+    error ->
+      Logger.error("Failed to send test tracking email: #{inspect(error)}")
+      {:error, error}
+  end
 end
