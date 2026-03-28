@@ -35,5 +35,5 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - CSV formula injection protection in exports.
 - Install mix task (`mix phoenix_kit_emails.install`).
 
-[0.1.1]: https://github.com/BeamLabEU/phoenix_kit_emails/releases/tag/v0.1.1
-[0.1.0]: https://github.com/BeamLabEU/phoenix_kit_emails/releases/tag/v0.1.0
+[0.1.1]: https://github.com/BeamLabEU/phoenix_kit_emails/releases/tag/0.1.1
+[0.1.0]: https://github.com/BeamLabEU/phoenix_kit_emails/releases/tag/0.1.0
