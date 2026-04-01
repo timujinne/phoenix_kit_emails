@@ -885,6 +885,9 @@ defmodule PhoenixKit.Modules.Emails do
   def children, do: [PhoenixKit.Modules.Emails.Supervisor]
 
   @impl PhoenixKit.Module
+  def css_sources, do: [:phoenix_kit_emails]
+
+  @impl PhoenixKit.Module
   def route_module, do: PhoenixKit.Modules.Emails.Web.Routes
 
   @doc """
