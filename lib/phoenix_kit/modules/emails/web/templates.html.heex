@@ -95,7 +95,7 @@
             <label class="label">
               <span class="label-text">{gettext("Category")}</span>
             </label>
-            <select name="filter[category]" class="select select-bordered">
+            <select name="filter[category]" class="select">
               <option value="">{gettext("All Categories")}</option>
               <option value="system" selected={@filters.category == "system"}>
                 {gettext("System")}
@@ -117,7 +117,7 @@
             <label class="label">
               <span class="label-text">{gettext("Status")}</span>
             </label>
-            <select name="filter[status]" class="select select-bordered">
+            <select name="filter[status]" class="select">
               <option value="">{gettext("All Statuses")}</option>
               <option value="active" selected={@filters.status == "active"}>
                 {gettext("Active")}
@@ -136,7 +136,7 @@
             <label class="label">
               <span class="label-text">{gettext("Type")}</span>
             </label>
-            <select name="filter[is_system]" class="select select-bordered">
+            <select name="filter[is_system]" class="select">
               <option value="">{gettext("All Types")}</option>
               <option value="true" selected={@filters.is_system == "true"}>
                 {gettext("System")}

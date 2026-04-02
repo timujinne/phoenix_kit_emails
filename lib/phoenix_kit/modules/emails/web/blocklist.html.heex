@@ -64,7 +64,7 @@
           <select
             phx-change="filter_reason"
             name="reason"
-            class="select select-bordered select-sm"
+            class="select select-sm"
           >
             <option value="">{gettext("All Reasons")}</option>
             <%= for {reason, _count} <- Map.to_list(@statistics[:by_reason] || %{}) do %>
@@ -78,7 +78,7 @@
           <select
             phx-change="filter_status"
             name="status"
-            class="select select-bordered select-sm"
+            class="select select-sm"
           >
             <option value="all" selected={@status_filter == "all"}>
               {gettext("Active Only")}
@@ -140,7 +140,7 @@
               <label class="label">
                 <span class="label-text">{gettext("Reason")}</span>
               </label>
-              <select name="reason" class="select select-bordered" required>
+              <select name="reason" class="select" required>
                 <option value="manual_block">{gettext("Manual Block")}</option>
                 <option value="spam">{gettext("Spam")}</option>
                 <option value="bounce_limit">{gettext("Bounce Limit Exceeded")}</option>

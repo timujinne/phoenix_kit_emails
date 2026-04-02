@@ -116,7 +116,7 @@
                   </label>
                   <select
                     name="email_template[category]"
-                    class="select select-bordered"
+                    class="select"
                     disabled={(@mode == :edit and @template) && @template.is_system}
                   >
                     <option
@@ -166,7 +166,7 @@
                   <% current_source_module = Map.get(current_metadata, "source_module", "custom") %>
                   <select
                     name="email_template[metadata][source_module]"
-                    class="select select-bordered"
+                    class="select"
                   >
                     <option value="users" selected={current_source_module == "users"}>
                       {gettext("Users")}
@@ -198,7 +198,7 @@
                   </label>
                   <select
                     name="email_template[status]"
-                    class="select select-bordered"
+                    class="select"
                   >
                     <option
                       value="draft"
