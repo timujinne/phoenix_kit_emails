@@ -252,74 +252,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       sent_at: UtilsDate.utc_now()
     }
 
-    # Extract additional data from provider response
-    extraction_result = extract_provider_data(provider_response, log.uuid)
-
-    update_attrs =
-      case extraction_result do
-        %{message_id: aws_message_id} = provider_data when is_binary(aws_message_id) ->
-          Logger.info("EmailInterceptor: Storing AWS message_id in aws_message_id field", %{
-            log_uuid: log.uuid,
-            internal_message_id: log.message_id,
-            aws_message_id: aws_message_id
-          })
-
-          # Log successful extraction metric
-          log_extraction_metric(true, log.uuid, aws_message_id)
-
-          # Store the AWS message_id in the dedicated aws_message_id field
-          # Keep internal pk_ message_id in the message_id field for compatibility
-          # Store internal IDs and provider response in message_tags for debugging
-          updated_message_tags =
-            Map.merge(log.message_tags || %{}, %{
-              "internal_message_id" => log.message_id,
-              "aws_message_id" => aws_message_id,
-              # Store sanitized provider response for manual analysis
-              "provider_response_debug" => sanitize_provider_response(provider_response)
-            })
-
-          provider_data
-          # Remove message_id from provider_data
-          |> Map.delete(:message_id)
-          |> Map.merge(update_attrs)
-          # Store in dedicated field
-          |> Map.put(:aws_message_id, aws_message_id)
-          |> Map.put(:message_tags, updated_message_tags)
-
-        %{} = provider_data when map_size(provider_data) > 0 ->
-          # Log failed extraction metric - provider data exists but no message_id
-          log_extraction_metric(false, log.uuid, nil)
-
-          # Store full provider response for manual analysis
-          updated_message_tags =
-            Map.merge(log.message_tags || %{}, %{
-              "internal_message_id" => log.message_id,
-              "extraction_failed" => true,
-              "provider_response_debug" => sanitize_provider_response(provider_response)
-            })
-
-          Map.merge(update_attrs, provider_data)
-          |> Map.put(:message_tags, updated_message_tags)
-
-        _ ->
-          # Log failed extraction metric - no provider data at all
-          log_extraction_metric(false, log.uuid, nil)
-
-          Logger.warning("EmailInterceptor: No provider data extracted", %{
-            log_uuid: log.uuid,
-            response: inspect(provider_response) |> String.slice(0, 300)
-          })
-
-          # Store full provider response for manual analysis
-          updated_message_tags =
-            Map.merge(log.message_tags || %{}, %{
-              "internal_message_id" => log.message_id,
-              "extraction_failed" => true,
-              "provider_response_debug" => sanitize_provider_response(provider_response)
-            })
-
-          Map.put(update_attrs, :message_tags, updated_message_tags)
-      end
+    update_attrs = maybe_extract_provider_data(log, provider_response, update_attrs)
 
     case Log.update_log(log, update_attrs) do
       {:ok, updated_log} ->
@@ -367,6 +300,76 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   end
 
   ## --- Private Helper Functions ---
+
+  # Only AWS SES returns a MessageId we can recover; for Test/Local/SMTP/etc.
+  # the response carries no useful provider data and attempting extraction
+  # produces noisy warnings on every send.
+  defp maybe_extract_provider_data(
+         %Log{provider: "aws_ses"} = log,
+         provider_response,
+         update_attrs
+       ) do
+    extraction_result = extract_provider_data(provider_response, log.uuid)
+
+    case extraction_result do
+      %{message_id: aws_message_id} = provider_data when is_binary(aws_message_id) ->
+        Logger.info("EmailInterceptor: Storing AWS message_id in aws_message_id field", %{
+          log_uuid: log.uuid,
+          internal_message_id: log.message_id,
+          aws_message_id: aws_message_id
+        })
+
+        log_extraction_metric(true, log.uuid, aws_message_id)
+
+        # Store the AWS message_id in the dedicated aws_message_id field
+        # Keep internal pk_ message_id in the message_id field for compatibility
+        # Store internal IDs and provider response in message_tags for debugging
+        updated_message_tags =
+          Map.merge(log.message_tags || %{}, %{
+            "internal_message_id" => log.message_id,
+            "aws_message_id" => aws_message_id,
+            "provider_response_debug" => sanitize_provider_response(provider_response)
+          })
+
+        provider_data
+        |> Map.delete(:message_id)
+        |> Map.merge(update_attrs)
+        |> Map.put(:aws_message_id, aws_message_id)
+        |> Map.put(:message_tags, updated_message_tags)
+
+      %{} = provider_data when map_size(provider_data) > 0 ->
+        log_extraction_metric(false, log.uuid, nil)
+
+        updated_message_tags =
+          Map.merge(log.message_tags || %{}, %{
+            "internal_message_id" => log.message_id,
+            "extraction_failed" => true,
+            "provider_response_debug" => sanitize_provider_response(provider_response)
+          })
+
+        Map.merge(update_attrs, provider_data)
+        |> Map.put(:message_tags, updated_message_tags)
+
+      _ ->
+        log_extraction_metric(false, log.uuid, nil)
+
+        Logger.warning("EmailInterceptor: No provider data extracted", %{
+          log_uuid: log.uuid,
+          response: inspect(provider_response) |> String.slice(0, 300)
+        })
+
+        updated_message_tags =
+          Map.merge(log.message_tags || %{}, %{
+            "internal_message_id" => log.message_id,
+            "extraction_failed" => true,
+            "provider_response_debug" => sanitize_provider_response(provider_response)
+          })
+
+        Map.put(update_attrs, :message_tags, updated_message_tags)
+    end
+  end
+
+  defp maybe_extract_provider_data(_log, _provider_response, update_attrs), do: update_attrs
 
   # Extract comprehensive data from Swoosh.Email
   defp extract_email_data(%Email{} = email, opts) do
