@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.1.3"
+  @version "0.1.4"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do
@@ -23,7 +23,7 @@ defmodule PhoenixKitEmails.MixProject do
   end
 
   def application do
-    [extra_applications: [:logger]]
+    [extra_applications: [:logger, :gettext]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -41,6 +41,7 @@ defmodule PhoenixKitEmails.MixProject do
     [
       # Core
       {:phoenix_kit, "~> 1.7"},
+      {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},
       {:uuidv7, "~> 1.0"},
@@ -71,7 +72,7 @@ defmodule PhoenixKitEmails.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ~w(lib mix.exs README.md LICENSE.md CHANGELOG.md)
+      files: ~w(lib priv mix.exs README.md LICENSE.md CHANGELOG.md)
     ]
   end
 

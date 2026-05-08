@@ -1,0 +1,44 @@
+## "msgid"s in this file come from POT (.pot) files.
+##
+## Do not add, change, or remove `msgid`s manually here as
+## they're tied to the ones in the corresponding POT file
+## (with the same domain).
+##
+## Use `mix gettext.extract --merge` or `mix gettext.merge`
+## to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: et\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Emails"
+msgstr "E-kirjad"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Dashboard"
+msgstr "Töölaud"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Email Details"
+msgstr "E-kirja andmed"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Templates"
+msgstr "Mallid"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "New Template"
+msgstr "Uus mall"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Edit Template"
+msgstr "Muuda malli"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Queue"
+msgstr "Järjekord"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Blocklist"
+msgstr "Mustnimekiri"

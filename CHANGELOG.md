@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 - 2026-05-08
+
+### Added
+- Per-module Gettext backend (`PhoenixKit.Modules.Emails.Gettext`) with `en`/`ru`/`et` catalogues for all admin sidebar tab labels. Requires `phoenix_kit` release that ships the `gettext_backend` Tab API ([BeamLabEU/phoenix_kit#522](https://github.com/BeamLabEU/phoenix_kit/pull/522)); on older releases tabs render raw English (graceful degradation).
+
+### Fixed
+- Suppress `EmailInterceptor` Logger warnings when the configured Swoosh adapter is not AWS SES.
+
 ## 0.1.3 - 2026-04-12
 
 ### Fixed
