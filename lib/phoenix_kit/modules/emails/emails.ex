@@ -767,6 +767,7 @@ defmodule PhoenixKit.Modules.Emails do
         subtab_display: :when_active,
         highlight_with_subtabs: false,
         subtab_indent: "pl-4",
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.Metrics, :index}
       ),
       Tab.new!(
@@ -778,6 +779,7 @@ defmodule PhoenixKit.Modules.Emails do
         level: :admin,
         permission: "emails",
         parent: :admin_emails,
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.Metrics, :index}
       ),
       Tab.new!(
@@ -790,6 +792,7 @@ defmodule PhoenixKit.Modules.Emails do
         permission: "emails",
         parent: :admin_emails,
         match: :exact,
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.Emails, :index}
       ),
       Tab.new!(
@@ -802,6 +805,7 @@ defmodule PhoenixKit.Modules.Emails do
         permission: "emails",
         parent: :admin_emails,
         visible: false,
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.Details, :show}
       ),
       Tab.new!(
@@ -813,6 +817,7 @@ defmodule PhoenixKit.Modules.Emails do
         level: :admin,
         permission: "emails",
         parent: :admin_emails,
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.Templates, :index}
       ),
       Tab.new!(
@@ -825,6 +830,7 @@ defmodule PhoenixKit.Modules.Emails do
         permission: "emails",
         parent: :admin_emails,
         visible: false,
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.TemplateEditor, :new}
       ),
       Tab.new!(
@@ -837,6 +843,7 @@ defmodule PhoenixKit.Modules.Emails do
         permission: "emails",
         parent: :admin_emails,
         visible: false,
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.TemplateEditor, :edit}
       ),
       Tab.new!(
@@ -848,6 +855,7 @@ defmodule PhoenixKit.Modules.Emails do
         level: :admin,
         permission: "emails",
         parent: :admin_emails,
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.Queue, :index}
       ),
       Tab.new!(
@@ -859,6 +867,7 @@ defmodule PhoenixKit.Modules.Emails do
         level: :admin,
         permission: "emails",
         parent: :admin_emails,
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {Web.Blocklist, :index}
       )
     ]
@@ -876,6 +885,7 @@ defmodule PhoenixKit.Modules.Emails do
         level: :admin,
         parent: :admin_settings,
         permission: "emails",
+        gettext_backend: PhoenixKit.Modules.Emails.Gettext,
         live_view: {PhoenixKit.Modules.Emails.Web.Settings, :index}
       )
     ]

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.4 - 2026-05-08
+
+### Added
+- Per-module Gettext backend (`PhoenixKit.Modules.Emails.Gettext`) with `en`/`ru`/`et` catalogues for all admin sidebar tab labels. Requires `phoenix_kit` release that ships the `gettext_backend` Tab API ([BeamLabEU/phoenix_kit#522](https://github.com/BeamLabEU/phoenix_kit/pull/522)); on older releases tabs render raw English (graceful degradation).
+
+## 0.1.3 - 2026-04-12
+
+### Fixed
+- Add routing anti-pattern warning to AGENTS.md
+
+
 All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/).

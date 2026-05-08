@@ -1,0 +1,43 @@
+## "msgid"s in this file come from POT (.pot) files.
+##
+## Do not add, change, or remove `msgid`s manually here as
+## they're tied to the ones in the corresponding POT file
+## (with the same domain).
+##
+## Use `mix gettext.extract --merge` or `mix gettext.merge`
+## to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: en\n"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Emails"
+msgstr "Emails"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Email Details"
+msgstr "Email Details"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Templates"
+msgstr "Templates"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "New Template"
+msgstr "New Template"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Edit Template"
+msgstr "Edit Template"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Queue"
+msgstr "Queue"
+
+#: lib/phoenix_kit/modules/emails/emails.ex
+msgid "Blocklist"
+msgstr "Blocklist"
