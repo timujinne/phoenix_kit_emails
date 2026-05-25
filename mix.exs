@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.1.5"
+  @version "0.1.6"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do
@@ -33,7 +33,11 @@ defmodule PhoenixKitEmails.MixProject do
     [
       quality: ["format", "credo --strict", "dialyzer"],
       "quality.ci": ["format --check-formatted", "credo --strict", "dialyzer"],
-      precommit: ["compile --force --warnings-as-errors", "deps.unlock --check-unused", "quality.ci"]
+      precommit: [
+        "compile --force --warnings-as-errors",
+        "deps.unlock --check-unused",
+        "quality.ci"
+      ]
     ]
   end
 
