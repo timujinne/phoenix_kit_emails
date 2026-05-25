@@ -404,7 +404,7 @@
                             <div class="font-medium text-sm">{log.to}</div>
                             <%= if log.user_uuid do %>
                               <div class="badge badge-ghost badge-xs h-auto">
-                                User #{log.user_uuid}
+                                {gettext("User")} {log.user_uuid}
                               </div>
                             <% end %>
                           </div>

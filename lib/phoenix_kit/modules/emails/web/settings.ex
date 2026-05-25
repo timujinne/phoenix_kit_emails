@@ -33,6 +33,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
   """
 
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
   import PhoenixKitWeb.Components.Core.Icon
   import PhoenixKitWeb.Components.Core.AWSCredentialsVerify
   import PhoenixKitWeb.Components.Core.AWSRegionSelect
