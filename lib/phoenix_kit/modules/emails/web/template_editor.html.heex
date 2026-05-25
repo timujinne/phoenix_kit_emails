@@ -308,7 +308,11 @@
                 <% end %>
                 <label class="label">
                   <span class="label-text-alt">
-                    {gettext("Use")} {"{{variable}}"} {gettext("syntax for dynamic content")}
+                    {Phoenix.HTML.raw(
+                      gettext("Use <code>%{var}</code> syntax for dynamic content",
+                        var: "{{variable}}"
+                      )
+                    )}
                   </span>
                 </label>
               </div>
@@ -416,10 +420,14 @@
                   <.icon name="hero-code-bracket" class="w-12 h-12 mx-auto mb-3 opacity-30" />
                   <div class="font-medium mb-2">{gettext("No variables found in template")}</div>
                   <div class="text-sm">
-                    {gettext("Use")} {"{{variable_name}}"} {gettext("syntax in subject or body to add dynamic variables.")}
+                    {Phoenix.HTML.raw(
+                      gettext("Use <code>%{var}</code> syntax in subject or body to add dynamic variables.",
+                        var: "{{variable_name}}"
+                      )
+                    )}
                   </div>
                   <div class="text-sm mt-1">
-                    {gettext("Example:")} {"{{user_name}}"}, {"{{email}}"}, {"{{url}}"}
+                    {gettext("Example:")} <code>{"{{user_name}}"}</code>, <code>{"{{email}}"}</code>, <code>{"{{url}}"}</code>
                   </div>
                 </div>
               <% end %>

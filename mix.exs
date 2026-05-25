@@ -40,7 +40,7 @@ defmodule PhoenixKitEmails.MixProject do
   defp deps do
     [
       # Core
-      {:phoenix_kit, "~> 1.7"},
+      {:phoenix_kit, "~> 1.7.106"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},

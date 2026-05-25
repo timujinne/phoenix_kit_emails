@@ -406,19 +406,28 @@
                   <h4 class="font-semibold mb-2 text-base-content">{gettext("2. Configure Credentials")}</h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
-                      {gettext("Enter Access Key ID (20 characters, e.g.,")}
-                      <code>AKIAIOSFODNN7EXAMPLE</code>)
+                      {Phoenix.HTML.raw(
+                        gettext("Enter Access Key ID (20 characters, e.g., <code>%{example}</code>)",
+                          example: "AKIAIOSFODNN7EXAMPLE"
+                        )
+                      )}
                     </li>
                     <li>{gettext("Enter Secret Access Key")}</li>
                     <li>{gettext("Enter AWS Region manually (e.g., eu-north-1)")}</li>
                     <li>
-                      {gettext("Click")} <strong>"{gettext("Verify Credentials")}"</strong>
-                      {gettext("to test connectivity")}
+                      {Phoenix.HTML.raw(
+                        gettext("Click <strong>\"%{button}\"</strong> to test connectivity",
+                          button: gettext("Verify Credentials")
+                        )
+                      )}
                     </li>
                     <li>
                       <em>{gettext("Optional:")}</em>
-                      {gettext("Click")} <strong>"{gettext("Load regions")}"</strong>
-                      {gettext("to see all available regions")}
+                      {Phoenix.HTML.raw(
+                        gettext("Click <strong>\"%{button}\"</strong> to see all available regions",
+                          button: gettext("Load regions")
+                        )
+                      )}
                     </li>
                   </ol>
                 </div>
@@ -430,16 +439,22 @@
                   </h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
-                      {gettext("Click")} <strong>"{gettext("Setup AWS Infrastructure")}"</strong>
-                      {gettext("to create SNS/SQS resources")}
+                      {Phoenix.HTML.raw(
+                        gettext("Click <strong>\"%{button}\"</strong> to create SNS/SQS resources",
+                          button: gettext("Setup AWS Infrastructure")
+                        )
+                      )}
                     </li>
                     <li>{gettext("Wait for setup completion (typically 30-60 seconds)")}</li>
                     <li>
                       {gettext("All created resources will be automatically filled in the form below")}
                     </li>
                     <li>
-                      {gettext("Click")} <strong>"{gettext("Save AWS Settings")}"</strong>
-                      {gettext("one more time to persist everything")}
+                      {Phoenix.HTML.raw(
+                        gettext("Click <strong>\"%{button}\"</strong> one more time to persist everything",
+                          button: gettext("Save AWS Settings")
+                        )
+                      )}
                     </li>
                   </ol>
                 </div>
@@ -494,8 +509,9 @@
                     <div class="text-base-content/80">
                       <strong class="text-base-content">{gettext("Need more help?")}</strong>
                       <p class="mt-1">
-                        {gettext("See")} <code>guides/aws_email_setup.md</code>
-                        {gettext("for comprehensive documentation including security best practices, cost optimization, and troubleshooting.")}
+                        {Phoenix.HTML.raw(
+                          gettext("See <code>guides/aws_email_setup.md</code> for comprehensive documentation including security best practices, cost optimization, and troubleshooting.")
+                        )}
                       </p>
                     </div>
                   </div>
