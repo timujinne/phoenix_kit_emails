@@ -137,7 +137,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       nil ->
         {:noreply,
          socket
-         |> put_flash(:error, "Template not found")}
+         |> put_flash(:error, gettext("Template not found"))}
 
       template ->
         {:noreply,
@@ -189,13 +189,16 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
            socket
            |> assign(:show_clone_modal, false)
            |> assign(:clone_template, nil)
-           |> put_flash(:info, "Template cloned successfully as '#{new_template.name}'")
+           |> put_flash(
+             :info,
+             gettext("Template cloned successfully as '%{name}'", name: new_template.name)
+           )
            |> push_navigate(to: Routes.path("/admin/emails/templates/#{new_template.uuid}/edit"))}
 
         {:error, _changeset} ->
           {:noreply,
            socket
-           |> put_flash(:error, "Failed to clone template")}
+           |> put_flash(:error, gettext("Failed to clone template"))}
       end
     else
       # Show validation errors
@@ -222,26 +225,29 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       nil ->
         {:noreply,
          socket
-         |> put_flash(:error, "Template not found")}
+         |> put_flash(:error, gettext("Template not found"))}
 
       %Template{is_system: true} ->
         {:noreply,
          socket
-         |> put_flash(:error, "System templates cannot be archived")}
+         |> put_flash(:error, gettext("System templates cannot be archived"))}
 
       template ->
         case Templates.archive_template(template) do
           {:ok, _archived_template} ->
             {:noreply,
              socket
-             |> put_flash(:info, "Template '#{template.name}' archived successfully")
+             |> put_flash(
+               :info,
+               gettext("Template '%{name}' archived successfully", name: template.name)
+             )
              |> load_templates()
              |> load_stats()}
 
           {:error, _changeset} ->
             {:noreply,
              socket
-             |> put_flash(:error, "Failed to archive template")}
+             |> put_flash(:error, gettext("Failed to archive template"))}
         end
     end
   end
@@ -252,21 +258,24 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       nil ->
         {:noreply,
          socket
-         |> put_flash(:error, "Template not found")}
+         |> put_flash(:error, gettext("Template not found"))}
 
       template ->
         case Templates.activate_template(template) do
           {:ok, _activated_template} ->
             {:noreply,
              socket
-             |> put_flash(:info, "Template '#{template.name}' activated successfully")
+             |> put_flash(
+               :info,
+               gettext("Template '%{name}' activated successfully", name: template.name)
+             )
              |> load_templates()
              |> load_stats()}
 
           {:error, _changeset} ->
             {:noreply,
              socket
-             |> put_flash(:error, "Failed to activate template")}
+             |> put_flash(:error, gettext("Failed to activate template"))}
         end
     end
   end
@@ -303,31 +312,34 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       nil ->
         {:noreply,
          socket
-         |> put_flash(:error, "Template not found")}
+         |> put_flash(:error, gettext("Template not found"))}
 
       %Template{is_system: true} ->
         {:noreply,
          socket
-         |> put_flash(:error, "System templates cannot be deleted")}
+         |> put_flash(:error, gettext("System templates cannot be deleted"))}
 
       template ->
         case Templates.delete_template(template) do
           {:ok, _deleted_template} ->
             {:noreply,
              socket
-             |> put_flash(:info, "Template '#{template.name}' deleted successfully")
+             |> put_flash(
+               :info,
+               gettext("Template '%{name}' deleted successfully", name: template.name)
+             )
              |> load_templates()
              |> load_stats()}
 
           {:error, :system_template_protected} ->
             {:noreply,
              socket
-             |> put_flash(:error, "System templates cannot be deleted")}
+             |> put_flash(:error, gettext("System templates cannot be deleted"))}
 
           {:error, _changeset} ->
             {:noreply,
              socket
-             |> put_flash(:error, "Failed to delete template")}
+             |> put_flash(:error, gettext("Failed to delete template"))}
         end
     end
   end

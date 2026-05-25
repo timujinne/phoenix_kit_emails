@@ -72,7 +72,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email is not enabled")
+       |> put_flash(:error, gettext("Email is not enabled"))
        |> push_navigate(to: Routes.path("/admin/emails"))}
     end
   end
@@ -124,7 +124,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
           {:noreply, socket}
       end
     else
-      {:noreply, put_flash(socket, :error, "❌ Email log not found")}
+      {:noreply, put_flash(socket, :error, "❌ " <> gettext("Email log not found"))}
     end
   end
 
@@ -190,7 +190,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
 
         socket
         |> assign(:loading, false)
-        |> put_flash(:error, "Failed to load email data")
+        |> put_flash(:error, gettext("Failed to load email data"))
     end
   end
 

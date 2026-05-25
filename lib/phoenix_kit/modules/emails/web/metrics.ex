@@ -71,7 +71,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email is not enabled")
+       |> put_flash(:error, gettext("Email is not enabled"))
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end
@@ -125,7 +125,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
       _ ->
         {:noreply,
          socket
-         |> put_flash(:error, "Invalid date range")}
+         |> put_flash(:error, gettext("Invalid date range"))}
     end
   end
 
@@ -159,7 +159,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
       _ ->
         {:noreply,
          socket
-         |> put_flash(:error, "Unsupported export format")}
+         |> put_flash(:error, gettext("Unsupported export format"))}
     end
   end
 

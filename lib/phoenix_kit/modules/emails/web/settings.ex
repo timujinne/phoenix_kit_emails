@@ -130,15 +130,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> put_flash(
             :info,
             if(new_save_body,
-              do: "Email body saving enabled",
-              else: "Email body saving disabled"
+              do: gettext("Email body saving enabled"),
+              else: gettext("Email body saving disabled")
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update email body saving setting")
+        socket = put_flash(socket, :error, gettext("Failed to update email body saving setting"))
         {:noreply, socket}
     end
   end
@@ -157,15 +157,17 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> put_flash(
             :info,
             if(new_save_headers,
-              do: "Email headers saving enabled",
-              else: "Email headers saving disabled"
+              do: gettext("Email headers saving enabled"),
+              else: gettext("Email headers saving disabled")
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update email headers saving setting")
+        socket =
+          put_flash(socket, :error, gettext("Failed to update email headers saving setting"))
+
         {:noreply, socket}
     end
   end
@@ -184,8 +186,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> put_flash(
             :info,
             if(new_ses_events,
-              do: "AWS SES events tracking enabled",
-              else: "AWS SES events tracking disabled"
+              do: gettext("AWS SES events tracking enabled"),
+              else: gettext("AWS SES events tracking disabled")
             )
           )
 
@@ -195,7 +197,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update AWS SES events tracking")
+        socket = put_flash(socket, :error, gettext("Failed to update AWS SES events tracking"))
         {:noreply, socket}
     end
   end
@@ -211,17 +213,22 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             socket =
               socket
               |> assign(:email_sampling_rate, sampling_rate)
-              |> put_flash(:info, "Email sampling rate updated to #{sampling_rate}%")
+              |> put_flash(
+                :info,
+                gettext("Email sampling rate updated to %{rate}%", rate: sampling_rate)
+              )
 
             {:noreply, socket}
 
           {:error, _changeset} ->
-            socket = put_flash(socket, :error, "Failed to update email sampling rate")
+            socket = put_flash(socket, :error, gettext("Failed to update email sampling rate"))
             {:noreply, socket}
         end
 
       _ ->
-        socket = put_flash(socket, :error, "Please enter a valid number between 0 and 100")
+        socket =
+          put_flash(socket, :error, gettext("Please enter a valid number between 0 and 100"))
+
         {:noreply, socket}
     end
   end
@@ -245,15 +252,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> put_flash(
             :info,
             if(new_sqs_polling,
-              do: "SQS polling enabled",
-              else: "SQS polling disabled"
+              do: gettext("SQS polling enabled"),
+              else: gettext("SQS polling disabled")
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update SQS polling setting")
+        socket = put_flash(socket, :error, gettext("Failed to update SQS polling setting"))
         {:noreply, socket}
     end
   end
@@ -269,17 +276,22 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             socket =
               socket
               |> assign(:email_retention_days, retention_days)
-              |> put_flash(:info, "Email retention period updated to #{retention_days} days")
+              |> put_flash(
+                :info,
+                gettext("Email retention period updated to %{days} days", days: retention_days)
+              )
 
             {:noreply, socket}
 
           {:error, _changeset} ->
-            socket = put_flash(socket, :error, "Failed to update email retention period")
+            socket = put_flash(socket, :error, gettext("Failed to update email retention period"))
             {:noreply, socket}
         end
 
       _ ->
-        socket = put_flash(socket, :error, "Please enter a valid number between 1 and 365")
+        socket =
+          put_flash(socket, :error, gettext("Please enter a valid number between 1 and 365"))
+
         {:noreply, socket}
     end
   end
@@ -299,7 +311,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
               socket
               |> assign(:email_compress_body, compress_days)
               |> assign(:updating_compress_days, false)
-              |> put_flash(:info, "✅ Compression setting updated to #{compress_days} days")
+              |> put_flash(
+                :info,
+                "✅ " <>
+                  gettext("Compression setting updated to %{days} days", days: compress_days)
+              )
 
             {:noreply, socket}
 
@@ -307,7 +323,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             socket =
               socket
               |> assign(:updating_compress_days, false)
-              |> put_flash(:error, "❌ Failed to update compression days")
+              |> put_flash(:error, "❌ " <> gettext("Failed to update compression days"))
 
             {:noreply, socket}
         end
@@ -316,7 +332,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
         socket =
           socket
           |> assign(:updating_compress_days, false)
-          |> put_flash(:error, "⚠️ Please enter a valid number between 7 and 365")
+          |> put_flash(
+            :error,
+            "⚠️ " <> gettext("Please enter a valid number between 7 and 365")
+          )
 
         {:noreply, socket}
     end
@@ -347,15 +366,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> put_flash(
             :info,
             if(new_s3_archival,
-              do: "S3 archival enabled",
-              else: "S3 archival disabled"
+              do: gettext("S3 archival enabled"),
+              else: gettext("S3 archival disabled")
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update S3 archival setting")
+        socket = put_flash(socket, :error, gettext("Failed to update S3 archival setting"))
         {:noreply, socket}
     end
   end
@@ -371,17 +390,22 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             socket =
               socket
               |> assign(:sqs_max_messages_per_poll, max_messages)
-              |> put_flash(:info, "SQS max messages updated to #{max_messages}")
+              |> put_flash(
+                :info,
+                gettext("SQS max messages updated to %{count}", count: max_messages)
+              )
 
             {:noreply, socket}
 
           {:error, _changeset} ->
-            socket = put_flash(socket, :error, "Failed to update SQS max messages")
+            socket = put_flash(socket, :error, gettext("Failed to update SQS max messages"))
             {:noreply, socket}
         end
 
       _ ->
-        socket = put_flash(socket, :error, "Please enter a valid number between 1 and 10")
+        socket =
+          put_flash(socket, :error, gettext("Please enter a valid number between 1 and 10"))
+
         {:noreply, socket}
     end
   end
@@ -397,18 +421,25 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             socket =
               socket
               |> assign(:sqs_visibility_timeout, timeout)
-              |> put_flash(:info, "SQS visibility timeout updated to #{timeout} seconds")
+              |> put_flash(
+                :info,
+                gettext("SQS visibility timeout updated to %{seconds} seconds", seconds: timeout)
+              )
 
             {:noreply, socket}
 
           {:error, _changeset} ->
-            socket = put_flash(socket, :error, "Failed to update SQS visibility timeout")
+            socket = put_flash(socket, :error, gettext("Failed to update SQS visibility timeout"))
             {:noreply, socket}
         end
 
       _ ->
         socket =
-          put_flash(socket, :error, "Please enter a valid number between 30 and 43200 seconds")
+          put_flash(
+            socket,
+            :error,
+            gettext("Please enter a valid number between 30 and 43200 seconds")
+          )
 
         {:noreply, socket}
     end
@@ -577,7 +608,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           socket
           |> assign(:aws_settings, new_aws_settings)
           |> assign(:saving, false)
-          |> put_flash(:info, "AWS settings saved successfully")
+          |> put_flash(:info, gettext("AWS settings saved successfully"))
 
         {:noreply, socket}
 
@@ -585,7 +616,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
         socket =
           socket
           |> assign(:saving, false)
-          |> put_flash(:error, "Failed to save AWS settings")
+          |> put_flash(:error, gettext("Failed to save AWS settings"))
 
         {:noreply, socket}
     end
@@ -610,7 +641,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           socket
           |> assign(:sender_settings, new_sender_settings)
           |> assign(:saving_sender, false)
-          |> put_flash(:info, "Sender settings saved successfully")
+          |> put_flash(:info, gettext("Sender settings saved successfully"))
 
         {:noreply, socket}
 
@@ -618,7 +649,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
         socket =
           socket
           |> assign(:saving_sender, false)
-          |> put_flash(:error, "Failed to save sender settings")
+          |> put_flash(:error, gettext("Failed to save sender settings"))
 
         {:noreply, socket}
     end
@@ -699,7 +730,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
         socket =
           socket
           |> assign(:regions_loaded, false)
-          |> put_flash(:error, "Failed to load regions: #{reason}")
+          |> put_flash(:error, gettext("Failed to load regions: %{reason}", reason: reason))
 
         {:noreply, socket}
 
@@ -707,7 +738,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
         socket =
           socket
           |> assign(:regions_loaded, false)
-          |> put_flash(:error, "Region loading timed out.")
+          |> put_flash(:error, gettext("Region loading timed out."))
 
         {:noreply, socket}
     end
@@ -733,7 +764,12 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> assign(:running_cleanup, false)
           |> put_flash(
             :info,
-            "✅ Cleanup completed successfully! Deleted #{deleted_count} old email logs (older than #{retention_days} days)."
+            "✅ " <>
+              gettext(
+                "Cleanup completed successfully! Deleted %{count} old email logs (older than %{days} days).",
+                count: deleted_count,
+                days: retention_days
+              )
           )
 
         {:noreply, socket}
@@ -744,7 +780,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> assign(:running_cleanup, false)
           |> put_flash(
             :error,
-            "⚠️ Cleanup operation timed out. Please try again or run it manually via mix task."
+            "⚠️ " <>
+              gettext(
+                "Cleanup operation timed out. Please try again or run it manually via mix task."
+              )
           )
 
         {:noreply, socket}
@@ -753,7 +792,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
         socket =
           socket
           |> assign(:running_cleanup, false)
-          |> put_flash(:error, "❌ Failed to run cleanup. Please check logs for details.")
+          |> put_flash(
+            :error,
+            "❌ " <> gettext("Failed to run cleanup. Please check logs for details.")
+          )
 
         {:noreply, socket}
     end
@@ -779,9 +821,18 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           if is_number(bytes_saved) do
             size_mb = Float.round(bytes_saved / 1024 / 1024, 2)
 
-            "✅ Compression completed! Compressed #{compressed_count} email bodies, saved ~#{size_mb} MB of storage."
+            "✅ " <>
+              gettext(
+                "Compression completed! Compressed %{count} email bodies, saved ~%{size} MB of storage.",
+                count: compressed_count,
+                size: size_mb
+              )
           else
-            "✅ Compression completed! Compressed #{compressed_count} email bodies and freed up storage space."
+            "✅ " <>
+              gettext(
+                "Compression completed! Compressed %{count} email bodies and freed up storage space.",
+                count: compressed_count
+              )
           end
 
         socket =
@@ -797,7 +848,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           |> assign(:running_compression, false)
           |> put_flash(
             :error,
-            "⚠️ Compression operation timed out. Please try again or run it manually via mix task."
+            "⚠️ " <>
+              gettext(
+                "Compression operation timed out. Please try again or run it manually via mix task."
+              )
           )
 
         {:noreply, socket}
@@ -806,7 +860,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
         socket =
           socket
           |> assign(:running_compression, false)
-          |> put_flash(:error, "❌ Failed to run compression. Please check logs for details.")
+          |> put_flash(
+            :error,
+            "❌ " <> gettext("Failed to run compression. Please check logs for details.")
+          )
 
         {:noreply, socket}
     end
@@ -833,7 +890,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             |> assign(:running_archival, false)
             |> put_flash(
               :info,
-              "✅ S3 archival completed successfully! Archived #{count} email logs to S3."
+              "✅ " <>
+                gettext(
+                  "S3 archival completed successfully! Archived %{count} email logs to S3.",
+                  count: count
+                )
             )
 
           {:noreply, socket}
@@ -842,7 +903,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           socket =
             socket
             |> assign(:running_archival, false)
-            |> put_flash(:info, "ℹ️ No emails to archive at this time.")
+            |> put_flash(:info, "ℹ️ " <> gettext("No emails to archive at this time."))
 
           {:noreply, socket}
 
@@ -852,7 +913,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             |> assign(:running_archival, false)
             |> put_flash(
               :error,
-              "❌ S3 is not configured. Please configure AWS S3 bucket settings first."
+              "❌ " <>
+                gettext("S3 is not configured. Please configure AWS S3 bucket settings first.")
             )
 
           {:noreply, socket}
@@ -863,7 +925,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             |> assign(:running_archival, false)
             |> put_flash(
               :error,
-              "❌ S3 bucket not configured. Please set 'email_s3_bucket' setting."
+              "❌ " <> gettext("S3 bucket not configured. Please set 'email_s3_bucket' setting.")
             )
 
           {:noreply, socket}
@@ -872,7 +934,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           socket =
             socket
             |> assign(:running_archival, false)
-            |> put_flash(:error, "❌ S3 archival failed: #{inspect(reason)}")
+            |> put_flash(
+              :error,
+              "❌ " <> gettext("S3 archival failed: %{reason}", reason: inspect(reason))
+            )
 
           {:noreply, socket}
 
@@ -882,7 +947,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
             |> assign(:running_archival, false)
             |> put_flash(
               :error,
-              "⚠️ S3 archival timed out. Large archives may take longer. Check logs for progress."
+              "⚠️ " <>
+                gettext(
+                  "S3 archival timed out. Large archives may take longer. Check logs for progress."
+                )
             )
 
           {:noreply, socket}
@@ -891,13 +959,20 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
           socket =
             socket
             |> assign(:running_archival, false)
-            |> put_flash(:error, "❌ Failed to run S3 archival. Please check logs for details.")
+            |> put_flash(
+              :error,
+              "❌ " <> gettext("Failed to run S3 archival. Please check logs for details.")
+            )
 
           {:noreply, socket}
       end
     else
       socket =
-        put_flash(socket, :error, "❌ S3 archival is disabled. Please enable it first.")
+        put_flash(
+          socket,
+          :error,
+          "❌ " <> gettext("S3 archival is disabled. Please enable it first.")
+        )
 
       {:noreply, socket}
     end

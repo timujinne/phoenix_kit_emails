@@ -72,15 +72,15 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
           |> put_flash(
             :info,
             if(new_save_body,
-              do: "Email body saving enabled",
-              else: "Email body saving disabled"
+              do: gettext("Email body saving enabled"),
+              else: gettext("Email body saving disabled")
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update email body saving setting")
+        socket = put_flash(socket, :error, gettext("Failed to update email body saving setting"))
         {:noreply, socket}
     end
   end
@@ -99,15 +99,15 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
           |> put_flash(
             :info,
             if(new_ses_events,
-              do: "AWS SES events tracking enabled",
-              else: "AWS SES events tracking disabled"
+              do: gettext("AWS SES events tracking enabled"),
+              else: gettext("AWS SES events tracking disabled")
             )
           )
 
         {:noreply, socket}
 
       {:error, _changeset} ->
-        socket = put_flash(socket, :error, "Failed to update AWS SES events tracking")
+        socket = put_flash(socket, :error, gettext("Failed to update AWS SES events tracking"))
         {:noreply, socket}
     end
   end
@@ -120,17 +120,22 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
             socket =
               socket
               |> assign(:email_tracking_retention_days, retention_days)
-              |> put_flash(:info, "Email retention period updated to #{retention_days} days")
+              |> put_flash(
+                :info,
+                gettext("Email retention period updated to %{days} days", days: retention_days)
+              )
 
             {:noreply, socket}
 
           {:error, _changeset} ->
-            socket = put_flash(socket, :error, "Failed to update email retention period")
+            socket = put_flash(socket, :error, gettext("Failed to update email retention period"))
             {:noreply, socket}
         end
 
       _ ->
-        socket = put_flash(socket, :error, "Please enter a valid number between 1 and 365")
+        socket =
+          put_flash(socket, :error, gettext("Please enter a valid number between 1 and 365"))
+
         {:noreply, socket}
     end
   end
