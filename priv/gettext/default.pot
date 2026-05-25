@@ -2399,3 +2399,479 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Use <code>%{var}</code> syntax in subject or body to add dynamic variables."
 msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:103
+#: lib/phoenix_kit/modules/emails/web/settings.ex:190
+#, elixir-autogen, elixir-format
+msgid "AWS SES events tracking disabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:102
+#: lib/phoenix_kit/modules/emails/web/settings.ex:189
+#, elixir-autogen, elixir-format
+msgid "AWS SES events tracking enabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:611
+#, elixir-autogen, elixir-format
+msgid "AWS settings saved successfully"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:768
+#, elixir-autogen, elixir-format
+msgid "Cleanup completed successfully! Deleted %{count} old email logs (older than %{days} days)."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:784
+#, elixir-autogen, elixir-format
+msgid "Cleanup operation timed out. Please try again or run it manually via mix task."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/emails.ex:277
+#, elixir-autogen, elixir-format
+msgid "Columns reset to default"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:832
+#, elixir-autogen, elixir-format
+msgid "Compression completed! Compressed %{count} email bodies and freed up storage space."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:825
+#, elixir-autogen, elixir-format
+msgid "Compression completed! Compressed %{count} email bodies, saved ~%{size} MB of storage."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:852
+#, elixir-autogen, elixir-format
+msgid "Compression operation timed out. Please try again or run it manually via mix task."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:317
+#, elixir-autogen, elixir-format
+msgid "Compression setting updated to %{days} days"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/queue.ex:306
+#, elixir-autogen, elixir-format
+msgid "Deleted %{success} of %{total} emails"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:191
+#, elixir-autogen, elixir-format
+msgid "Email address blocked successfully"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:207
+#, elixir-autogen, elixir-format
+msgid "Email address unblocked successfully"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:76
+#: lib/phoenix_kit/modules/emails/web/settings.ex:134
+#, elixir-autogen, elixir-format
+msgid "Email body saving disabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:75
+#: lib/phoenix_kit/modules/emails/web/settings.ex:133
+#, elixir-autogen, elixir-format
+msgid "Email body saving enabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:161
+#, elixir-autogen, elixir-format
+msgid "Email headers saving disabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:160
+#, elixir-autogen, elixir-format
+msgid "Email headers saving enabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:92
+#: lib/phoenix_kit/modules/emails/web/details.ex:75
+#: lib/phoenix_kit/modules/emails/web/metrics.ex:74
+#: lib/phoenix_kit/modules/emails/web/queue.ex:79
+#, elixir-autogen, elixir-format
+msgid "Email is not enabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/details.ex:127
+#, elixir-autogen, elixir-format
+msgid "Email log not found"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/emails.ex:83
+#, elixir-autogen, elixir-format
+msgid "Email management is not enabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/queue.ex:100
+#, elixir-autogen, elixir-format
+msgid "Email queued for retry"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:125
+#: lib/phoenix_kit/modules/emails/web/settings.ex:281
+#, elixir-autogen, elixir-format
+msgid "Email retention period updated to %{days} days"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:218
+#, elixir-autogen, elixir-format
+msgid "Email sampling rate updated to %{rate}%"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/emails.ex:344
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:412
+#, elixir-autogen, elixir-format
+msgid "Error sending test email: %{message}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:278
+#, elixir-autogen, elixir-format
+msgid "Failed to activate template"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:250
+#, elixir-autogen, elixir-format
+msgid "Failed to archive template"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:197
+#, elixir-autogen, elixir-format
+msgid "Failed to block email: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:201
+#, elixir-autogen, elixir-format
+msgid "Failed to clone template"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:342
+#, elixir-autogen, elixir-format
+msgid "Failed to delete template"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/details.ex:193
+#, elixir-autogen, elixir-format
+msgid "Failed to load email data"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:733
+#, elixir-autogen, elixir-format
+msgid "Failed to load regions: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/emails.ex:282
+#, elixir-autogen, elixir-format
+msgid "Failed to reset columns"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/queue.ex:106
+#, elixir-autogen, elixir-format
+msgid "Failed to retry email: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:964
+#, elixir-autogen, elixir-format
+msgid "Failed to run S3 archival. Please check logs for details."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:797
+#, elixir-autogen, elixir-format
+msgid "Failed to run cleanup. Please check logs for details."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:865
+#, elixir-autogen, elixir-format
+msgid "Failed to run compression. Please check logs for details."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:619
+#, elixir-autogen, elixir-format
+msgid "Failed to save AWS settings"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/emails.ex:263
+#, elixir-autogen, elixir-format
+msgid "Failed to save column order"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/emails.ex:245
+#, elixir-autogen, elixir-format
+msgid "Failed to save column preferences"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:652
+#, elixir-autogen, elixir-format
+msgid "Failed to save sender settings"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/emails.ex:326
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:402
+#, elixir-autogen, elixir-format
+msgid "Failed to send test email: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:110
+#: lib/phoenix_kit/modules/emails/web/settings.ex:200
+#, elixir-autogen, elixir-format
+msgid "Failed to update AWS SES events tracking"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:377
+#, elixir-autogen, elixir-format
+msgid "Failed to update S3 archival setting"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:401
+#, elixir-autogen, elixir-format
+msgid "Failed to update SQS max messages"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:263
+#, elixir-autogen, elixir-format
+msgid "Failed to update SQS polling setting"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:432
+#, elixir-autogen, elixir-format
+msgid "Failed to update SQS visibility timeout"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:326
+#, elixir-autogen, elixir-format
+msgid "Failed to update compression days"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:83
+#: lib/phoenix_kit/modules/emails/web/settings.ex:141
+#, elixir-autogen, elixir-format
+msgid "Failed to update email body saving setting"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:169
+#, elixir-autogen, elixir-format
+msgid "Failed to update email headers saving setting"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:131
+#: lib/phoenix_kit/modules/emails/web/settings.ex:287
+#, elixir-autogen, elixir-format
+msgid "Failed to update email retention period"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:224
+#, elixir-autogen, elixir-format
+msgid "Failed to update email sampling rate"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:317
+#, elixir-autogen, elixir-format
+msgid "Import failed: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:263
+#: lib/phoenix_kit/modules/emails/web/queue.ex:160
+#, elixir-autogen, elixir-format
+msgid "Invalid bulk action"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/metrics.ex:128
+#, elixir-autogen, elixir-format
+msgid "Invalid date range"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:906
+#, elixir-autogen, elixir-format
+msgid "No emails to archive at this time."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:230
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid number between 0 and 100"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:407
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid number between 1 and 10"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/email_tracking.ex:137
+#: lib/phoenix_kit/modules/emails/web/settings.ex:293
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid number between 1 and 365"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:441
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid number between 30 and 43200 seconds"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:337
+#, elixir-autogen, elixir-format
+msgid "Please enter a valid number between 7 and 365"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/queue.ex:169
+#, elixir-autogen, elixir-format
+msgid "Rate limits reset"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:741
+#, elixir-autogen, elixir-format
+msgid "Region loading timed out."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:411
+#, elixir-autogen, elixir-format
+msgid "Removed %{success} of %{total} emails from blocklist"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/queue.ex:265
+#, elixir-autogen, elixir-format
+msgid "Retried %{success} of %{total} emails"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:894
+#, elixir-autogen, elixir-format
+msgid "S3 archival completed successfully! Archived %{count} email logs to S3."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:370
+#, elixir-autogen, elixir-format
+msgid "S3 archival disabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:369
+#, elixir-autogen, elixir-format
+msgid "S3 archival enabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:939
+#, elixir-autogen, elixir-format
+msgid "S3 archival failed: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:974
+#, elixir-autogen, elixir-format
+msgid "S3 archival is disabled. Please enable it first."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:951
+#, elixir-autogen, elixir-format
+msgid "S3 archival timed out. Large archives may take longer. Check logs for progress."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:928
+#, elixir-autogen, elixir-format
+msgid "S3 bucket not configured. Please set 'email_s3_bucket' setting."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:917
+#, elixir-autogen, elixir-format
+msgid "S3 is not configured. Please configure AWS S3 bucket settings first."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:395
+#, elixir-autogen, elixir-format
+msgid "SQS max messages updated to %{count}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:256
+#, elixir-autogen, elixir-format
+msgid "SQS polling disabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:255
+#, elixir-autogen, elixir-format
+msgid "SQS polling enabled"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:426
+#, elixir-autogen, elixir-format
+msgid "SQS visibility timeout updated to %{seconds} seconds"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings.ex:644
+#, elixir-autogen, elixir-format
+msgid "Sender settings saved successfully"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:226
+#, elixir-autogen, elixir-format
+msgid "Something went wrong. Please try again."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:310
+#, elixir-autogen, elixir-format
+msgid "Successfully imported %{count} blocked emails"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:233
+#, elixir-autogen, elixir-format
+msgid "System templates cannot be archived"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:320
+#: lib/phoenix_kit/modules/emails/web/templates.ex:337
+#, elixir-autogen, elixir-format
+msgid "System templates cannot be deleted"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:270
+#, elixir-autogen, elixir-format
+msgid "Template '%{name}' activated successfully"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:242
+#, elixir-autogen, elixir-format
+msgid "Template '%{name}' archived successfully"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:426
+#, elixir-autogen, elixir-format
+msgid "Template '%{name}' created successfully"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:329
+#, elixir-autogen, elixir-format
+msgid "Template '%{name}' deleted successfully"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:447
+#, elixir-autogen, elixir-format
+msgid "Template '%{name}' updated successfully (v%{version})"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/templates.ex:194
+#, elixir-autogen, elixir-format
+msgid "Template cloned successfully as '%{name}'"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:71
+#: lib/phoenix_kit/modules/emails/web/templates.ex:140
+#: lib/phoenix_kit/modules/emails/web/templates.ex:228
+#: lib/phoenix_kit/modules/emails/web/templates.ex:261
+#: lib/phoenix_kit/modules/emails/web/templates.ex:315
+#, elixir-autogen, elixir-format
+msgid "Template not found"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.ex:393
+#, elixir-autogen, elixir-format
+msgid "Test email sent successfully to %{recipient}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/emails.ex:306
+#, elixir-autogen, elixir-format
+msgid "Test email sent successfully to %{recipient}! Check your emails to see the management data."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.ex:297
+#: lib/phoenix_kit/modules/emails/web/metrics.ex:162
+#, elixir-autogen, elixir-format
+msgid "Unsupported export format"
+msgstr ""

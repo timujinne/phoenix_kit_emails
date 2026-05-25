@@ -76,7 +76,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email is not enabled")
+       |> put_flash(:error, gettext("Email is not enabled"))
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end
@@ -97,13 +97,13 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
       {:ok, _log} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Email queued for retry")
+         |> put_flash(:info, gettext("Email queued for retry"))
          |> load_queue_data()}
 
       {:error, reason} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to retry email: #{reason}")}
+         |> put_flash(:error, gettext("Failed to retry email: %{reason}", reason: reason))}
     end
   end
 
@@ -157,7 +157,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
       _ ->
         {:noreply,
          socket
-         |> put_flash(:error, "Invalid bulk action")}
+         |> put_flash(:error, gettext("Invalid bulk action"))}
     end
   end
 
@@ -166,7 +166,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
     # This would reset rate limit counters (implementation would depend on storage)
     {:noreply,
      socket
-     |> put_flash(:info, "Rate limits reset")
+     |> put_flash(:info, gettext("Rate limits reset"))
      |> load_queue_data()}
   end
 
@@ -261,7 +261,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
         end
       end)
 
-    message = "Retried #{success_count} of #{length(selected_ids)} emails"
+    message =
+      gettext("Retried %{success} of %{total} emails",
+        success: success_count,
+        total: length(selected_ids)
+      )
 
     {:noreply,
      socket
@@ -298,7 +302,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
         end
       end)
 
-    message = "Deleted #{success_count} of #{length(selected_ids)} emails"
+    message =
+      gettext("Deleted %{success} of %{total} emails",
+        success: success_count,
+        total: length(selected_ids)
+      )
 
     {:noreply,
      socket

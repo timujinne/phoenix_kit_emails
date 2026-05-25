@@ -80,7 +80,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email management is not enabled")
+       |> put_flash(:error, gettext("Email management is not enabled"))
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end
@@ -242,7 +242,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
         {:error, _} ->
           {:noreply,
            socket
-           |> put_flash(:error, "Failed to save column preferences")}
+           |> put_flash(:error, gettext("Failed to save column preferences"))}
       end
     end
   end
@@ -260,7 +260,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       {:error, _} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to save column order")}
+         |> put_flash(:error, gettext("Failed to save column order"))}
     end
   end
 
@@ -274,12 +274,12 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
         {:noreply,
          socket
          |> assign(:selected_columns, default_columns)
-         |> put_flash(:info, "Columns reset to default")}
+         |> put_flash(:info, gettext("Columns reset to default"))}
 
       {:error, _} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to reset columns")}
+         |> put_flash(:error, gettext("Failed to reset columns"))}
     end
   end
 
@@ -303,7 +303,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
          |> assign(:show_test_email_modal, false)
          |> put_flash(
            :info,
-           "Test email sent successfully to #{recipient}! Check your emails to see the management data."
+           gettext(
+             "Test email sent successfully to %{recipient}! Check your emails to see the management data.",
+             recipient: recipient
+           )
          )
          |> load_email_logs()
          |> load_stats()}
@@ -318,7 +321,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
         {:noreply,
          socket
          |> assign(:test_email_sending, false)
-         |> put_flash(:error, "Failed to send test email: #{inspect(reason)}")}
+         |> put_flash(
+           :error,
+           gettext("Failed to send test email: %{reason}", reason: inspect(reason))
+         )}
     end
   rescue
     error ->
@@ -333,7 +339,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       {:noreply,
        socket
        |> assign(:test_email_sending, false)
-       |> put_flash(:error, "Error sending test email: #{Exception.message(error)}")}
+       |> put_flash(
+         :error,
+         gettext("Error sending test email: %{message}", message: Exception.message(error))
+       )}
   end
 
   ## --- Private Helper Functions ---

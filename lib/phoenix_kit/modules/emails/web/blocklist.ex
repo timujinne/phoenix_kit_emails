@@ -89,7 +89,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
     else
       {:ok,
        socket
-       |> put_flash(:error, "Email is not enabled")
+       |> put_flash(:error, gettext("Email is not enabled"))
        |> push_navigate(to: Routes.path("/admin"))}
     end
   end
@@ -188,13 +188,13 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         {:noreply,
          socket
          |> assign(:show_add_form, false)
-         |> put_flash(:info, "Email address blocked successfully")
+         |> put_flash(:info, gettext("Email address blocked successfully"))
          |> load_blocklist_data()}
 
       {:error, reason} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Failed to block email: #{reason}")}
+         |> put_flash(:error, gettext("Failed to block email: %{reason}", reason: reason))}
     end
   end
 
@@ -204,7 +204,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
     {:noreply,
      socket
-     |> put_flash(:info, "Email address unblocked successfully")
+     |> put_flash(:info, gettext("Email address unblocked successfully"))
      |> load_blocklist_data()}
   end
 
@@ -260,7 +260,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
       _ ->
         {:noreply,
          socket
-         |> put_flash(:error, "Invalid bulk action")}
+         |> put_flash(:error, gettext("Invalid bulk action"))}
     end
   end
 
@@ -294,7 +294,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
       _ ->
         {:noreply,
          socket
-         |> put_flash(:error, "Unsupported export format")}
+         |> put_flash(:error, gettext("Unsupported export format"))}
     end
   end
 
@@ -305,13 +305,16 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         {:noreply,
          socket
          |> assign(:show_import_form, false)
-         |> put_flash(:info, "Successfully imported #{imported_count} blocked emails")
+         |> put_flash(
+           :info,
+           gettext("Successfully imported %{count} blocked emails", count: imported_count)
+         )
          |> load_blocklist_data()}
 
       {:error, reason} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Import failed: #{reason}")}
+         |> put_flash(:error, gettext("Import failed: %{reason}", reason: reason))}
     end
   end
 
@@ -404,7 +407,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         acc + 1
       end)
 
-    message = "Removed #{success_count} of #{length(selected_emails)} emails from blocklist"
+    message =
+      gettext("Removed %{success} of %{total} emails from blocklist",
+        success: success_count,
+        total: length(selected_emails)
+      )
 
     {:noreply,
      socket

@@ -68,7 +68,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       nil ->
         {:noreply,
          socket
-         |> put_flash(:error, "Template not found")
+         |> put_flash(:error, gettext("Template not found"))
          |> push_navigate(to: Routes.path("/admin/emails/templates"))}
 
       template ->
@@ -223,7 +223,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
         {:noreply,
          socket
          |> assign(:saving, false)
-         |> put_flash(:error, "Something went wrong. Please try again.")}
+         |> put_flash(:error, gettext("Something went wrong. Please try again."))}
     end
   end
 
@@ -388,20 +388,29 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
          socket
          |> assign(:test_sending, false)
          |> assign(:show_test_modal, false)
-         |> put_flash(:info, "Test email sent successfully to #{recipient}")}
+         |> put_flash(
+           :info,
+           gettext("Test email sent successfully to %{recipient}", recipient: recipient)
+         )}
 
       {:error, reason} ->
         {:noreply,
          socket
          |> assign(:test_sending, false)
-         |> put_flash(:error, "Failed to send test email: #{inspect(reason)}")}
+         |> put_flash(
+           :error,
+           gettext("Failed to send test email: %{reason}", reason: inspect(reason))
+         )}
     end
   rescue
     error ->
       {:noreply,
        socket
        |> assign(:test_sending, false)
-       |> put_flash(:error, "Error sending test email: #{Exception.message(error)}")}
+       |> put_flash(
+         :error,
+         gettext("Error sending test email: %{message}", message: Exception.message(error))
+       )}
   end
 
   ## --- Private Helper Functions ---
@@ -412,7 +421,10 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
         {:noreply,
          socket
          |> assign(:saving, false)
-         |> put_flash(:info, "Template '#{template.name}' created successfully")
+         |> put_flash(
+           :info,
+           gettext("Template '%{name}' created successfully", name: template.name)
+         )
          |> push_navigate(to: Routes.path("/admin/emails/templates"))}
 
       {:error, changeset} ->
@@ -432,7 +444,10 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
          |> assign(:template, template)
          |> put_flash(
            :info,
-           "Template '#{template.name}' updated successfully (v#{template.version})"
+           gettext("Template '%{name}' updated successfully (v%{version})",
+             name: template.name,
+             version: template.version
+           )
          )}
 
       {:error, changeset} ->
