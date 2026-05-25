@@ -12,7 +12,8 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-#: lib/phoenix_kit/modules/emails/emails.ex
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:4
+#, elixir-autogen
 msgid "Emails"
 msgstr "Письма"
 
@@ -24,15 +25,19 @@ msgstr "Панель управления"
 msgid "Email Details"
 msgstr "Детали письма"
 
-#: lib/phoenix_kit/modules/emails/emails.ex
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:232
+#, elixir-autogen
 msgid "Templates"
 msgstr "Шаблоны"
 
-#: lib/phoenix_kit/modules/emails/emails.ex
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:12
+#, elixir-autogen
 msgid "New Template"
 msgstr "Новый шаблон"
 
-#: lib/phoenix_kit/modules/emails/emails.ex
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:220
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:362
+#, elixir-autogen
 msgid "Edit Template"
 msgstr "Редактирование шаблона"
 
@@ -40,7 +45,8 @@ msgstr "Редактирование шаблона"
 msgid "Queue"
 msgstr "Очередь"
 
-#: lib/phoenix_kit/modules/emails/emails.ex
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:140
+#, elixir-autogen
 msgid "Blocklist"
 msgstr "Блок-лист"
 
@@ -60,11 +66,13 @@ msgid "Tracking Options"
 msgstr "Параметры отслеживания"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:22
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:95
 #, elixir-autogen, elixir-format
 msgid "Save Email Bodies"
 msgstr "Сохранять тело письма"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:24
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Store the full content of sent emails for debugging and analysis"
 msgstr "Сохраняйте полное содержимое отправленных писем для отладки и анализа"
@@ -75,136 +83,165 @@ msgid "AWS SES Events Tracking"
 msgstr "Отслеживание событий AWS SES"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:44
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:139
 #, elixir-autogen, elixir-format
 msgid "Track delivery, bounce, and complaint events from Amazon SES"
 msgstr "Отслеживайте события доставки, отклонения и жалоб от Amazon SES"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:62
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:321
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:186
 #, elixir-autogen, elixir-format
 msgid "Data Retention"
 msgstr "Хранение данных"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:67
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Email Retention Period"
 msgstr "Срок хранения писем"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:70
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:72
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Enter retention days"
 msgstr "Введите срок хранения в днях"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:78
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:80
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:122
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:207
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:267
 #, elixir-autogen, elixir-format
 msgid "days"
 msgstr "дней"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:82
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "How long to keep email tracking data before automatic cleanup (1-365 days)"
 msgstr "Как долго хранить данные отслеживания писем до автоматической очистки (1-365 дней)"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:90
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:92
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:353
 #, elixir-autogen, elixir-format
 msgid "Data Privacy Notice"
 msgstr "Уведомление о конфиденциальности"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:93
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Email tracking data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements."
 msgstr "Данные отслеживания писем будут автоматически удалены по истечении срока хранения. Это помогает соблюдать требования конфиденциальности и снижает нагрузку на хранилище."
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:104
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:105
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:946
 #, elixir-autogen, elixir-format
 msgid "Current Configuration"
 msgstr "Текущая конфигурация"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:106
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:107
 #, elixir-autogen, elixir-format
 msgid "System:"
 msgstr "Система:"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:106
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:107
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:948
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:974
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr "Включено"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:108
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:109
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:950
 #, elixir-autogen, elixir-format
 msgid "Save email bodies:"
 msgstr "Сохранять тело письма:"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:110
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:111
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:117
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:952
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:958
 #, elixir-autogen, elixir-format
 msgid "Yes"
 msgstr "Да"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:110
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:111
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:117
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:952
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:958
 #, elixir-autogen, elixir-format
 msgid "No"
 msgstr "Нет"
 
 #: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:115
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:956
 #, elixir-autogen, elixir-format
 msgid "AWS SES events:"
 msgstr "События AWS SES:"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:120
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:121
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:962
 #, elixir-autogen, elixir-format
 msgid "Retention period:"
 msgstr "Срок хранения:"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:131
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Email Tracking Disabled"
 msgstr "Отслеживание писем отключено"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:133
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:134
 #, elixir-autogen, elixir-format
 msgid "Enable the email tracking system above to access configuration options and start tracking email delivery events."
 msgstr "Включите систему отслеживания писем выше, чтобы получить доступ к параметрам конфигурации и начать отслеживать события доставки писем."
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:142
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:143
 #, elixir-autogen, elixir-format
 msgid "Email Tracking Benefits"
 msgstr "Преимущества отслеживания писем"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:149
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:150
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:1005
 #, elixir-autogen, elixir-format
 msgid "Delivery Monitoring"
 msgstr "Мониторинг доставки"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:151
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:152
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:1007
 #, elixir-autogen, elixir-format
 msgid "Track successful email deliveries and identify issues"
 msgstr "Отслеживайте успешные доставки писем и выявляйте проблемы"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:158
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:160
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:1015
 #, elixir-autogen, elixir-format
 msgid "Engagement Analytics"
 msgstr "Аналитика вовлечённости"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:160
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:162
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:1017
 #, elixir-autogen, elixir-format
 msgid "Monitor email opens, clicks, and user engagement"
 msgstr "Отслеживайте открытия, клики и вовлечённость пользователей"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:167
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:170
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:1025
 #, elixir-autogen, elixir-format
 msgid "Debugging Support"
 msgstr "Поддержка отладки"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:169
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:172
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:1027
 #, elixir-autogen, elixir-format
 msgid "Store email content for troubleshooting delivery issues"
 msgstr "Сохраняйте содержимое писем для устранения проблем доставки"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:176
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:180
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:1035
 #, elixir-autogen, elixir-format
 msgid "AWS SES Integration"
 msgstr "Интеграция AWS SES"
 
-#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:178
+#: lib/phoenix_kit/modules/emails/web/email_tracking.html.heex:182
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:1037
 #, elixir-autogen, elixir-format
 msgid "Automatic webhook handling for bounce and complaint events"
 msgstr "Автоматическая обработка вебхуков для событий отклонений и жалоб"
@@ -219,62 +256,2147 @@ msgstr "1. Создать пользователя IAM"
 msgid "Create new user with programmatic access"
 msgstr "Создать нового пользователя с программным доступом"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:399
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:400
 #, elixir-autogen, elixir-format
 msgid "Save Access Key ID and Secret Access Key"
 msgstr "Сохраните идентификатор ключа доступа и секретный ключ доступа"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:405
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:406
 #, elixir-autogen, elixir-format
 msgid "2. Configure Credentials"
 msgstr "2. Настроить учётные данные"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:410
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:415
 #, elixir-autogen, elixir-format
 msgid "Enter Secret Access Key"
 msgstr "Введите секретный ключ доступа"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:411
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:416
 #, elixir-autogen, elixir-format
 msgid "Enter AWS Region manually (e.g., eu-north-1)"
 msgstr "Введите регион AWS вручную (например, eu-north-1)"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:423
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:438
 #, elixir-autogen, elixir-format
 msgid "3. Setup Infrastructure"
 msgstr "3. Настроить инфраструктуру"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:430
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:448
 #, elixir-autogen, elixir-format
 msgid "Wait for setup completion (typically 30-60 seconds)"
 msgstr "Дождитесь завершения настройки (обычно 30-60 секунд)"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:432
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:450
 #, elixir-autogen, elixir-format
 msgid "All created resources will be automatically filled in the form below"
 msgstr "Все созданные ресурсы будут автоматически заполнены в форме ниже"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:445
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:465
 #, elixir-autogen, elixir-format
 msgid "4. Verify Email/Domain in SES"
 msgstr "4. Проверить email/домен в SES"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:458
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:478
 #, elixir-autogen, elixir-format
 msgid "Verify your sender email address or domain"
 msgstr "Подтвердите адрес электронной почты или домен отправителя"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:459
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:479
 #, elixir-autogen, elixir-format
 msgid "Request production access (if needed to exit sandbox mode)"
 msgstr "Запросите производственный доступ (если требуется выход из режима песочницы)"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:471
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:491
 #, elixir-autogen, elixir-format
 msgid "Required IAM Permissions:"
 msgstr "Необходимые разрешения IAM:"
 
-#: lib/phoenix_kit/modules/emails/web/settings.html.heex:490
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:510
 #, elixir-autogen, elixir-format
 msgid "Need more help?"
 msgstr "Нужна дополнительная помощь?"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:232
+#, elixir-autogen, elixir-format
+msgid "%{count} email(s) selected"
+msgstr "Выбрано писем: %{count}"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "%{count} selected"
+msgstr "Выбрано: %{count}"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:342
+#, elixir-autogen, elixir-format
+msgid "%{count} uses"
+msgstr "Использований: %{count}"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:372
+#, elixir-autogen, elixir-format
+msgid "%{count} variable(s) detected and auto-added"
+msgstr "Обнаружено и автоматически добавлено переменных: %{count}"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:323
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:964
+#, elixir-autogen, elixir-format
+msgid "%{days} days"
+msgstr "%{days} дн."
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:106
+#, elixir-autogen, elixir-format
+msgid "%{pct}% used"
+msgstr "Использовано %{pct}%"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:27
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:39
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "%{rate}% rate"
+msgstr "Коэффициент %{rate}%"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:96
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:281
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:413
+#, elixir-autogen, elixir-format
+msgid "(no subject)"
+msgstr "(без темы)"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "24 Hours"
+msgstr "24 часа"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "30 Days"
+msgstr "30 дней"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "7 Days"
+msgstr "7 дней"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:49
+#, elixir-autogen, elixir-format
+msgid "90 Days"
+msgstr "90 дней"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:540
+#, elixir-autogen, elixir-format
+msgid "AWS Access Key ID"
+msgstr "AWS Access Key ID"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:368
+#, elixir-autogen, elixir-format
+msgid "AWS Configuration"
+msgstr "Настройки AWS"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:185
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:370
+#, elixir-autogen, elixir-format
+msgid "AWS Message ID"
+msgstr "ID сообщения AWS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "AWS SES Events Options"
+msgstr "Отслеживание событий AWS SES"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:559
+#, elixir-autogen, elixir-format
+msgid "AWS Secret Access Key"
+msgstr "AWS Secret Access Key"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:376
+#, elixir-autogen, elixir-format
+msgid "AWS Setup Guide"
+msgstr "Руководство по настройке AWS"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "Abuse"
+msgstr "Злоупотребление"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:341
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:249
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:274
+#, elixir-autogen, elixir-format
+msgid "Actions"
+msgstr "Действия"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:399
+#, elixir-autogen, elixir-format
+msgid "Activate"
+msgstr "Активировать"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:249
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:396
+#, elixir-autogen, elixir-format
+msgid "Activate Template"
+msgstr "Активировать шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:310
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:384
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:306
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:215
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:39
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:126
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr "Активен"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "Active Blocks"
+msgstr "Активные блокировки"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "Active Only"
+msgstr "Только активные"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:145
+#, elixir-autogen, elixir-format
+msgid "Active blocks (%{count} expired today)"
+msgstr "Активные блокировки (%{count} истекло сегодня)"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:119
+#, elixir-autogen, elixir-format
+msgid "Active recipient rate limits (%{count} emails)"
+msgstr "Действующие ограничения для получателей (%{count} писем)"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:132
+#, elixir-autogen, elixir-format
+msgid "Active sender rate limits (%{count} emails)"
+msgstr "Действующие ограничения для отправителей (%{count} писем)"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "Add Block"
+msgstr "Добавить блокировку"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:121
+#, elixir-autogen, elixir-format
+msgid "Add Email to Blocklist"
+msgstr "Добавить адрес в блок-лист"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:168
+#, elixir-autogen, elixir-format
+msgid "Add to Blocklist"
+msgstr "Добавить в блок-лист"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:313
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:338
+#, elixir-autogen, elixir-format
+msgid "Added"
+msgstr "Добавлено"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:173
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:185
+#, elixir-autogen, elixir-format
+msgid "Admin"
+msgstr "Администратор"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:624
+#, elixir-autogen, elixir-format
+msgid "Advanced AWS Settings"
+msgstr "Расширенные настройки AWS"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:132
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "All Categories"
+msgstr "Все категории"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "All Modules"
+msgstr "Все модули"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "All Reasons"
+msgstr "Все причины"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:86
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:124
+#, elixir-autogen, elixir-format
+msgid "All Statuses"
+msgstr "Все статусы"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:145
+#, elixir-autogen, elixir-format
+msgid "All Types"
+msgstr "Все типы"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "All blocked email addresses"
+msgstr "Все заблокированные адреса"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "All templates"
+msgstr "Все шаблоны"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:555
+#, elixir-autogen, elixir-format
+msgid "Appear in your emails with \"TEST\" campaign"
+msgstr "Появится в ваших письмах с кампанией «TEST»"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:129
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr "Применить"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:389
+#, elixir-autogen, elixir-format
+msgid "Archive"
+msgstr "Архивировать"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:240
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:386
+#, elixir-autogen, elixir-format
+msgid "Archive Template"
+msgstr "Новый шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:343
+#, elixir-autogen, elixir-format
+msgid "Archive to S3 Now"
+msgstr "Архивировать в S3 сейчас"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:221
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:132
+#, elixir-autogen, elixir-format
+msgid "Archived"
+msgstr "Заархивировано"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:340
+#, elixir-autogen, elixir-format
+msgid "Archiving..."
+msgstr "Архивирование..."
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "Attachments"
+msgstr "Вложения"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Auto-saves when you click outside the input field"
+msgstr "Сохраняется автоматически при клике вне поля ввода"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:756
+#, elixir-autogen, elixir-format
+msgid "Automatically poll SQS queue for email events in background"
+msgstr "Автоматически опрашивать очередь SQS на наличие событий email в фоне"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Basic Information"
+msgstr "Основная информация"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:164
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Billing"
+msgstr "Биллинг"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:273
+#, elixir-autogen, elixir-format
+msgid "Blocked Emails (%{count})"
+msgstr "Заблокированные адреса (%{count})"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Blocks that expired today"
+msgstr "Блокировки, истёкшие сегодня"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:257
+#, elixir-autogen, elixir-format
+msgid "Body Preview"
+msgstr "Предпросмотр тела"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "Bounce Limit Exceeded"
+msgstr "Превышен лимит отклонений"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:182
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:263
+#, elixir-autogen, elixir-format
+msgid "Bounce Rate"
+msgstr "Доля отклонений"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:38
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:101
+#, elixir-autogen, elixir-format
+msgid "Bounced"
+msgstr "Отклонено"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Brief description of this template..."
+msgstr "Краткое описание этого шаблона..."
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:201
+#, elixir-autogen, elixir-format
+msgid "CSV Content"
+msgstr "Содержимое CSV"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:190
+#, elixir-autogen, elixir-format
+msgid "CSV Format:"
+msgstr "Формат CSV:"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:197
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:375
+#, elixir-autogen, elixir-format
+msgid "Campaign"
+msgstr "Кампания"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:165
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:215
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:244
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:566
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:131
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:203
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:467
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:661
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:528
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:546
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "Отмена"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:128
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:115
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:96
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:187
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:271
+#, elixir-autogen, elixir-format
+msgid "Category"
+msgstr "Категория"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:262
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:73
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:167
+#, elixir-autogen, elixir-format
+msgid "Clear"
+msgstr "Очистить"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Clear Filters"
+msgstr "Сбросить фильтры"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:98
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:338
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:318
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:382
+#, elixir-autogen, elixir-format
+msgid "Clicked"
+msgstr "Кликнуто"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:376
+#, elixir-autogen, elixir-format
+msgid "Clone"
+msgstr "Клонировать"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:229
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:373
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:461
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:531
+#, elixir-autogen, elixir-format
+msgid "Clone Template"
+msgstr "Новый шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:640
+#, elixir-autogen, elixir-format
+msgid "Close"
+msgstr "Закрыть"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:224
+#, elixir-autogen, elixir-format
+msgid "Columns"
+msgstr "Столбцы"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:150
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:116
+#, elixir-autogen, elixir-format
+msgid "Complaint"
+msgstr "Жалоба"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Comprehensive email performance metrics and insights"
+msgstr "Подробные метрики и аналитика по работе писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:239
+#, elixir-autogen, elixir-format
+msgid "Compress Email Bodies After"
+msgstr "Сжимать тело писем после"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:282
+#, elixir-autogen, elixir-format
+msgid "Compress Now"
+msgstr "Сжать сейчас"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:290
+#, elixir-autogen, elixir-format
+msgid "Compress old email bodies to save storage space (7-365 days). Changes are saved automatically."
+msgstr "Сжимать тело старых писем для экономии места в хранилище (7–365 дней). Изменения сохраняются автоматически."
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "Compressing..."
+msgstr "Сжатие..."
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:885
+#, elixir-autogen, elixir-format
+msgid "Configuration Changes Detected"
+msgstr "Обнаружены изменения конфигурации"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Configure emails behavior and data retention"
+msgstr "Настройте поведение системы отслеживания писем и хранение данных"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:241
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "Confirm"
+msgstr "Подтвердить"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:189
+#, elixir-autogen, elixir-format
+msgid "Confirm bulk action: %{action}"
+msgstr "Подтвердите массовое действие: %{action}"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:238
+#, elixir-autogen, elixir-format
+msgid "Confirm: %{action}?"
+msgstr "Подтвердить: %{action}?"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Core templates"
+msgstr "Базовые шаблоны"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:481
+#, elixir-autogen, elixir-format
+msgid "Create Template"
+msgstr "Создать шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Create a new email template"
+msgstr "Создать новый шаблон email"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:464
+#, elixir-autogen, elixir-format
+msgid "Creating a copy of"
+msgstr "Создание копии"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Currently enforced blocks"
+msgstr "Действующие блокировки"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:176
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:188
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:150
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr "Произвольно"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Custom Range"
+msgstr "Произвольный диапазон"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:591
+#, elixir-autogen, elixir-format
+msgid "Customize Table Columns"
+msgstr "Настройка столбцов таблицы"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Customize columns"
+msgstr "Настроить столбцы"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Days of data retention"
+msgstr "Дней хранения данных"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:731
+#, elixir-autogen, elixir-format
+msgid "Dead letter queue for failed messages"
+msgstr "Очередь невыполненных сообщений"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:113
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:342
+#, elixir-autogen, elixir-format
+msgid "Delayed"
+msgstr "Задержано"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:412
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr "Удалить"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:260
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:409
+#, elixir-autogen, elixir-format
+msgid "Delete Template"
+msgstr "Удалить шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:26
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:92
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:330
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:316
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:372
+#, elixir-autogen, elixir-format
+msgid "Delivered"
+msgstr "Доставлено"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:386
+#, elixir-autogen, elixir-format
+msgid "Delivered At"
+msgstr "Доставлено"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:166
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:260
+#, elixir-autogen, elixir-format
+msgid "Delivery Rate"
+msgstr "Доля доставки"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:219
+#, elixir-autogen, elixir-format
+msgid "Delivery Trends"
+msgstr "Тенденции доставки"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:234
+#, elixir-autogen, elixir-format
+msgid "Description (Optional)"
+msgstr "Описание (необязательно)"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:394
+#, elixir-autogen, elixir-format
+msgid "Description for this variable..."
+msgstr "Описание этой переменной..."
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:974
+#, elixir-autogen, elixir-format
+msgid "Disabled"
+msgstr "Отключено"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Display Name"
+msgstr "Отображаемое имя"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:209
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:129
+#, elixir-autogen, elixir-format
+msgid "Draft"
+msgstr "Черновик"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:365
+#, elixir-autogen, elixir-format
+msgid "Edit"
+msgstr "Редактировать"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:305
+#, elixir-autogen, elixir-format
+msgid "Email"
+msgstr "Письма"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:130
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:335
+#, elixir-autogen, elixir-format
+msgid "Email Address"
+msgstr "Email"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Email Blocklist"
+msgstr "Блок-лист"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:229
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:258
+#, elixir-autogen, elixir-format
+msgid "Email Content"
+msgstr "Содержимое письма"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Email Dashboard"
+msgstr "Панель управления письмами"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:4
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Email Details %{uuid}"
+msgstr "Детали письма %{uuid}"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:479
+#, elixir-autogen, elixir-format
+msgid "Email Not Found"
+msgstr "Письмо не найдено"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:88
+#, elixir-autogen, elixir-format
+msgid "Email Overview"
+msgstr "Обзор писем"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Email Queue"
+msgstr "Очередь писем"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Email Templates"
+msgstr "Шаблоны писем"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:289
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:449
+#, elixir-autogen, elixir-format
+msgid "Email actions"
+msgstr "Действия с письмом"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:35
+#, elixir-autogen, elixir-format
+msgid "Email address used as sender for all outgoing emails"
+msgstr "Email, используемый как отправитель для всех исходящих писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:355
+#, elixir-autogen, elixir-format
+msgid "Email data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements."
+msgstr "Данные отслеживания писем будут автоматически удалены по истечении срока хранения. Это помогает соблюдать требования конфиденциальности и снижает нагрузку на хранилище."
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Email system is disabled"
+msgstr "Система писем отключена"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Email system is operational"
+msgstr "Система писем работает"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:998
+#, elixir-autogen, elixir-format
+msgid "Emails Benefits"
+msgstr "Преимущества писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:985
+#, elixir-autogen, elixir-format
+msgid "Emails Disabled"
+msgstr "Письма отключены"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "Emails Sampling Rate"
+msgstr "Коэффициент выборки писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Emails Settings"
+msgstr "Настройки писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:305
+#, elixir-autogen, elixir-format
+msgid "Enable S3 Archival"
+msgstr "Включить архивирование в S3"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:754
+#, elixir-autogen, elixir-format
+msgid "Enable SQS Polling"
+msgstr "Включить опрос SQS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:873
+#, elixir-autogen, elixir-format
+msgid "Enable compression to reduce storage requirements"
+msgstr "Включите сжатие, чтобы уменьшить требования к хранилищу"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:987
+#, elixir-autogen, elixir-format
+msgid "Enable the emails above to access configuration options and start managing email delivery events."
+msgstr "Включите систему отслеживания писем выше, чтобы получить доступ к параметрам конфигурации и начать отслеживать события доставки писем."
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:117
+#, elixir-autogen, elixir-format
+msgid "End Date"
+msgstr "Дата окончания"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:233
+#, elixir-autogen, elixir-format
+msgid "Engagement Metrics"
+msgstr "Аналитика вовлечённости"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:250
+#, elixir-autogen, elixir-format
+msgid "Enter compression days"
+msgstr "Введите количество дней для сжатия"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:808
+#, elixir-autogen, elixir-format
+msgid "Enter max messages"
+msgstr "Введите максимум сообщений"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "Enter sampling rate"
+msgstr "Введите коэффициент выборки"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:837
+#, elixir-autogen, elixir-format
+msgid "Enter timeout"
+msgstr "Введите тайм-аут"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:170
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:182
+#, elixir-autogen, elixir-format
+msgid "Entities"
+msgstr "Сущности"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:346
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:220
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:247
+#, elixir-autogen, elixir-format
+msgid "Error"
+msgstr "Ошибка"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Error:"
+msgstr "Ошибка:"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:400
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:333
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:344
+#, elixir-autogen, elixir-format
+msgid "Events"
+msgstr "События"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:332
+#, elixir-autogen, elixir-format
+msgid "Events Timeline"
+msgstr "Хронология событий"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:310
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:382
+#, elixir-autogen, elixir-format
+msgid "Expired"
+msgstr "Истёк"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Expired Today"
+msgstr "Истёкло сегодня"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:339
+#, elixir-autogen, elixir-format
+msgid "Expires"
+msgstr "Истекает"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:158
+#, elixir-autogen, elixir-format
+msgid "Expires At (Optional)"
+msgstr "Истекает (необязательно)"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "Export"
+msgstr "Экспорт"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:107
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:47
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:250
+#, elixir-autogen, elixir-format
+msgid "Export CSV"
+msgstr "Экспорт CSV"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:259
+#, elixir-autogen, elixir-format
+msgid "Export Selected"
+msgstr "Экспортировать выбранные"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Export as CSV"
+msgstr "Экспорт как CSV"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "Export as JSON"
+msgstr "Экспорт как JSON"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:119
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "Не удалось"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Failed (24h)"
+msgstr "Не удалось (24ч)"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "Failed Emails (Last 24 Hours)"
+msgstr "Неудачные письма (за 24 часа)"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Failed emails in last 24 hours"
+msgstr "Неудачные письма за последние 24 часа"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:101
+#, elixir-autogen, elixir-format
+msgid "From"
+msgstr "От"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:188
+#, elixir-autogen, elixir-format
+msgid "From Date"
+msgstr "Дата начала"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "From Email"
+msgstr "Email отправителя"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "From Name"
+msgstr "Имя отправителя"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "Full Body"
+msgstr "Полное тело"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Global Hourly Limit"
+msgstr "Глобальный почасовой лимит"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:322
+#, elixir-autogen, elixir-format
+msgid "HTML Body"
+msgstr "HTML-тело"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:104
+#, elixir-autogen, elixir-format
+msgid "Hard Bounced"
+msgstr "Жёсткое отклонение"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:291
+#, elixir-autogen, elixir-format
+msgid "Header"
+msgstr "Заголовок"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:284
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:319
+#, elixir-autogen, elixir-format
+msgid "Headers"
+msgstr "Заголовки"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:237
+#, elixir-autogen, elixir-format
+msgid "Hide Full Body"
+msgstr "Скрыть полное тело"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:247
+#, elixir-autogen, elixir-format
+msgid "Hide Headers"
+msgstr "Скрыть заголовки"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:848
+#, elixir-autogen, elixir-format
+msgid "How long messages remain invisible after being received (30-43200 seconds)"
+msgstr "Как долго сообщения остаются невидимыми после получения (30–43200 секунд)"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:227
+#, elixir-autogen, elixir-format
+msgid "How long to keep emails data before automatic cleanup (1-365 days)"
+msgstr "Как долго хранить данные отслеживания писем до автоматической очистки (1-365 дней)"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:791
+#, elixir-autogen, elixir-format
+msgid "How often to check for SQS messages (1-60 seconds)"
+msgstr "Как часто проверять сообщения SQS (1–60 секунд)"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:218
+#, elixir-autogen, elixir-format
+msgid "Import"
+msgstr "Импорт"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:181
+#, elixir-autogen, elixir-format
+msgid "Import Blocklist from CSV"
+msgstr "Импорт блок-листа из CSV"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Import CSV"
+msgstr "Импорт CSV"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:88
+#, elixir-autogen, elixir-format
+msgid "Include Expired"
+msgstr "Включая истёкшие"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:554
+#, elixir-autogen, elixir-format
+msgid "Include trackable links for click testing"
+msgstr "Включить отслеживаемые ссылки для теста переходов"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:191
+#, elixir-autogen, elixir-format
+msgid "Last"
+msgstr "Последний"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "За последние 30 дней"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:309
+#, elixir-autogen, elixir-format
+msgid "Last Updated"
+msgstr "Последнее обновление"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Last updated:"
+msgstr "Последнее обновление:"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:318
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:367
+#, elixir-autogen, elixir-format
+msgid "Legend:"
+msgstr "Легенда:"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:495
+#, elixir-autogen, elixir-format
+msgid "Live Preview"
+msgstr "Предпросмотр в реальном времени"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:603
+#, elixir-autogen, elixir-format
+msgid "Load available regions"
+msgstr "Загрузить доступные регионы"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:303
+#, elixir-autogen, elixir-format
+msgid "Loading activity..."
+msgstr "Загрузка активности..."
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:142
+#, elixir-autogen, elixir-format
+msgid "Loading analytics data..."
+msgstr "Загрузка аналитики..."
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:285
+#, elixir-autogen, elixir-format
+msgid "Loading blocklist..."
+msgstr "Загрузка блок-листа..."
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Loading email details..."
+msgstr "Загрузка деталей письма..."
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:267
+#, elixir-autogen, elixir-format
+msgid "Loading emails..."
+msgstr "Загрузка писем..."
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "Loading templates..."
+msgstr "Загрузка шаблонов..."
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:72
+#, elixir-autogen, elixir-format
+msgid "Loading..."
+msgstr "Загрузка..."
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:691
+#, elixir-autogen, elixir-format
+msgid "Main queue for email events"
+msgstr "Основная очередь для событий email"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Manage and organize your email templates"
+msgstr "Управление и организация шаблонов писем"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Manage blocked email addresses"
+msgstr "Управление заблокированными email-адресами"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:147
+#, elixir-autogen, elixir-format
+msgid "Manual Block"
+msgstr "Ручная блокировка"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:325
+#, elixir-autogen, elixir-format
+msgid "Manually trigger S3 archival for emails older than retention period"
+msgstr "Запустить архивирование в S3 для писем старше срока хранения"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:140
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:134
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "Marketing"
+msgstr "Маркетинг"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:801
+#, elixir-autogen, elixir-format
+msgid "Max Messages Per Poll"
+msgstr "Максимум сообщений за опрос"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:819
+#, elixir-autogen, elixir-format
+msgid "Maximum number of messages to process in each polling cycle (1-10)"
+msgstr "Максимум сообщений для обработки за один цикл опроса (1–10)"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:362
+#, elixir-autogen, elixir-format
+msgid "Message ID"
+msgstr "ID сообщения"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:175
+#, elixir-autogen, elixir-format
+msgid "Message ID (Internal)"
+msgstr "ID сообщения (внутренний)"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:420
+#, elixir-autogen, elixir-format
+msgid "Message Tags"
+msgstr "Теги сообщения"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:193
+#, elixir-autogen, elixir-format
+msgid "Module that sends this email"
+msgstr "Модуль, отправляющий это письмо"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Monitor and track all outgoing emails"
+msgstr "Мониторинг и отслеживание всех исходящих писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:871
+#, elixir-autogen, elixir-format
+msgid "Monitor queue depth and adjust max messages accordingly"
+msgstr "Следите за глубиной очереди и регулируйте максимум сообщений"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:63
+#, elixir-autogen, elixir-format
+msgid "Most Used"
+msgstr "Чаще всего"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:307
+#, elixir-autogen, elixir-format
+msgid "Move old email data to AWS S3 for long-term cold storage"
+msgstr "Перемещать старые данные писем в AWS S3 для долгосрочного холодного хранения"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:377
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:183
+#, elixir-autogen, elixir-format
+msgid "Never"
+msgstr "Никогда"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:349
+#, elixir-autogen, elixir-format
+msgid "Never used"
+msgstr "Не использовался"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:500
+#, elixir-autogen, elixir-format
+msgid "New Display Name"
+msgstr "Новое отображаемое имя"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:476
+#, elixir-autogen, elixir-format
+msgid "New Template Name"
+msgstr "Новый шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:146
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:152
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:111
+#, elixir-autogen, elixir-format
+msgid "Newsletters"
+msgstr "Рассылки"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:563
+#, elixir-autogen, elixir-format
+msgid "No HTML content"
+msgstr "Нет HTML-содержимого"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:447
+#, elixir-autogen, elixir-format
+msgid "No blocked emails found"
+msgstr "Заблокированных адресов не найдено"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:472
+#, elixir-autogen, elixir-format
+msgid "No emails found"
+msgstr "Письма не найдены"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:475
+#, elixir-autogen, elixir-format
+msgid "No emails found matching your criteria"
+msgstr "Письма по вашим критериям не найдены"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:346
+#, elixir-autogen, elixir-format
+msgid "No events recorded for this email"
+msgstr "Для этого письма не зафиксировано событий"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:322
+#, elixir-autogen, elixir-format
+msgid "No headers available for this email"
+msgstr "Для этого письма нет заголовков"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:263
+#, elixir-autogen, elixir-format
+msgid "No preview available"
+msgstr "Предпросмотр недоступен"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:294
+#, elixir-autogen, elixir-format
+msgid "No provider data available"
+msgstr "Нет данных по провайдеру"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:394
+#, elixir-autogen, elixir-format
+msgid "No recent email activity"
+msgstr "Нет недавней активности писем"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:533
+#, elixir-autogen, elixir-format
+msgid "No subject"
+msgstr "Без темы"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:426
+#, elixir-autogen, elixir-format
+msgid "No templates found"
+msgstr "Шаблоны не найдены"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:429
+#, elixir-autogen, elixir-format
+msgid "No templates found matching your criteria"
+msgstr "Шаблоны по вашим критериям не найдены"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:572
+#, elixir-autogen, elixir-format
+msgid "No text content"
+msgstr "Нет текстового содержимого"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "No usage yet"
+msgstr "Ещё не использовался"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:421
+#, elixir-autogen, elixir-format
+msgid "No variables found in template"
+msgstr "В шаблоне не найдено переменных"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:143
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Notification"
+msgstr "Уведомление"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Offline"
+msgstr "Офлайн"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Online"
+msgstr "Онлайн"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Open Rate"
+msgstr "Доля открытий"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:50
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:95
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:334
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:317
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:377
+#, elixir-autogen, elixir-format
+msgid "Opened"
+msgstr "Открыто"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:88
+#, elixir-autogen, elixir-format
+msgid "Options"
+msgstr "Параметры"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:175
+#, elixir-autogen, elixir-format
+msgid "Percentage of emails to fully track for analytics (0-100%)"
+msgstr "Процент писем, полностью отслеживаемых для аналитики (0–100%)"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:859
+#, elixir-autogen, elixir-format
+msgid "Performance Tips"
+msgstr "Советы по производительности"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:146
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:256
+#, elixir-autogen, elixir-format
+msgid "Provider"
+msgstr "Провайдер"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:249
+#, elixir-autogen, elixir-format
+msgid "Provider Performance"
+msgstr "Производительность провайдера"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:167
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "Publishing"
+msgstr "Публикация"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:88
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:322
+#, elixir-autogen, elixir-format
+msgid "Queued"
+msgstr "Очередь"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Quick Actions"
+msgstr "Быстрые действия"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:358
+#, elixir-autogen, elixir-format
+msgid "Quick Stats"
+msgstr "Быстрая статистика"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:81
+#, elixir-autogen, elixir-format
+msgid "Rate Limit Status"
+msgstr "Статус ограничения скорости"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Ready to use"
+msgstr "Готов к использованию"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Real-time monitoring and queue management"
+msgstr "Мониторинг в реальном времени и управление очередью"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:143
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:305
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:337
+#, elixir-autogen, elixir-format
+msgid "Reason"
+msgstr "Причина"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:298
+#, elixir-autogen, elixir-format
+msgid "Recent Activity (Last 20 Emails)"
+msgstr "Недавняя активность (последние 20 писем)"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:245
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:341
+#, elixir-autogen, elixir-format
+msgid "Recipient"
+msgstr "Получатель"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:600
+#, elixir-autogen, elixir-format
+msgid "Recipient Email"
+msgstr "Email получателя"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:525
+#, elixir-autogen, elixir-format
+msgid "Recipient Email Address"
+msgstr "Email получателя"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Recipient Limits"
+msgstr "Лимиты получателей"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:76
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:255
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:70
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:16
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "Refresh"
+msgstr "Обновить"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:602
+#, elixir-autogen, elixir-format
+msgid "Refresh regions list"
+msgstr "Обновить список регионов"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Rejected"
+msgstr "Отвергнуто"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:438
+#, elixir-autogen, elixir-format
+msgid "Related Emails"
+msgstr "Связанные письма"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:252
+#, elixir-autogen, elixir-format
+msgid "Remove Selected"
+msgstr "Удалить выбранные"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:411
+#, elixir-autogen, elixir-format
+msgid "Remove variable"
+msgstr "Удалить переменную"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:621
+#, elixir-autogen, elixir-format
+msgid "Required"
+msgstr "Обязательно"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:616
+#, elixir-autogen, elixir-format
+msgid "Required column"
+msgstr "Обязательный столбец"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:633
+#, elixir-autogen, elixir-format
+msgid "Reset to Default"
+msgstr "Сбросить к стандартным"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Retention"
+msgstr "Срок хранения:"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:406
+#, elixir-autogen, elixir-format
+msgid "Retries"
+msgstr "Повторов"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:237
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:281
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:284
+#, elixir-autogen, elixir-format
+msgid "Retry"
+msgstr "Повторить"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:174
+#, elixir-autogen, elixir-format
+msgid "Retry Selected"
+msgstr "Повторить выбранные"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "Run Cleanup Now"
+msgstr "Запустить очистку"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:219
+#, elixir-autogen, elixir-format
+msgid "Running..."
+msgstr "Выполняется..."
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:641
+#, elixir-autogen, elixir-format
+msgid "SES Configuration Set"
+msgstr "Набор конфигурации SES"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:653
+#, elixir-autogen, elixir-format
+msgid "SES configuration set name"
+msgstr "Имя набора конфигурации SES"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:661
+#, elixir-autogen, elixir-format
+msgid "SNS Topic ARN"
+msgstr "ARN темы SNS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:672
+#, elixir-autogen, elixir-format
+msgid "SNS topic for email events"
+msgstr "Тема SNS для событий email"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:719
+#, elixir-autogen, elixir-format
+msgid "SQS Dead Letter Queue URL"
+msgstr "URL очереди невыполненных сообщений SQS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:774
+#, elixir-autogen, elixir-format
+msgid "SQS Polling Interval"
+msgstr "Интервал опроса SQS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:699
+#, elixir-autogen, elixir-format
+msgid "SQS Queue ARN"
+msgstr "ARN очереди SQS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:680
+#, elixir-autogen, elixir-format
+msgid "SQS Queue URL"
+msgstr "URL очереди SQS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:744
+#, elixir-autogen, elixir-format
+msgid "SQS Worker Settings"
+msgstr "Настройки воркера SQS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:972
+#, elixir-autogen, elixir-format
+msgid "SQS polling:"
+msgstr "Опрос SQS:"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:710
+#, elixir-autogen, elixir-format
+msgid "SQS queue ARN for permissions"
+msgstr "ARN очереди SQS для разрешений"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:625
+#, elixir-autogen, elixir-format
+msgid "Sample Variable Values"
+msgstr "Примеры значений переменных"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:968
+#, elixir-autogen, elixir-format
+msgid "Sampling rate:"
+msgstr "Коэффициент выборки:"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:455
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:909
+#, elixir-autogen, elixir-format
+msgid "Save AWS Settings"
+msgstr "Сохранить настройки AWS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "Save Email Headers"
+msgstr "Сохранять заголовки писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "Save Sender Settings"
+msgstr "Сохранить настройки отправителя"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:457
+#, elixir-autogen, elixir-format
+msgid "Save as Draft"
+msgstr "Сохранить как черновик"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:72
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:907
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:478
+#, elixir-autogen, elixir-format
+msgid "Saving..."
+msgstr "Сохранение..."
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "Search by name, display name, or description..."
+msgstr "Поиск по имени, отображаемому имени или описанию..."
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:68
+#, elixir-autogen, elixir-format
+msgid "Search by recipient, subject, or campaign..."
+msgstr "Поиск по получателю, теме или кампании..."
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Search email..."
+msgstr "Поиск email..."
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:179
+#, elixir-autogen, elixir-format
+msgid "Select All"
+msgstr "Выбрать все"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:277
+#, elixir-autogen, elixir-format
+msgid "Select All on Page"
+msgstr "Выбрать всё на странице"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:100
+#, elixir-autogen, elixir-format
+msgid "Select Custom Date Range"
+msgstr "Выберите произвольный диапазон дат"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:593
+#, elixir-autogen, elixir-format
+msgid "Select which columns to display in the emails table. Required columns (Email, Subject, Status, Actions) cannot be hidden."
+msgstr "Выберите столбцы для отображения в таблице писем. Обязательные столбцы (Email, Тема, Статус, Действия) скрыть нельзя."
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "Send Test"
+msgstr "Тест"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:510
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:579
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:590
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:674
+#, elixir-autogen, elixir-format
+msgid "Send Test Email"
+msgstr "Отправить тестовое письмо"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:512
+#, elixir-autogen, elixir-format
+msgid "Send a test email to verify that email is working correctly. The test email will include test links."
+msgstr "Отправить тестовое письмо для проверки работоспособности системы. Тестовое письмо будет содержать тестовые ссылки."
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Sender Configuration"
+msgstr "Настройки отправителя"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Sender Limits"
+msgstr "Лимиты отправителей"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:55
+#, elixir-autogen, elixir-format
+msgid "Sender name displayed to recipients"
+msgstr "Имя отправителя, отображаемое получателям"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:577
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:672
+#, elixir-autogen, elixir-format
+msgid "Sending..."
+msgstr "Отправка..."
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:90
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:326
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:258
+#, elixir-autogen, elixir-format
+msgid "Sent"
+msgstr "Отправлено"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:378
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:330
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:343
+#, elixir-autogen, elixir-format
+msgid "Sent At"
+msgstr "Время отправки"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Sent Today"
+msgstr "Отправлено сегодня"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:34
+#, elixir-autogen, elixir-format
+msgid "Sent:"
+msgstr "Отправлено:"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:869
+#, elixir-autogen, elixir-format
+msgid "Set visibility timeout to match processing time"
+msgstr "Установите тайм-аут видимости в соответствии со временем обработки"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:930
+#, elixir-autogen, elixir-format
+msgid "Setting up..."
+msgstr "Настройка..."
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:444
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:933
+#, elixir-autogen, elixir-format
+msgid "Setup AWS Infrastructure"
+msgstr "3. Настроить инфраструктуру"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:238
+#, elixir-autogen, elixir-format
+msgid "Show Full Body"
+msgstr "Показать полное тело"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:248
+#, elixir-autogen, elixir-format
+msgid "Show Headers"
+msgstr "Показать заголовки"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:155
+#, elixir-autogen, elixir-format
+msgid "Size"
+msgstr "Размер"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Slug"
+msgstr "Идентификатор"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:107
+#, elixir-autogen, elixir-format
+msgid "Soft Bounced"
+msgstr "Мягкое отклонение"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:155
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:371
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "Source Module"
+msgstr "Модуль-источник"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:148
+#, elixir-autogen, elixir-format
+msgid "Spam"
+msgstr "Спам"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Start Date"
+msgstr "Дата начала"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:309
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:340
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:137
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:82
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:282
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:325
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:340
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:199
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:120
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:188
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:272
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "Статус"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:30
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:948
+#, elixir-autogen, elixir-format
+msgid "Status:"
+msgstr "Статус:"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:117
+#, elixir-autogen, elixir-format
+msgid "Store email headers for debugging and analysis (increases storage usage)"
+msgstr "Сохранять заголовки писем для отладки и анализа (увеличивает использование хранилища)"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:94
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:281
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:218
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:246
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:328
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:342
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:186
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:270
+#, elixir-autogen, elixir-format
+msgid "Subject"
+msgstr "Тема"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:530
+#, elixir-autogen, elixir-format
+msgid "Subject (%{locale}):"
+msgstr "Тема (%{locale}):"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:278
+#, elixir-autogen, elixir-format
+msgid "Subject Line"
+msgstr "Тема письма"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Sync Status"
+msgstr "Статус синхронизации"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Syncing..."
+msgstr "Синхронизация..."
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:134
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:140
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:51
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:102
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:147
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:207
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:292
+#, elixir-autogen, elixir-format
+msgid "System"
+msgstr "Система:"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:302
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "System Status"
+msgstr "Состояние системы"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:116
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:283
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:380
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:269
+#, elixir-autogen, elixir-format
+msgid "Template"
+msgstr "Шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Template Name"
+msgstr "Имя шаблона"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:365
+#, elixir-autogen, elixir-format
+msgid "Template Variables"
+msgstr "Переменные шаблона"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:446
+#, elixir-autogen, elixir-format
+msgid "Test Send"
+msgstr "Тестовая отправка"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:553
+#, elixir-autogen, elixir-format
+msgid "Test email delivery management"
+msgstr "Тестирование управления доставкой писем"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:342
+#, elixir-autogen, elixir-format
+msgid "Text Body"
+msgstr "Текстовое тело"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:482
+#, elixir-autogen, elixir-format
+msgid "The email with ID %{uuid} could not be found."
+msgstr "Письмо с ID %{uuid} не найдено."
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:631
+#, elixir-autogen, elixir-format
+msgid "These settings are automatically configured when you run \"Setup AWS Infrastructure\". Manual changes may break the integration."
+msgstr "Эти настройки заполняются автоматически при запуске «Настроить инфраструктуру AWS». Ручные изменения могут нарушить интеграцию."
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:550
+#, elixir-autogen, elixir-format
+msgid "This test email will:"
+msgstr "Это тестовое письмо:"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:192
+#, elixir-autogen, elixir-format
+msgid "This will %{action} %{count} emails"
+msgstr "Будет выполнено %{action} для %{count} писем"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:649
+#, elixir-autogen, elixir-format
+msgid "This will send a test email using the current template content with the sample variables provided above."
+msgstr "Будет отправлено тестовое письмо с текущим содержимым шаблона и указанными выше примерами переменных."
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:224
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:248
+#, elixir-autogen, elixir-format
+msgid "Time"
+msgstr "Время"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "To"
+msgstr "Кому"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "To Date"
+msgstr "Дата окончания"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "To:"
+msgstr "Кому:"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Total Blocks"
+msgstr "Всего блокировок"
+
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:315
+#, elixir-autogen, elixir-format
+msgid "Total Emails Today"
+msgstr "Всего писем сегодня"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:14
+#: lib/phoenix_kit/modules/emails/web/metrics.html.heex:152
+#, elixir-autogen, elixir-format
+msgid "Total Sent"
+msgstr "Всего отправлено"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Total Templates"
+msgstr "Всего шаблонов"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Total emails sent since midnight"
+msgstr "Всего писем, отправленных с полуночи"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:137
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:128
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Transactional"
+msgstr "Транзакционные"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:451
+#, elixir-autogen, elixir-format
+msgid "Try adjusting your filters"
+msgstr "Попробуйте изменить фильтры"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:141
+#, elixir-autogen, elixir-format
+msgid "Type"
+msgstr "Тип"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:107
+#, elixir-autogen, elixir-format
+msgid "URL-friendly identifier (auto-generated from name if left empty)"
+msgstr "Идентификатор для URL (генерируется автоматически из имени, если пусто)"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:326
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:392
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:395
+#, elixir-autogen, elixir-format
+msgid "Unblock"
+msgstr "Разблокировать"
+
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:221
+#: lib/phoenix_kit/modules/emails/web/queue.html.heex:271
+#, elixir-autogen, elixir-format
+msgid "Unknown error"
+msgstr "Неизвестная ошибка"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:482
+#, elixir-autogen, elixir-format
+msgid "Update Template"
+msgstr "Обновить шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:190
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:273
+#, elixir-autogen, elixir-format
+msgid "Usage"
+msgstr "Использование"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:865
+#, elixir-autogen, elixir-format
+msgid "Use longer polling intervals (5-10 seconds) to reduce API calls"
+msgstr "Используйте более длинные интервалы опроса (5–10 секунд), чтобы сократить вызовы API"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:161
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:173
+#, elixir-autogen, elixir-format
+msgid "Users"
+msgstr "Пользователи"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:294
+#, elixir-autogen, elixir-format
+msgid "Value"
+msgstr "Значение"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:377
+#, elixir-autogen, elixir-format
+msgid "Variables are automatically managed. Edit descriptions below or remove if not needed."
+msgstr "Переменные управляются автоматически. Отредактируйте описания ниже или удалите ненужные."
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:552
+#, elixir-autogen, elixir-format
+msgid "Verify AWS SES configuration (if enabled)"
+msgstr "Проверить настройки AWS SES (если включено)"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:294
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:455
+#, elixir-autogen, elixir-format
+msgid "View"
+msgstr "Просмотр"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:463
+#, elixir-autogen, elixir-format
+msgid "View all %{count} related emails"
+msgstr "Показать все связанные письма (%{count})"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:208
+#, elixir-autogen, elixir-format
+msgid "View campaign emails"
+msgstr "Письма кампании"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "View related emails"
+msgstr "Связанные письма"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:830
+#, elixir-autogen, elixir-format
+msgid "Visibility Timeout"
+msgstr "Тайм-аут видимости"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:887
+#, elixir-autogen, elixir-format
+msgid "You've modified your AWS credentials. Click \"Save AWS Settings\" first, then use \"Setup AWS Infrastructure\" to create the required resources."
+msgstr "Вы изменили учётные данные AWS. Сначала нажмите «Сохранить настройки AWS», затем используйте «Настроить инфраструктуру AWS» для создания необходимых ресурсов."
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:453
+#, elixir-autogen, elixir-format
+msgid "Your blocklist is empty"
+msgstr "Ваш блок-лист пуст"
+
+#: lib/phoenix_kit/modules/emails/web/details.html.heex:394
+#, elixir-autogen, elixir-format
+msgid "delivery time"
+msgstr "время доставки"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:815
+#, elixir-autogen, elixir-format
+msgid "messages"
+msgstr "сообщений"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:844
+#, elixir-autogen, elixir-format
+msgid "seconds"
+msgstr "секунд"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:391
+#, elixir-autogen, elixir-format
+msgid "AWS IAM Console"
+msgstr "Консоль AWS IAM"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:475
+#, elixir-autogen, elixir-format
+msgid "AWS SES Console"
+msgstr "Консоль AWS SES"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:396
+#, elixir-autogen, elixir-format
+msgid "Attach policies:"
+msgstr "Подключите политики:"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:496
+#, elixir-autogen, elixir-format
+msgid "Credential verification"
+msgstr "Проверка учётных данных"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:430
+#, elixir-autogen, elixir-format
+msgid "Example:"
+msgstr "Пример:"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:551
+#, elixir-autogen, elixir-format
+msgid "Example: AKIAIOSFODNN7EXAMPLE (20 characters)"
+msgstr "Пример: AKIAIOSFODNN7EXAMPLE (20 символов)"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:570
+#, elixir-autogen, elixir-format
+msgid "Example: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+msgstr "Пример: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:469
+#, elixir-autogen, elixir-format
+msgid "Go to"
+msgstr "Перейдите в"
+
+#: lib/phoenix_kit/modules/emails/web/templates.html.heex:346
+#, elixir-autogen, elixir-format
+msgid "Last:"
+msgstr "Последний:"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:428
+#, elixir-autogen, elixir-format
+msgid "Load regions"
+msgstr "Загрузить регионы"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:425
+#, elixir-autogen, elixir-format
+msgid "Optional:"
+msgstr "Необязательно:"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:495
+#, elixir-autogen, elixir-format
+msgid "Simple Email Service"
+msgstr "Сервис рассылки писем"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:494
+#, elixir-autogen, elixir-format
+msgid "Simple Notification Service"
+msgstr "Сервис уведомлений"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:493
+#, elixir-autogen, elixir-format
+msgid "Simple Queue Service"
+msgstr "Сервис очередей сообщений"
+
+#: lib/phoenix_kit/modules/emails/web/emails.html.heex:407
+#, elixir-autogen, elixir-format
+msgid "User"
+msgstr "Пользователь"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:420
+#, elixir-autogen, elixir-format
+msgid "Verify Credentials"
+msgstr "Проверить учётные данные"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:385
+#, elixir-autogen, elixir-format
+msgid "Visit"
+msgstr "Перейдите в"
+
+#: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:191
+#, elixir-autogen, elixir-format
+msgid "optional"
+msgstr "необязательно"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:454
+#, elixir-autogen, elixir-format
+msgid "Click <strong>\"%{button}\"</strong> one more time to persist everything"
+msgstr "Нажмите <strong>\"%{button}\"</strong> ещё раз, чтобы сохранить всё"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:443
+#, elixir-autogen, elixir-format
+msgid "Click <strong>\"%{button}\"</strong> to create SNS/SQS resources"
+msgstr "Нажмите <strong>\"%{button}\"</strong>, чтобы создать ресурсы SNS/SQS"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:427
+#, elixir-autogen, elixir-format
+msgid "Click <strong>\"%{button}\"</strong> to see all available regions"
+msgstr "Нажмите <strong>\"%{button}\"</strong>, чтобы увидеть все доступные регионы"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:419
+#, elixir-autogen, elixir-format
+msgid "Click <strong>\"%{button}\"</strong> to test connectivity"
+msgstr "Нажмите <strong>\"%{button}\"</strong>, чтобы проверить подключение"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:410
+#, elixir-autogen, elixir-format
+msgid "Enter Access Key ID (20 characters, e.g., <code>%{example}</code>)"
+msgstr "Введите Access Key ID (20 символов, например, <code>%{example}</code>)"
+
+#: lib/phoenix_kit/modules/emails/web/settings.html.heex:513
+#, elixir-autogen, elixir-format
+msgid "See <code>guides/aws_email_setup.md</code> for comprehensive documentation including security best practices, cost optimization, and troubleshooting."
+msgstr "См. <code>guides/aws_email_setup.md</code> для подробной документации, включая лучшие практики безопасности, оптимизацию затрат и устранение неполадок."
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:312
+#, elixir-autogen, elixir-format
+msgid "Use <code>%{var}</code> syntax for dynamic content"
+msgstr "Используйте синтаксис <code>%{var}</code> для динамического содержимого"
+
+#: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:424
+#, elixir-autogen, elixir-format
+msgid "Use <code>%{var}</code> syntax in subject or body to add dynamic variables."
+msgstr "Используйте синтаксис <code>%{var}</code> в теме или теле письма, чтобы добавить динамические переменные."

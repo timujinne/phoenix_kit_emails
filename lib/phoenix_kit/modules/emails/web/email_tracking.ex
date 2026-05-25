@@ -31,6 +31,7 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
   """
 
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
   import PhoenixKitWeb.Components.Core.Icon
 
   alias PhoenixKit.Modules.Emails

@@ -32,6 +32,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   """
 
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
   import PhoenixKitWeb.Components.Core.Icon
   import PhoenixKitWeb.Components.Core.TableDefault
   import PhoenixKitWeb.Components.Core.TableRowMenu

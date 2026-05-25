@@ -382,18 +382,19 @@
                   <h4 class="font-semibold mb-2 text-base-content">{gettext("1. Create IAM User")}</h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
-                      Visit
+                      {gettext("Visit")}
                       <a
                         href="https://console.aws.amazon.com/iam/"
                         target="_blank"
                         class="link link-primary"
                       >
-                        AWS IAM Console
+                        {gettext("AWS IAM Console")}
                       </a>
                     </li>
                     <li>{gettext("Create new user with programmatic access")}</li>
                     <li>
-                      Attach policies: <strong>SES</strong>, <strong>SQS</strong>, <strong>SNS</strong>,
+                      {gettext("Attach policies:")}
+                      <strong>SES</strong>, <strong>SQS</strong>, <strong>SNS</strong>,
                       <strong>STS:GetCallerIdentity</strong>
                     </li>
                     <li>{gettext("Save Access Key ID and Secret Access Key")}</li>
@@ -405,15 +406,28 @@
                   <h4 class="font-semibold mb-2 text-base-content">{gettext("2. Configure Credentials")}</h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
-                      Enter Access Key ID (20 characters, e.g., <code>AKIAIOSFODNN7EXAMPLE</code>)
+                      {Phoenix.HTML.raw(
+                        gettext("Enter Access Key ID (20 characters, e.g., <code>%{example}</code>)",
+                          example: "AKIAIOSFODNN7EXAMPLE"
+                        )
+                      )}
                     </li>
                     <li>{gettext("Enter Secret Access Key")}</li>
                     <li>{gettext("Enter AWS Region manually (e.g., eu-north-1)")}</li>
-                    <li>Click <strong>"Verify Credentials"</strong> to test connectivity</li>
                     <li>
-                      <em>Optional:</em>
-                      Click <strong>"Load regions"</strong>
-                      to see all available regions
+                      {Phoenix.HTML.raw(
+                        gettext("Click <strong>\"%{button}\"</strong> to test connectivity",
+                          button: gettext("Verify Credentials")
+                        )
+                      )}
+                    </li>
+                    <li>
+                      <em>{gettext("Optional:")}</em>
+                      {Phoenix.HTML.raw(
+                        gettext("Click <strong>\"%{button}\"</strong> to see all available regions",
+                          button: gettext("Load regions")
+                        )
+                      )}
                     </li>
                   </ol>
                 </div>
@@ -425,16 +439,22 @@
                   </h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
-                      Click <strong>"Setup AWS Infrastructure"</strong>
-                      to create SNS/SQS resources
+                      {Phoenix.HTML.raw(
+                        gettext("Click <strong>\"%{button}\"</strong> to create SNS/SQS resources",
+                          button: gettext("Setup AWS Infrastructure")
+                        )
+                      )}
                     </li>
                     <li>{gettext("Wait for setup completion (typically 30-60 seconds)")}</li>
                     <li>
                       {gettext("All created resources will be automatically filled in the form below")}
                     </li>
                     <li>
-                      Click <strong>"Save AWS Settings"</strong>
-                      one more time to persist everything
+                      {Phoenix.HTML.raw(
+                        gettext("Click <strong>\"%{button}\"</strong> one more time to persist everything",
+                          button: gettext("Save AWS Settings")
+                        )
+                      )}
                     </li>
                   </ol>
                 </div>
@@ -446,13 +466,13 @@
                   </h4>
                   <ol class="list-decimal list-inside space-y-2 text-base-content/80">
                     <li>
-                      Go to
+                      {gettext("Go to")}
                       <a
                         href="https://console.aws.amazon.com/ses/"
                         target="_blank"
                         class="link link-primary"
                       >
-                        AWS SES Console
+                        {gettext("AWS SES Console")}
                       </a>
                     </li>
                     <li>{gettext("Verify your sender email address or domain")}</li>
@@ -470,10 +490,10 @@
                     <div class="text-base-content/80">
                       <strong class="text-base-content">{gettext("Required IAM Permissions:")}</strong>
                       <ul class="list-disc list-inside mt-1 space-y-1">
-                        <li><code>sqs:*</code> - Simple Queue Service</li>
-                        <li><code>sns:*</code> - Simple Notification Service</li>
-                        <li><code>ses:*</code> - Simple Email Service</li>
-                        <li><code>sts:GetCallerIdentity</code> - Credential verification</li>
+                        <li><code>sqs:*</code> - {gettext("Simple Queue Service")}</li>
+                        <li><code>sns:*</code> - {gettext("Simple Notification Service")}</li>
+                        <li><code>ses:*</code> - {gettext("Simple Email Service")}</li>
+                        <li><code>sts:GetCallerIdentity</code> - {gettext("Credential verification")}</li>
                       </ul>
                     </div>
                   </div>
@@ -489,8 +509,9 @@
                     <div class="text-base-content/80">
                       <strong class="text-base-content">{gettext("Need more help?")}</strong>
                       <p class="mt-1">
-                        See <code>guides/aws_email_setup.md</code>
-                        for comprehensive documentation including security best practices, cost optimization, and troubleshooting.
+                        {Phoenix.HTML.raw(
+                          gettext("See <code>guides/aws_email_setup.md</code> for comprehensive documentation including security best practices, cost optimization, and troubleshooting.")
+                        )}
                       </p>
                     </div>
                   </div>
@@ -527,7 +548,7 @@
                   />
                   <label class="label">
                     <span class="label-text-alt text-sm text-base-content/70">
-                      Example: AKIAIOSFODNN7EXAMPLE (20 characters)
+                      {gettext("Example: AKIAIOSFODNN7EXAMPLE (20 characters)")}
                     </span>
                   </label>
                 </div>
@@ -546,7 +567,7 @@
                   />
                   <label class="label">
                     <span class="label-text-alt text-sm text-base-content/70">
-                      Example: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+                      {gettext("Example: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")}
                     </span>
                   </label>
                 </div>

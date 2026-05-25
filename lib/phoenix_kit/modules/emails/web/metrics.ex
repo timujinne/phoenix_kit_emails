@@ -36,6 +36,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
   """
 
   use PhoenixKitWeb, :live_view
+  use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
   import PhoenixKitWeb.Components.Core.TableDefault
 
   alias PhoenixKit.Modules.Emails

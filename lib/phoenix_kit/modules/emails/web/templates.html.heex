@@ -343,7 +343,7 @@
                       </div>
                       <%= if template.last_used_at do %>
                         <div class="text-base-content/70">
-                          Last: {UtilsDate.format_date_with_user_format(template.last_used_at)}
+                          {gettext("Last:")} {UtilsDate.format_date_with_user_format(template.last_used_at)}
                         </div>
                       <% else %>
                         <div class="text-base-content/70">{gettext("Never used")}</div>
