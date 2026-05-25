@@ -556,7 +556,7 @@ msgstr "Archive"
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Archive Template"
-msgstr "New Template"
+msgstr "Archive Template"
 
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:343
 #, elixir-autogen, elixir-format
@@ -707,7 +707,7 @@ msgstr "Clone"
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:531
 #, elixir-autogen, elixir-format
 msgid "Clone Template"
-msgstr "New Template"
+msgstr "Clone Template"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:640
 #, elixir-autogen, elixir-format
@@ -909,7 +909,7 @@ msgstr "Edit"
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "Email"
-msgstr "Emails"
+msgstr "Email"
 
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:130
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:335
@@ -937,7 +937,7 @@ msgstr "Email Dashboard"
 #: lib/phoenix_kit/modules/emails/web/details.html.heex:24
 #, elixir-autogen, elixir-format
 msgid "Email Details %{uuid}"
-msgstr "Email Details"
+msgstr "Email Details %{uuid}"
 
 #: lib/phoenix_kit/modules/emails/web/details.html.heex:479
 #, elixir-autogen, elixir-format
@@ -957,13 +957,13 @@ msgstr "Email Queue"
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Email Templates"
-msgstr "Email Details"
+msgstr "Email Templates"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:289
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:449
 #, elixir-autogen, elixir-format
 msgid "Email actions"
-msgstr "Email Details"
+msgstr "Email actions"
 
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:35
 #, elixir-autogen, elixir-format
@@ -993,7 +993,7 @@ msgstr "Emails Benefits"
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:985
 #, elixir-autogen, elixir-format
 msgid "Emails Disabled"
-msgstr "Email Details"
+msgstr "Emails Disabled"
 
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:157
 #, elixir-autogen, elixir-format
@@ -1003,7 +1003,7 @@ msgstr "Emails Sampling Rate"
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:4
 #, elixir-autogen, elixir-format
 msgid "Emails Settings"
-msgstr "Email Details"
+msgstr "Emails Settings"
 
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:305
 #, elixir-autogen, elixir-format
@@ -1426,7 +1426,7 @@ msgstr "New Display Name"
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "New Template Name"
-msgstr "New Template"
+msgstr "New Template Name"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:146
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:152
@@ -1576,7 +1576,7 @@ msgstr "Publishing"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:322
 #, elixir-autogen, elixir-format
 msgid "Queued"
-msgstr "Queue"
+msgstr "Queued"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:214
 #, elixir-autogen, elixir-format
@@ -2047,12 +2047,12 @@ msgstr "System Status"
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "Template"
-msgstr "Templates"
+msgstr "Template"
 
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:37
 #, elixir-autogen, elixir-format
 msgid "Template Name"
-msgstr "Templates"
+msgstr "Template Name"
 
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:365
 #, elixir-autogen, elixir-format

@@ -399,7 +399,7 @@ msgstr "AWS sõnumi ID"
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:137
 #, elixir-autogen, elixir-format
 msgid "AWS SES Events Options"
-msgstr "AWS SES sündmuste jälgimine"
+msgstr "AWS SES sündmuste valikud"
 
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:559
 #, elixir-autogen, elixir-format
@@ -557,7 +557,7 @@ msgstr "Arhiveeri"
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:386
 #, elixir-autogen, elixir-format
 msgid "Archive Template"
-msgstr "Uus mall"
+msgstr "Arhiveeri mall"
 
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:343
 #, elixir-autogen, elixir-format
@@ -708,7 +708,7 @@ msgstr "Klooni"
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:531
 #, elixir-autogen, elixir-format
 msgid "Clone Template"
-msgstr "Uus mall"
+msgstr "Klooni mall"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:640
 #, elixir-autogen, elixir-format
@@ -910,7 +910,7 @@ msgstr "Muuda"
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:305
 #, elixir-autogen, elixir-format
 msgid "Email"
-msgstr "E-kirjad"
+msgstr "E-post"
 
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:130
 #: lib/phoenix_kit/modules/emails/web/blocklist.html.heex:335
@@ -1427,7 +1427,7 @@ msgstr "Uus kuvatav nimi"
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:476
 #, elixir-autogen, elixir-format
 msgid "New Template Name"
-msgstr "Uus mall"
+msgstr "Uue malli nimi"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:146
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:152
@@ -1577,7 +1577,7 @@ msgstr "Avaldamine"
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:322
 #, elixir-autogen, elixir-format
 msgid "Queued"
-msgstr "Järjekord"
+msgstr "Järjekorras"
 
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:214
 #, elixir-autogen, elixir-format
@@ -1923,7 +1923,7 @@ msgstr "Seadistamine..."
 #: lib/phoenix_kit/modules/emails/web/settings.html.heex:933
 #, elixir-autogen, elixir-format
 msgid "Setup AWS Infrastructure"
-msgstr "3. Seadista taristu"
+msgstr "Seadista AWS taristu"
 
 #: lib/phoenix_kit/modules/emails/web/details.html.heex:238
 #, elixir-autogen, elixir-format
