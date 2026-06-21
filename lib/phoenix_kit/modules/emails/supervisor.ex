@@ -3,7 +3,8 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
   Supervisor for PhoenixKit email tracking system.
 
   This module manages all processes necessary for email tracking:
-  - SQS Worker for processing events from AWS SQS
+  - Kicks off Oban-based SQS polling at boot (see `SQSPollingManager`)
+  - Registers the unified email provider
   - Additional processes (metrics, archiving, etc.)
 
   ## Integration into Parent Application
@@ -33,14 +34,17 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
   ## Process Management
 
-      # Stop SQS Worker
-      PhoenixKit.Modules.Emails.SQSWorker.pause()
+  SQS polling is driven entirely by Oban (see `SQSPollingManager`) and can be
+  toggled at runtime without an application restart:
 
-      # Start SQS Worker
-      PhoenixKit.Modules.Emails.SQSWorker.resume()
+      # Stop polling
+      PhoenixKit.Modules.Emails.SQSPollingManager.disable_polling()
+
+      # Start polling
+      PhoenixKit.Modules.Emails.SQSPollingManager.enable_polling()
 
       # Check status
-      PhoenixKit.Modules.Emails.SQSWorker.status()
+      PhoenixKit.Modules.Emails.SQSPollingManager.status()
 
   ## Monitoring
 
@@ -59,7 +63,6 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSPollingManager
-  alias PhoenixKit.Modules.Emails.SQSWorker
 
   @doc """
   Starts supervisor for email tracking system.
@@ -83,7 +86,9 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
     alias PhoenixKit.Modules.Emails.ApplicationIntegration
     ApplicationIntegration.register()
 
-    children = build_children() ++ build_oban_starter()
+    # SQS polling runs as Oban jobs (see build_oban_starter/0 + SQSPollingManager),
+    # so the supervisor itself has no long-running polling child of its own.
+    children = build_oban_starter()
 
     # Use :one_for_one strategy - if one process crashes,
     # only that one is restarted
@@ -98,37 +103,24 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
       iex> PhoenixKit.Modules.Emails.Supervisor.system_status()
       %{
         supervisor_running: true,
-        sqs_worker_running: true,
-        sqs_worker_status: %{polling_enabled: true, ...},
-        children_count: 1
+        polling_status: %{enabled: true, pending_jobs: 1, ...},
+        children_count: 0
       }
   """
   def system_status(supervisor \\ __MODULE__) do
-    children = Supervisor.which_children(supervisor)
     child_count = Supervisor.count_children(supervisor)
 
-    sqs_worker_running =
-      Enum.any?(children, fn {id, _pid, _type, _modules} ->
-        id == SQSWorker
-      end)
-
-    sqs_worker_status =
-      if sqs_worker_running do
-        try do
-          SQSWorker.status()
-        catch
-          _, _ -> %{error: "worker_not_responding"}
-        end
-      else
-        %{error: "worker_not_started"}
+    polling_status =
+      try do
+        SQSPollingManager.status()
+      catch
+        _, _ -> %{error: "polling_status_unavailable"}
       end
 
     %{
       supervisor_running: true,
-      sqs_worker_running: sqs_worker_running,
-      sqs_worker_status: sqs_worker_status,
-      children_count: child_count.active,
-      total_restarts: child_count.workers
+      polling_status: polling_status,
+      children_count: child_count.active
     }
   catch
     _, _ ->
@@ -136,30 +128,6 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
         supervisor_running: false,
         error: "supervisor_not_accessible"
       }
-  end
-
-  @doc """
-  Stops and restarts SQS Worker.
-
-  Useful for applying new configuration settings.
-
-  ## Examples
-
-      iex> PhoenixKit.Modules.Emails.Supervisor.restart_sqs_worker()
-      :ok
-  """
-  def restart_sqs_worker(supervisor \\ __MODULE__) do
-    case Supervisor.terminate_child(supervisor, SQSWorker) do
-      :ok ->
-        case Supervisor.restart_child(supervisor, SQSWorker) do
-          {:ok, _pid} -> :ok
-          {:ok, _pid, _info} -> :ok
-          {:error, reason} -> {:error, reason}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
   end
 
   ## --- Helper Functions for Integration ---
@@ -194,56 +162,12 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
   ## --- Private Functions ---
 
-  # Builds list of child processes based on configuration
-  defp build_children do
-    children = []
-
-    # Add SQS Worker if polling is enabled
-    children =
-      if should_start_sqs_worker?() do
-        [build_sqs_worker_spec() | children]
-      else
-        children
-      end
-
-    # In the future, other processes can be added here:
-    # - Metrics collector
-    # - Archiving worker
-    # - Cleanup scheduler
-
-    children
-  end
-
-  # Checks whether SQS Worker should start
-  defp should_start_sqs_worker? do
-    # Check that email tracking is enabled
-    # Check that AWS SES events processing is enabled
-    # Check that SQS polling is enabled
-    # Check that SQS settings exist
-    Emails.enabled?() &&
-      Emails.ses_events_enabled?() &&
-      Emails.sqs_polling_enabled?() &&
-      has_sqs_configuration?()
-  end
-
   # Checks for minimum SQS configuration
   defp has_sqs_configuration? do
     sqs_config = Emails.get_sqs_config()
 
     not is_nil(sqs_config.queue_url) and
       sqs_config.queue_url != ""
-  end
-
-  # Creates child spec for SQS Worker
-  defp build_sqs_worker_spec do
-    %{
-      id: SQSWorker,
-      start: {SQSWorker, :start_link, [[]]},
-      type: :worker,
-      restart: :permanent,
-      # 10 seconds for graceful shutdown
-      shutdown: 10_000
-    }
   end
 
   # Build a one-off supervised Task that waits for Oban, then starts the polling job.
