@@ -2,8 +2,8 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   @moduledoc """
   Oban worker for polling AWS SQS queue for email events.
 
-  This worker replaces the GenServer-based SQSWorker with an Oban-based
-  approach that allows dynamic enabling/disabling without application restart.
+  This is the sole SQS poller: an Oban-based approach that allows dynamic
+  enabling/disabling without an application restart (see `SQSPollingManager`).
 
   ## Architecture
 
@@ -57,18 +57,26 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   ## Implementation Notes
 
-  - Uses `unique: [period: 60]` to prevent duplicate jobs
+  - Uses a short `unique` window to prevent duplicate submissions
   - Schedules next job only if polling is enabled
-  - Uses existing SQSProcessor for event processing
-  - Compatible with existing SQSWorker API
+  - Uses `SQSProcessor` for event processing
   """
 
   use Oban.Worker,
     queue: :sqs_polling,
     max_attempts: 3,
-    # Short unique period to prevent duplicate submissions while allowing self-scheduling
-    # 10 seconds is enough to prevent accidental double-clicks but allows 5s polling interval
-    unique: [period: 10, states: [:scheduled, :available, :executing]]
+    # Short unique window to coalesce accidental double-submits (e.g. double
+    # clicking the toggle) while still allowing the 5s self-scheduling chain.
+    #
+    # NOTE: `:executing` is intentionally NOT in the states list. The chain
+    # works by an executing job inserting the next one; if `:executing` were
+    # included, that self-reschedule would be deduped against the still-running
+    # job and the chain would stall. Worse, a job orphaned in `:executing` by a
+    # hard crash (SIGKILL mid-poll) would permanently block every future insert,
+    # killing polling until manual intervention. Matching only queued states
+    # avoids both. Concurrency is capped at 1 by the queue, so this cannot cause
+    # parallel polling.
+    unique: [period: 10, states: [:scheduled, :available]]
 
   require Logger
 
@@ -257,10 +265,16 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     Enum.count(results, & &1)
   end
 
-  # Process a single message
+  # Process a single message.
+  #
+  # ExAws.SQS may return messages with either string keys ("ReceiptHandle") or
+  # atom keys (:receipt_handle, from the `%{body: %{messages: [...]}}` parsed
+  # shape that receive_messages/1 also accepts). Read both, otherwise the
+  # receipt handle comes back nil and delete_message/3 silently fails, leaving
+  # the message to be re-received forever.
   defp process_single_message(message, queue_url, aws_config) do
-    message_id = message["MessageId"]
-    receipt_handle = message["ReceiptHandle"]
+    message_id = message["MessageId"] || message[:message_id]
+    receipt_handle = message["ReceiptHandle"] || message[:receipt_handle]
 
     with {:ok, event_data} <- SQSProcessor.parse_sns_message(message),
          {:ok, _result} <- SQSProcessor.process_email_event(event_data),
@@ -277,7 +291,15 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     end
   end
 
-  # Delete processed message from queue
+  # Delete processed message from queue. Returns the failure (instead of
+  # swallowing it as :ok) so a message that wasn't actually deleted is not
+  # counted as processed — the silent :ok previously hid a nil-receipt-handle
+  # bug that made messages re-cycle forever.
+  defp delete_message(_queue_url, nil, _aws_config) do
+    Logger.error("SQS Polling Job: Missing receipt handle, cannot delete message")
+    {:error, :missing_receipt_handle}
+  end
+
   defp delete_message(queue_url, receipt_handle, aws_config) do
     ExAws.SQS.delete_message(queue_url, receipt_handle)
     |> ExAws.request(aws_config)
@@ -291,7 +313,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
           queue_url: queue_url
         })
 
-        :ok
+        {:error, error}
     end
   end
 
