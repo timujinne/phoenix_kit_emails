@@ -107,7 +107,6 @@ lib/
     ├── metrics.ex                   # Analytics and engagement metrics
     ├── archiver.ex                  # Cleanup, compression, S3 archival
     ├── rate_limiter.ex              # Rate limiting via Hammer
-    ├── sqs_worker.ex                # GenServer SQS long-polling
     ├── sqs_processor.ex             # SQS message parsing/processing
     ├── sqs_polling_job.ex           # Oban-based SQS polling
     ├── sqs_polling_manager.ex       # Oban polling lifecycle

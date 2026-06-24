@@ -165,6 +165,7 @@ defmodule PhoenixKit.Modules.Emails.Log do
 
   @derive {Jason.Encoder, except: [:__meta__, :user, :events]}
 
+  alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
@@ -518,7 +519,7 @@ defmodule PhoenixKit.Modules.Emails.Log do
       server ->
         Phoenix.PubSub.broadcast(
           server,
-          PhoenixKit.Modules.Emails.email_status_topic(),
+          Emails.email_status_topic(),
           {:email_log_updated, %{uuid: log.uuid, status: log.status}}
         )
     end

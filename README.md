@@ -177,7 +177,6 @@ lib/
     sqs_polling_job.ex                   # Oban job for SQS polling
     sqs_polling_manager.ex               # SQS polling lifecycle management
     sqs_processor.ex                     # SQS message processing
-    sqs_worker.ex                        # SQS worker process
     supervisor.ex                        # OTP Supervisor
     table_columns.ex                     # Admin table column definitions
     template.ex                          # Email template schema

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.7 - 2026-06-23
+
+### Added
+- Live-update the Emails admin list on delivery-status changes via PubSub. `Log.update_log/2` broadcasts a lightweight `{:email_log_updated, …}` event only when a log's status actually changes; the emails LiveView refreshes just the affected on-screen row (no 30-day stats recompute). Best-effort — a PubSub failure can never break the DB write. (#11)
+
+### Fixed
+- Consolidate SQS polling onto a single Oban-based poller: remove the legacy 842-line `SQSWorker` GenServer. `SQSPollingJob` + `SQSPollingManager` are now the sole poller and runtime control surface (enable/disable without an app restart). (#11)
+- Self-scheduling no longer stalls: the polling job's `unique` constraint excludes running jobs, so an executing job can enqueue its successor and a crash-orphaned job can't permanently block new inserts. (#11)
+- SQS messages no longer re-cycle forever: `delete_message/3` returns failures instead of swallowing them as `:ok`, reads both string and atom receipt-handle keys, and won't count an undeleted message as processed. (#11)
+- The admin SQS-polling toggle now starts/stops the poller at runtime (routed through `SQSPollingManager`) instead of only persisting the flag and waiting for the next boot. (#11)
+- Provider detection classifies a message as `aws_ses` when an SES configuration set is configured, even when the host app sends through its own Swoosh mailer. (#11)
+- Post-merge review fixes: compile clean under `--warnings-as-errors` with Oban 2.23 (narrow the polling job's `unique` states to `[:scheduled]`), satisfy `credo --strict` for the new broadcast helper, and drop a stale retired `earmark` entry from the lockfile.
+
+### Changed
+- Refresh dependency lockfile (notable bumps: `oban` → 2.23, `phoenix_kit` → 1.7.164, `phoenix_live_view` → 1.2, `swoosh` → 1.26, `tesla` → 1.20, `bandit` → 1.12, `req`).
+
 ## 0.1.6 - 2026-05-25
 
 ### Added

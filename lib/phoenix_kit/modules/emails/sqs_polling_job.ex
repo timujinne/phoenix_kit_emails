@@ -77,10 +77,18 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     # included, that self-reschedule would be deduped against the still-running
     # job and the chain would stall. Worse, a job orphaned in `:executing` by a
     # hard crash (SIGKILL mid-poll) would permanently block every future insert,
-    # killing polling until manual intervention. Matching only queued states
-    # avoids both. Concurrency is capped at 1 by the queue, so parallel
-    # *execution* is impossible; delete_queued_jobs/0 prevents parallel *chains*.
-    unique: [period: 10, states: [:scheduled, :available]]
+    # killing polling until manual intervention.
+    #
+    # We match only `[:scheduled]`, which is exactly enough: self-scheduled jobs
+    # always land in `:scheduled` (interval >= 1000ms ⇒ schedule_in >= 1s, never
+    # `:available`), so this dedups the self-reschedule chain; the immediate
+    # (`:available`) job from enable_polling/0 is already coalesced by
+    # delete_queued_jobs/0 cancelling queued jobs before inserting. A wider list
+    # (e.g. adding `:available`) makes Oban warn that incomplete states are
+    # missing, which `--warnings-as-errors` turns into a build failure.
+    # Concurrency is capped at 1 by the queue, so parallel *execution* is
+    # impossible; delete_queued_jobs/0 prevents parallel *chains*.
+    unique: [period: 10, states: [:scheduled]]
 
   require Logger
 
