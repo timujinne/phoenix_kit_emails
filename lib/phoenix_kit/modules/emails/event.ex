@@ -135,8 +135,18 @@ defmodule PhoenixKit.Modules.Emails.Event do
     |> validate_complaint_type_consistency()
     |> validate_click_event_consistency()
     |> foreign_key_constraint(:email_log_uuid)
+    # Two partial unique indexes back these constraints (core migration V137):
+    #   - single-occurrence types (delivery/bounce/complaint/send/...): one row
+    #     per (email_log_uuid, event_type).
+    #   - multi-occurrence types (open/click): one row per
+    #     (email_log_uuid, event_type, occurred_at) so distinct engagements are
+    #     kept while an at-least-once SQS redelivery (identical timestamp) is
+    #     deduped. Both violations attach to :email_log_uuid (see create_event/1).
     |> unique_constraint([:email_log_uuid, :event_type],
       name: :phoenix_kit_email_events_log_uuid_event_type_index
+    )
+    |> unique_constraint([:email_log_uuid, :event_type, :occurred_at],
+      name: :phoenix_kit_email_events_log_uuid_type_occurred_index
     )
     |> maybe_set_occurred_at()
     |> validate_ip_address_format()
@@ -164,10 +174,11 @@ defmodule PhoenixKit.Modules.Emails.Event do
     changeset = changeset(%__MODULE__{}, attrs)
 
     # Idempotent insert. The dedup of duplicate SES events (at-least-once SQS
-    # delivery, two pollers racing the event_exists?/2 pre-check) is enforced
-    # atomically at the DB level by the unique index on
-    # (email_log_uuid, event_type). A concurrent duplicate hits the
-    # unique_constraint and surfaces as a changeset error here, which we
+    # delivery, two pollers racing the pre-check) is enforced atomically at the
+    # DB level by the two partial unique indexes declared in changeset/2
+    # (single-occurrence types on (email_log_uuid, event_type); open/click on
+    # (email_log_uuid, event_type, occurred_at)). A concurrent duplicate hits the
+    # relevant unique_constraint and surfaces as a changeset error here, which we
     # translate into a graceful {:ok, :duplicate_event} so callers do not log a
     # spurious failure.
     #
@@ -193,9 +204,9 @@ defmodule PhoenixKit.Modules.Emails.Event do
   end
 
   # Detects the unique-constraint violation produced by a concurrent duplicate
-  # event so it can be reported as :duplicate_event rather than an error. The
-  # constraint is declared on [:email_log_uuid, :event_type], so Ecto attaches
-  # the error to the :email_log_uuid field.
+  # event so it can be reported as :duplicate_event rather than an error. Both
+  # unique_constraints list :email_log_uuid first, so Ecto attaches either
+  # violation's error to the :email_log_uuid field.
   defp duplicate_event_error?(errors) do
     Enum.any?(errors, fn
       {:email_log_uuid, {_msg, opts}} -> opts[:constraint] == :unique
@@ -321,6 +332,29 @@ defmodule PhoenixKit.Modules.Emails.Event do
     )
     |> repo().exists?()
   end
+
+  @doc """
+  Returns true if an event of the given type AND `occurred_at` already exists for
+  the email log.
+
+  Used to dedup multi-occurrence events (open/click), where the same engagement
+  can legitimately recur at different times — so we key on the timestamp and only
+  treat an at-least-once SQS redelivery of the SAME (type, occurred_at) as a
+  duplicate. The DB unique index on (email_log_uuid, event_type, occurred_at)
+  enforces this atomically; this is the cheap racy pre-check.
+  """
+  def event_exists_at?(email_log_uuid, event_type, %DateTime{} = occurred_at)
+      when is_binary(email_log_uuid) and is_binary(event_type) do
+    from(e in __MODULE__,
+      where:
+        e.email_log_uuid == ^email_log_uuid and e.event_type == ^event_type and
+          e.occurred_at == ^occurred_at,
+      limit: 1
+    )
+    |> repo().exists?()
+  end
+
+  def event_exists_at?(_email_log_uuid, _event_type, _occurred_at), do: false
 
   @doc """
   Gets events of a specific type within a time range.

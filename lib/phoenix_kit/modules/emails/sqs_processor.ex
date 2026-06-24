@@ -1144,15 +1144,20 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
   # Creates event record for open
   defp create_open_event(log, open_data, timestamp) do
-    # Check if open event already exists to prevent duplicates
-    if Event.event_exists?(log.uuid, "open") do
+    occurred_at = parse_timestamp(timestamp)
+
+    # Opens can legitimately recur (a recipient opens the email multiple times),
+    # so dedup on (uuid, type, occurred_at) rather than one-per-type — only an
+    # at-least-once SQS redelivery of the SAME open (identical timestamp) is
+    # skipped. The DB unique index backstops the race.
+    if Event.event_exists_at?(log.uuid, "open", occurred_at) do
       {:ok, :duplicate_event}
     else
       event_attrs = %{
         email_log_uuid: log.uuid,
         event_type: "open",
         event_data: open_data,
-        occurred_at: parse_timestamp(timestamp),
+        occurred_at: occurred_at,
         ip_address: get_in(open_data, ["ipAddress"]),
         user_agent: get_in(open_data, ["userAgent"])
       }
@@ -1163,16 +1168,20 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
   # Creates event record for click
   defp create_click_event(log, click_data, timestamp) do
-    # For clicks, we might want to allow multiple click events (different links)
-    # but for now, let's prevent duplicate click events too
-    if Event.event_exists?(log.uuid, "click") do
+    occurred_at = parse_timestamp(timestamp)
+
+    # Clicks on different links (or the same link at different times) are distinct
+    # engagements worth keeping, so dedup on (uuid, type, occurred_at) — only an
+    # exact SQS redelivery (identical timestamp) is skipped. The DB unique index
+    # backstops the race.
+    if Event.event_exists_at?(log.uuid, "click", occurred_at) do
       {:ok, :duplicate_event}
     else
       event_attrs = %{
         email_log_uuid: log.uuid,
         event_type: "click",
         event_data: click_data,
-        occurred_at: parse_timestamp(timestamp),
+        occurred_at: occurred_at,
         link_url: get_in(click_data, ["link"]),
         ip_address: get_in(click_data, ["ipAddress"]),
         user_agent: get_in(click_data, ["userAgent"])
