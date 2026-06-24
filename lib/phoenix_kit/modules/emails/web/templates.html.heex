@@ -533,7 +533,7 @@
           <.pagination
             current_page={@page}
             total_pages={@total_pages}
-            base_path="/admin/emails/templates"
+            base_path={Routes.path("/admin/emails/templates")}
             params={
               %{
                 "search" => @filters.search,
