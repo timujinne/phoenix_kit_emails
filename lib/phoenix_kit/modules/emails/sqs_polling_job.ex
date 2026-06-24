@@ -91,6 +91,10 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   @default_long_poll_timeout 20
 
+  # Back-off interval used when the config is (recoverably) invalid, so a
+  # misconfigured system is not polled at the full rate while it keeps failing.
+  @misconfig_backoff_ms 30_000
+
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
     # Check if polling is enabled before processing
@@ -99,32 +103,41 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
       config = Emails.get_sqs_config()
 
-      case validate_configuration(config) do
-        :ok ->
-          case perform_polling_cycle(config) do
-            {:ok, _} = result ->
-              # Only the success path self-schedules the next cycle. On a
-              # transient receive error we return {:error, _} and let Oban retry
-              # this same job (max_attempts 3) — scheduling a next poll here too
-              # would spawn a duplicate chain (Oban retry + self-schedule both
-              # firing). Exactly one of the two mechanisms owns the continuation.
-              schedule_next_poll(config.polling_interval_ms)
-              result
+      # The self-scheduling chain owns continuation; the poll interval IS the
+      # retry cadence. We ALWAYS schedule the next cycle while polling is enabled
+      # and return :ok — never {:error}. Returning {:error} would either spawn a
+      # duplicate chain (Oban retry + self-schedule both firing) or, once the 3
+      # Oban attempts are exhausted on a sustained outage, let the chain die
+      # permanently until an app restart. A transient receive error simply
+      # retries on the next scheduled poll; a recoverable misconfiguration backs
+      # off but keeps the chain alive so it resumes once fixed.
+      # delete_queued_jobs/0 in schedule_next_poll keeps this to exactly one chain.
+      next_interval =
+        case validate_configuration(config) do
+          :ok ->
+            log_cycle_result(perform_polling_cycle(config))
+            config.polling_interval_ms
 
-            {:error, _reason} = error ->
-              error
-          end
+          {:error, reason} ->
+            Logger.error("SQS Polling Job: Invalid configuration - #{reason}")
+            @misconfig_backoff_ms
+        end
 
-        {:error, reason} ->
-          # Config error: do not schedule and let Oban retry (matches the
-          # transient-error contract above).
-          Logger.error("SQS Polling Job: Invalid configuration - #{reason}")
-          {:error, reason}
-      end
+      schedule_next_poll(next_interval)
+      :ok
     else
       Logger.debug("SQS Polling Job: Polling disabled, skipping cycle")
       :ok
     end
+  end
+
+  # A failed polling cycle does not fail the Oban job (the chain self-continues);
+  # we log it loudly so a sustained outage stays observable.
+  defp log_cycle_result({:ok, _}), do: :ok
+
+  defp log_cycle_result({:error, reason}) do
+    Logger.error("SQS Polling Job: Polling cycle failed", %{reason: inspect(reason)})
+    :ok
   end
 
   @doc """

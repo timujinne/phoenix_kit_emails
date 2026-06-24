@@ -365,28 +365,39 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     end
   end
 
-  # For a non-"aws_ses" detected provider the response may still carry a real
-  # AWS MessageId — notably "unknown" from an Option-1 host-app Swoosh mailer
-  # whose AmazonSES config lives under the app's OWN otp_app (which
-  # detect_provider_from_config cannot read, so detect_provider/2 falls back to
-  # "unknown"). Try a SILENT extraction: no failure warning, since Test/Local/
-  # SMTP responses legitimately carry no id and we don't want noise on every
-  # send. On success, capture the id and reclassify the log as "aws_ses" so the
-  # SQS/SNS poller can correlate later events (which are keyed on this MessageId).
-  defp maybe_extract_provider_data(%Log{} = log, provider_response, update_attrs) do
+  # Option-1 host-app mailers send through the app's OWN Swoosh AmazonSES mailer,
+  # whose config lives under the app's otp_app — detect_provider_from_config
+  # cannot read it, so detect_provider/2 returns "unknown". In that ONE case the
+  # success response may still carry a real AWS MessageId we can recover. The
+  # gate is deliberately narrow:
+  #   - only provider == "unknown" (an explicitly-detected local/smtp/sendgrid/...
+  #     provider is trusted as-is and never reclassified), and
+  #   - only a value that looks like an AWS SES MessageId. Swoosh.Adapters.Local
+  #     returns the email's RFC "<id@host>" header as :id; that is NOT a SES
+  #     MessageId and must never reclassify a dev/test send to "aws_ses".
+  # Extraction is SILENT (no failure warning) so non-SES sends produce no noise.
+  defp maybe_extract_provider_data(
+         %Log{provider: "unknown"} = log,
+         provider_response,
+         update_attrs
+       ) do
     case extract_message_id_from_response(provider_response) do
-      %{message_id: aws_message_id} when is_binary(aws_message_id) ->
-        Logger.info("EmailInterceptor: Recovered AWS message_id for non-SES-detected provider", %{
-          log_uuid: log.uuid,
-          detected_provider: log.provider,
-          aws_message_id: aws_message_id
-        })
+      %{message_id: aws_message_id}
+      when is_binary(aws_message_id) ->
+        if aws_ses_message_id?(aws_message_id) do
+          Logger.info("EmailInterceptor: Recovered AWS message_id for Option-1 mailer", %{
+            log_uuid: log.uuid,
+            aws_message_id: aws_message_id
+          })
 
-        log_extraction_metric(true, log.uuid, aws_message_id)
+          log_extraction_metric(true, log.uuid, aws_message_id)
 
-        update_attrs
-        |> Map.put(:provider, "aws_ses")
-        |> then(&store_aws_message_id(log, aws_message_id, provider_response, &1))
+          update_attrs
+          |> Map.put(:provider, "aws_ses")
+          |> then(&store_aws_message_id(log, aws_message_id, provider_response, &1))
+        else
+          update_attrs
+        end
 
       _ ->
         update_attrs
@@ -394,6 +405,14 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   end
 
   defp maybe_extract_provider_data(_log, _provider_response, update_attrs), do: update_attrs
+
+  # AWS SES MessageIds are opaque tokens without RFC Message-ID punctuation. An id
+  # containing "<", ">" or "@" is an RFC angle-bracket Message-ID (e.g. from the
+  # Swoosh Local adapter), not a SES MessageId — reject it so we never reclassify
+  # a non-SES send to "aws_ses" with an id no SQS/SNS event can correlate to.
+  defp aws_ses_message_id?(id) when is_binary(id) do
+    not String.contains?(id, ["<", ">", "@"])
+  end
 
   # Persist a recovered AWS MessageId into the dedicated aws_message_id field
   # (the SQS/SNS poller correlates events on it) and mirror the internal/AWS ids

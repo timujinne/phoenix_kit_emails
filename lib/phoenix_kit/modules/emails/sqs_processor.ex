@@ -1054,7 +1054,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
           {:error, :not_found} ->
             Logger.warning("No email log found for message_id", %{
               message_id: message_id,
-              searched_strategies: ["direct", "aws_field", "metadata"]
+              searched_strategies: ["direct", "aws_field"]
             })
 
             {:error, :not_found}

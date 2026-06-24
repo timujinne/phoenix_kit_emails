@@ -361,6 +361,13 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     |> Enum.reduce({0, 0}, fn {count, saved}, {total_count, total_saved} ->
       {total_count + count, total_saved + saved}
     end)
+  rescue
+    # Mirror process_s3_archival's resilience: a raised exception inside the
+    # streaming transaction (the whole run rolls back atomically) must not crash
+    # the background compaction job. Report zero progress for this run.
+    error ->
+      Logger.error("Email archiver: body compression run failed: #{Exception.message(error)}")
+      {0, 0}
   end
 
   defp compress_batch(email_logs) do
