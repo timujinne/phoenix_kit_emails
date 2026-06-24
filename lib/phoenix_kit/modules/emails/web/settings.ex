@@ -73,7 +73,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
     socket =
       socket
       |> assign(:current_path, current_path)
-      |> assign(:page_title, "Emails")
+      |> assign(:page_title, gettext("Emails Settings"))
+      |> assign(:page_subtitle, gettext("Configure emails behavior and data retention"))
       |> assign(:email_enabled, email_config.enabled)
       |> assign(:email_save_body, email_config.save_body)
       |> assign(:email_save_headers, Emails.save_headers_enabled?())

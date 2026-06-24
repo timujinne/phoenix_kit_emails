@@ -46,6 +46,8 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
     socket =
       socket
+      |> assign(:page_title, gettext("Email Template"))
+      |> assign(:page_subtitle, gettext("Create and edit an email template"))
       |> assign(:template, nil)
       |> assign(:mode, :new)
       |> assign(:loading, false)
@@ -74,12 +76,17 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
       template ->
         changeset = Template.changeset(template, %{})
         extracted_variables = Template.extract_variables(template)
+        source_module = Template.get_source_module(template)
 
         socket =
           socket
           |> assign(
             :page_title,
             "Edit Template: #{Template.get_translation(template.display_name, "en")}"
+          )
+          |> assign(
+            :page_subtitle,
+            "Version #{template.version} • #{String.capitalize(template.category)} • #{String.capitalize(source_module)} • #{String.capitalize(template.status)}"
           )
           |> assign(:template, template)
           |> assign(:mode, :edit)
@@ -108,6 +115,7 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
     socket =
       socket
       |> assign(:page_title, "Create New Template")
+      |> assign(:page_subtitle, gettext("Create a new email template"))
       |> assign(:template, nil)
       |> assign(:mode, :new)
       |> assign(:changeset, changeset)

@@ -1,20 +1,4 @@
 <div class="container flex-col mx-auto px-4 py-6">
-    <.admin_page_header back={Routes.path("/admin/emails/templates")}>
-      <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">{@page_title}</h1>
-      <%= if @mode == :edit and @template do %>
-        <% source_module = PhoenixKit.Modules.Emails.Template.get_source_module(@template) %>
-        <p class="text-sm text-base-content/60 mt-0.5">
-          Version {@template.version} • {String.capitalize(@template.category)} • {String.capitalize(
-            source_module
-          )} • {String.capitalize(@template.status)}
-        </p>
-      <% else %>
-        <p class="text-sm text-base-content/60 mt-0.5">
-          {gettext("Create a new email template")}
-        </p>
-      <% end %>
-    </.admin_page_header>
-
     <%!-- Main Editor Grid --%>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <%!-- Editor Panel --%>

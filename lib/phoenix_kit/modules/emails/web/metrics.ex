@@ -54,6 +54,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
 
       socket =
         socket
+        |> assign(:page_title, gettext("Email Dashboard"))
+        |> assign(
+          :page_subtitle,
+          gettext("Comprehensive email performance metrics and insights")
+        )
         |> assign(:loading, true)
         |> assign(:period, :last_7_days)
         |> assign(:custom_range, false)

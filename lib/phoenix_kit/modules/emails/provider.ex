@@ -68,27 +68,87 @@ defmodule PhoenixKit.Modules.Emails.Provider do
 
   # Test tracking email — sends a test email with tracking enabled
 
-  def send_test_tracking_email(recipient_email, _user_uuid) do
+  def send_test_tracking_email(recipient_email, user_uuid) do
     from_email = PhoenixKit.Settings.get_setting("from_email", "noreply@example.com")
     from_name = PhoenixKit.Settings.get_setting("from_name", "PhoenixKit")
     timestamp = DateTime.utc_now() |> Calendar.strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    email =
+    base =
       Swoosh.Email.new()
       |> Swoosh.Email.to(recipient_email)
       |> Swoosh.Email.from({from_name, from_email})
-      |> Swoosh.Email.subject("Test Tracking Email - #{timestamp}")
-      |> Swoosh.Email.html_body("""
-      <h1>Test Email</h1>
-      <p>This is a test tracking email sent at #{timestamp}.</p>
-      <p>Recipient: #{recipient_email}</p>
-      """)
-      |> Swoosh.Email.text_body("Test Email\nSent at #{timestamp}\nRecipient: #{recipient_email}")
 
-    PhoenixKit.Mailer.deliver_email(email)
+    # Send the seeded "test_email" system template (auto-created by
+    # seed_system_templates) so the test reflects a real template and the log /
+    # Details capture template_name. Falls back to a built-in body if the
+    # template is missing.
+    case Templates.get_active_template_by_name("test_email") do
+      %Template{} = template ->
+        rendered =
+          Templates.render_template(
+            template,
+            build_test_variables(template, recipient_email, timestamp)
+          )
+
+        email =
+          base
+          |> Swoosh.Email.subject(rendered.subject || "Test Tracking Email - #{timestamp}")
+          |> Swoosh.Email.html_body(rendered.html_body || "")
+          |> Swoosh.Email.text_body(rendered.text_body || "")
+
+        Templates.track_usage(template)
+        # template_name / user_uuid / source_module opts → recorded on the email
+        # log by the interceptor (so Details shows the template, user, and module).
+        PhoenixKit.Mailer.deliver_email(email,
+          template_name: template.name,
+          user_uuid: user_uuid,
+          source_module: "emails"
+        )
+
+      _ ->
+        email =
+          base
+          |> Swoosh.Email.subject("Test Tracking Email - #{timestamp}")
+          |> Swoosh.Email.html_body("""
+          <h1>Test Email</h1>
+          <p>This is a test tracking email sent at #{timestamp}.</p>
+          <p>Recipient: #{recipient_email}</p>
+          """)
+          |> Swoosh.Email.text_body(
+            "Test Email\nSent at #{timestamp}\nRecipient: #{recipient_email}"
+          )
+
+        PhoenixKit.Mailer.deliver_email(email,
+          template_name: "test_email",
+          user_uuid: user_uuid,
+          source_module: "emails"
+        )
+    end
   rescue
     error ->
       Logger.error("Failed to send test tracking email: #{inspect(error)}")
       {:error, error}
+  end
+
+  # Sample values for every variable the test_email template declares, so the
+  # rendered test has no leftover {{placeholders}}.
+  defp build_test_variables(template, recipient_email, timestamp) do
+    template
+    |> Template.extract_variables()
+    |> Map.new(fn var -> {var, sample_variable_value(var, recipient_email, timestamp)} end)
+  end
+
+  defp sample_variable_value(var, recipient_email, timestamp) do
+    v = String.downcase(to_string(var))
+
+    cond do
+      String.contains?(v, "email") -> recipient_email
+      String.contains?(v, "recipient") -> recipient_email
+      String.contains?(v, "name") or String.contains?(v, "user") -> "Test User"
+      String.contains?(v, "date") or String.contains?(v, "time") -> timestamp
+      String.contains?(v, "url") or String.contains?(v, "link") -> "https://example.com"
+      String.contains?(v, "code") or String.contains?(v, "token") -> "123456"
+      true -> "Sample #{var}"
+    end
   end
 end

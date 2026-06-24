@@ -77,12 +77,16 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
         |> assign(:search_term, "")
         |> assign(:reason_filter, "")
         |> assign(:status_filter, "all")
+        |> assign(:sort_by, :inserted_at)
+        |> assign(:sort_dir, :desc)
         |> assign(:selected_emails, [])
         |> assign(:show_add_form, false)
         |> assign(:show_import_form, false)
         |> assign(:bulk_action, nil)
         |> assign(:last_updated, UtilsDate.utc_now())
         |> assign(:statistics, %{})
+        |> assign(:page_title, gettext("Email Blocklist"))
+        |> assign(:page_subtitle, gettext("Manage blocked email addresses"))
         |> load_blocklist_data()
 
       {:ok, socket}
@@ -127,6 +131,28 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
     {:noreply,
      socket
      |> assign(:status_filter, status)
+     |> assign(:page, 1)
+     |> load_blocklist_data()}
+  end
+
+  @impl true
+  def handle_event("toggle_sort", %{"by" => by}, socket) do
+    # Clicking a sortable column header: validate the field, then toggle the
+    # direction if it's already the active sort, otherwise switch to that field
+    # ascending. Resets to page 1 and reloads.
+    field = validate_sort_by(by)
+
+    sort_dir =
+      if field == socket.assigns.sort_by do
+        if socket.assigns.sort_dir == :asc, do: :desc, else: :asc
+      else
+        :asc
+      end
+
+    {:noreply,
+     socket
+     |> assign(:sort_by, field)
+     |> assign(:sort_dir, sort_dir)
      |> assign(:page, 1)
      |> load_blocklist_data()}
   end
@@ -378,9 +404,26 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
     opts
     |> Map.put(:limit, assigns.per_page)
     |> Map.put(:offset, offset)
-    |> Map.put(:order_by, :inserted_at)
-    |> Map.put(:order_dir, :desc)
+    |> Map.put(:order_by, assigns.sort_by)
+    |> Map.put(:order_dir, assigns.sort_dir)
   end
+
+  # Whitelist of fields that may be passed to RateLimiter.list_blocklist/1
+  # :order_by. Anything outside this set falls back to the default inserted_at.
+  @sort_fields [:email, :reason, :inserted_at, :expires_at]
+
+  defp validate_sort_by(value) when is_atom(value) do
+    if value in @sort_fields, do: value, else: :inserted_at
+  end
+
+  defp validate_sort_by(value) when is_binary(value) do
+    case Enum.find(@sort_fields, fn field -> Atom.to_string(field) == value end) do
+      nil -> :inserted_at
+      field -> field
+    end
+  end
+
+  defp validate_sort_by(_), do: :inserted_at
 
   defp load_blocked_emails(filters) do
     RateLimiter.list_blocklist(filters)

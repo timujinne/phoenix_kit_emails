@@ -49,7 +49,11 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
     socket =
       socket
       |> assign(:current_locale, locale)
-      |> assign(:page_title, "Email Tracking")
+      |> assign(:page_title, gettext("Email Tracking Settings"))
+      |> assign(
+        :page_subtitle,
+        gettext("Configure email tracking system behavior and data retention")
+      )
       |> assign(:email_tracking_enabled, email_tracking_config.enabled)
       |> assign(:email_tracking_save_body, email_tracking_config.save_body)
       |> assign(:email_tracking_ses_events, email_tracking_config.ses_events)

@@ -35,6 +35,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
   import PhoenixKitWeb.Components.Core.Icon
   import PhoenixKitWeb.Components.Core.TableDefault
+  import PhoenixKitWeb.Components.Core.DraggableList
   import PhoenixKitWeb.Components.Core.TableRowMenu
   import PhoenixKitWeb.Components.Core.EmailActivityBadges
   import PhoenixKitWeb.Components.Core.Pagination
@@ -43,6 +44,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.TableColumns
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
 
   @default_per_page 25
@@ -71,7 +73,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
       socket =
         socket
-        |> assign(:page_title, "Emails")
+        # New PhoenixKit header style: title/subtitle render in the admin shell
+        # top bar (LayoutWrapper reads these assigns); the in-body
+        # <.admin_page_header> was removed from emails.html.heex.
+        |> assign(:page_title, gettext("Emails"))
+        |> assign(:page_subtitle, gettext("Monitor and track all outgoing emails"))
         |> assign(:logs, [])
         |> assign(:total_count, 0)
         |> assign(:stats, %{})
@@ -82,6 +88,9 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
         |> assign(:selected_columns, selected_columns)
         |> assign(:available_columns, available_columns)
         |> assign(:show_column_modal, false)
+        |> assign(:temp_selected_columns, nil)
+        |> assign(:sort_by, :sent_at)
+        |> assign(:sort_dir, :desc)
         |> assign_filter_defaults()
         |> assign_pagination_defaults()
 
@@ -145,10 +154,73 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   end
 
   @impl true
+  def handle_event("clear_search", _params, socket) do
+    # Clear only the search term (the × inside the search box); keep the other
+    # filters and reset to page 1.
+    new_params = build_url_params(socket.assigns, %{"search" => "", "page" => "1"})
+
+    {:noreply, push_patch(socket, to: Routes.path("/admin/emails?#{new_params}"))}
+  end
+
+  @impl true
+  def handle_event("set_filter", %{"field" => field, "value" => value}, socket) do
+    # Dropdown filter selection (status/category/source_module): set the chosen
+    # filter, reset to page 1, and patch. Empty value clears that filter.
+    new_params = build_url_params(socket.assigns, %{field => value, "page" => "1"})
+
+    {:noreply, push_patch(socket, to: Routes.path("/admin/emails?#{new_params}"))}
+  end
+
+  @impl true
+  def handle_event("toggle_sort", %{"by" => by}, socket) do
+    # Clicking a sortable column header: validate the field, then toggle the
+    # direction if it's already the active sort, otherwise switch to that field
+    # ascending. Resets to page 1 and patches.
+    field = validate_sort_by(by)
+
+    sort_dir =
+      if field == socket.assigns.sort_by do
+        if socket.assigns.sort_dir == :asc, do: :desc, else: :asc
+      else
+        :asc
+      end
+
+    new_params =
+      build_url_params(socket.assigns, %{
+        "sort_by" => to_string(field),
+        "sort_dir" => to_string(sort_dir),
+        "page" => "1"
+      })
+
+    {:noreply, push_patch(socket, to: Routes.path("/admin/emails?#{new_params}"))}
+  end
+
+  @impl true
   def handle_event("view_details", %{"uuid" => log_uuid}, socket) do
     {:noreply,
      socket
      |> push_navigate(to: Routes.path("/admin/emails/email/#{log_uuid}"))}
+  end
+
+  @impl true
+  def handle_event("sync_log", %{"uuid" => uuid}, socket) do
+    # Per-email status sync (mirrors details.ex "sync_status"): prefer the AWS
+    # message ID, fall back to the internal message ID. On success we refresh
+    # just the affected row in place via update_log_row/2.
+    case Emails.get_log(uuid) do
+      nil ->
+        {:noreply, put_flash(socket, :error, gettext("Email not found"))}
+
+      log ->
+        message_id = log.aws_message_id || log.message_id
+
+        if is_nil(message_id) do
+          {:noreply,
+           put_flash(socket, :error, gettext("No message ID available to sync this email"))}
+        else
+          sync_email_status(socket, uuid, message_id)
+        end
+    end
   end
 
   @impl true
@@ -197,8 +269,16 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       # Start sending process
       socket = assign(socket, :test_email_sending, true)
 
+      # Attribute the test to the current admin (recorded on the email log so
+      # Details shows the user + source module).
+      user_uuid =
+        case socket.assigns[:phoenix_kit_current_scope] do
+          nil -> nil
+          scope -> Scope.user_uuid(scope)
+        end
+
       # Send the test email asynchronously
-      send(self(), {:send_test_email, String.trim(recipient)})
+      send(self(), {:send_test_email, String.trim(recipient), user_uuid})
 
       {:noreply, socket}
     else
@@ -214,82 +294,78 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
   @impl true
   def handle_event("show_column_modal", _params, socket) do
-    {:noreply, assign(socket, :show_column_modal, true)}
+    # Seed the temporary working copy from the live selection; all edits in the
+    # modal mutate temp_selected_columns and only persist on Save.
+    {:noreply,
+     socket
+     |> assign(:show_column_modal, true)
+     |> assign(:temp_selected_columns, socket.assigns.selected_columns)}
   end
 
   @impl true
   def handle_event("hide_column_modal", _params, socket) do
-    {:noreply, assign(socket, :show_column_modal, false)}
+    {:noreply,
+     socket
+     |> assign(:show_column_modal, false)
+     |> assign(:temp_selected_columns, nil)}
   end
 
   @impl true
-  def handle_event("toggle_column", %{"field" => field}, socket) do
-    current_columns = socket.assigns.selected_columns
-    available_columns = socket.assigns.available_columns
+  def handle_event("update_table_columns", %{"column_order" => column_order}, socket) do
+    # Persist the order coming from the hidden input. "actions" is always kept
+    # (re-appended if it was excluded from the draggable list UI).
+    columns =
+      column_order
+      |> String.split(",", trim: true)
+      |> ensure_actions_column()
 
-    # Check if column is required
-    column_meta = Enum.find(available_columns, fn col -> col.field == field end)
+    {:noreply, save_and_close_column_modal(socket, columns)}
+  end
 
-    if column_meta && column_meta.required do
-      # Cannot toggle required columns
-      {:noreply, socket}
-    else
-      # Toggle column visibility
-      updated_columns =
-        if field in current_columns do
-          List.delete(current_columns, field)
-        else
-          # Add column at the end
-          current_columns ++ [field]
-        end
+  @impl true
+  def handle_event("update_table_columns", _params, socket) do
+    # Fallback: submitted without an order (no reordering happened) — persist
+    # whatever is currently in the working copy.
+    columns = ensure_actions_column(socket.assigns.temp_selected_columns || [])
+    {:noreply, save_and_close_column_modal(socket, columns)}
+  end
 
-      # Save to settings
-      case TableColumns.update_user_table_columns(updated_columns) do
-        {:ok, _} ->
-          {:noreply, assign(socket, :selected_columns, updated_columns)}
+  @impl true
+  def handle_event("reorder_selected_columns", %{"ordered_ids" => ids}, socket) do
+    # Draggable list emits the new order (minus "actions"); re-append it.
+    {:noreply, assign(socket, :temp_selected_columns, ensure_actions_column(ids))}
+  end
 
-        {:error, _} ->
-          {:noreply,
-           socket
-           |> put_flash(:error, gettext("Failed to save column preferences"))}
+  @impl true
+  def handle_event("reorder_selected_columns", _params, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("add_column", %{"column_id" => column_id}, socket) do
+    temp = socket.assigns.temp_selected_columns || []
+
+    temp =
+      if column_id in temp do
+        temp
+      else
+        # Insert before "actions" so it stays the last column.
+        ensure_actions_column(Enum.reject(temp, &(&1 == "actions")) ++ [column_id])
       end
-    end
+
+    {:noreply, assign(socket, :temp_selected_columns, temp)}
   end
 
   @impl true
-  def handle_event("reorder_columns", params, socket) do
-    current_columns = socket.assigns.selected_columns
-    reordered = TableColumns.reorder_columns(current_columns, params)
-
-    # Save to settings
-    case TableColumns.update_user_table_columns(reordered) do
-      {:ok, _} ->
-        {:noreply, assign(socket, :selected_columns, reordered)}
-
-      {:error, _} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, gettext("Failed to save column order"))}
-    end
+  def handle_event("remove_column", %{"column_id" => column_id}, socket) do
+    temp = socket.assigns.temp_selected_columns || []
+    {:noreply, assign(socket, :temp_selected_columns, Enum.reject(temp, &(&1 == column_id)))}
   end
 
   @impl true
   def handle_event("reset_columns", _params, socket) do
-    default_columns = TableColumns.reset_columns()
-
-    # Save to settings
-    case TableColumns.update_user_table_columns(default_columns) do
-      {:ok, _} ->
-        {:noreply,
-         socket
-         |> assign(:selected_columns, default_columns)
-         |> put_flash(:info, gettext("Columns reset to default"))}
-
-      {:error, _} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, gettext("Failed to reset columns"))}
-    end
+    # Reset the working copy to defaults (not persisted until Save).
+    {:noreply, assign(socket, :temp_selected_columns, TableColumns.reset_columns())}
   end
 
   ## --- Info Handlers ---
@@ -309,11 +385,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
     end
   end
 
-  def handle_info({:send_test_email, recipient}, socket) do
+  def handle_info({:send_test_email, recipient, user_uuid}, socket) do
     provider =
       Application.get_env(:phoenix_kit, :email_provider, PhoenixKit.Modules.Emails.Provider)
 
-    case provider.send_test_tracking_email(recipient, nil) do
+    case provider.send_test_tracking_email(recipient, user_uuid) do
       {:ok, _email} ->
         Logger.info("Test email sent successfully", %{
           recipient: recipient,
@@ -410,18 +486,27 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
     page = String.to_integer(params["page"] || "1")
     per_page = min(String.to_integer(params["per_page"] || "#{@default_per_page}"), @max_per_page)
 
+    sort_by = validate_sort_by(params["sort_by"])
+    sort_dir = validate_sort_dir(params["sort_dir"])
+
     socket
     |> assign(:filters, filters)
     |> assign(:page, page)
     |> assign(:per_page, per_page)
+    |> assign(:sort_by, sort_by)
+    |> assign(:sort_dir, sort_dir)
   end
 
   # Load emails based on current filters and pagination
   defp load_email_logs(socket) do
     %{filters: filters, page: page, per_page: per_page} = socket.assigns
 
-    # Build filters for EmailLog query
-    query_filters = build_query_filters(filters, page, per_page)
+    # Build filters for EmailLog query, adding sort order (list only — the count
+    # query below intentionally omits ordering).
+    query_filters =
+      build_query_filters(filters, page, per_page)
+      |> Map.put(:order_by, socket.assigns.sort_by)
+      |> Map.put(:order_dir, socket.assigns.sort_dir)
 
     logs = Emails.list_logs(query_filters)
 
@@ -455,6 +540,62 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
           end)
 
         assign(socket, :logs, logs)
+    end
+  end
+
+  # Defensive per-email status sync. Wraps Emails.sync_email_status/1 so an
+  # unexpected raise surfaces as a flash instead of crashing the LiveView, and
+  # refreshes just the affected row on success.
+  defp sync_email_status(socket, uuid, message_id) do
+    case Emails.sync_email_status(message_id) do
+      {:ok, _result} ->
+        socket
+        |> update_log_row(uuid)
+        |> put_flash(:info, gettext("Email status updated"))
+        |> then(&{:noreply, &1})
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update email status"))}
+    end
+  rescue
+    error ->
+      Logger.error("Exception while syncing email status", %{
+        uuid: uuid,
+        error_message: Exception.message(error),
+        module: __MODULE__
+      })
+
+      {:noreply, put_flash(socket, :error, gettext("Failed to update email status"))}
+  end
+
+  # Persist the working column set, refresh the live selection, and close.
+  defp save_and_close_column_modal(socket, columns) do
+    case TableColumns.update_user_table_columns(columns) do
+      {:ok, _setting} ->
+        socket
+        |> assign(:selected_columns, TableColumns.get_user_table_columns())
+        |> assign(:temp_selected_columns, nil)
+        |> assign(:show_column_modal, false)
+        |> put_flash(:info, gettext("Table columns updated successfully"))
+
+      {:error, _reason} ->
+        socket
+        |> assign(:show_column_modal, false)
+        |> put_flash(:error, gettext("Failed to update table columns"))
+    end
+  end
+
+  # Ensure the always-present "actions" column sits at the end exactly once.
+  defp ensure_actions_column(columns) do
+    Enum.reject(columns, &(&1 == "actions")) ++ ["actions"]
+  end
+
+  # Look up a column's display label from @available_columns by its field key,
+  # falling back to the raw id when unknown.
+  defp column_label(available_columns, field) do
+    case Enum.find(available_columns, fn col -> col.field == field end) do
+      nil -> field
+      col -> col.label
     end
   end
 
@@ -525,6 +666,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       "source_module" => assigns.filters.source_module,
       "from_date" => assigns.filters.from_date,
       "to_date" => assigns.filters.to_date,
+      "sort_by" => to_string(assigns.sort_by),
+      "sort_dir" => to_string(assigns.sort_dir),
       "page" => assigns.page,
       "per_page" => assigns.per_page
     }
@@ -554,6 +697,36 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   end
 
   # Helper functions for template
+
+  # Whitelist of fields that may be passed to Emails.list_logs/1 :order_by.
+  # Anything outside this set falls back to the default sent_at.
+  @sort_fields [:sent_at, :to, :subject, :status, :template_name]
+
+  # Column "field" strings (as stored in selected_columns) whose table header
+  # is rendered as a clickable <.sort_header_cell>. Maps the string column key
+  # to its sort atom — guards String.to_existing_atom against unexpected input.
+  @sortable_columns %{"to" => :to, "subject" => :subject, "status" => :status}
+
+  defp sortable_column(field), do: Map.get(@sortable_columns, field)
+
+  defp validate_sort_by(value) when is_atom(value) do
+    if value in @sort_fields, do: value, else: :sent_at
+  end
+
+  defp validate_sort_by(value) when is_binary(value) do
+    case Enum.find(@sort_fields, fn field -> Atom.to_string(field) == value end) do
+      nil -> :sent_at
+      field -> field
+    end
+  end
+
+  defp validate_sort_by(_), do: :sent_at
+
+  defp validate_sort_dir(:asc), do: :asc
+  defp validate_sort_dir(:desc), do: :desc
+  defp validate_sort_dir("asc"), do: :asc
+  defp validate_sort_dir("desc"), do: :desc
+  defp validate_sort_dir(_), do: :desc
 
   # Validate test email form
   defp validate_test_email_form(recipient) do

@@ -1,13 +1,4 @@
 <div class="container flex-col mx-auto px-4 py-6">
-    <.admin_page_header back={Routes.path("/admin/emails")}>
-      <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-base-content">
-        {gettext("Email Details %{uuid}", uuid: @email_uuid)}
-      </h1>
-      <%= if @email_log do %>
-        <p class="text-sm text-base-content/60 mt-0.5">{@email_log.to}</p>
-      <% end %>
-    </.admin_page_header>
-
     <%!-- Main Content --%>
     <div class="email-details-container">
       <%= if @loading do %>

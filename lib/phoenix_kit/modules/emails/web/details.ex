@@ -66,6 +66,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
         |> assign(:related_emails, [])
         |> assign(:loading, true)
         |> assign(:syncing, false)
+        |> assign(:page_title, gettext("Email Details"))
+        |> assign(
+          :page_subtitle,
+          gettext("Delivery log, events and tracking for this email")
+        )
         |> load_email_data()
 
       {:ok, socket}
@@ -176,7 +181,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
       |> assign(:loading, false)
       |> assign(:show_headers, false)
       |> assign(:show_body, false)
-      |> assign(:page_title, "Email ##{email_uuid}")
+      |> assign(:page_title, gettext("Email #%{uuid}", uuid: email_uuid))
     rescue
       Ecto.NoResultsError ->
         socket

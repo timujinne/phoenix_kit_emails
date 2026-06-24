@@ -62,6 +62,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
 
       socket =
         socket
+        |> assign(:page_title, gettext("Email Queue"))
+        |> assign(:page_subtitle, gettext("Real-time monitoring and queue management"))
         |> assign(:loading, true)
         |> assign(:recent_activity, [])
         |> assign(:rate_limit_status, %{})
@@ -89,6 +91,16 @@ defmodule PhoenixKit.Modules.Emails.Web.Queue do
      socket
      |> assign(:loading, true)
      |> load_queue_data()}
+  end
+
+  @impl true
+  def handle_event("view_details", %{"uuid" => email_uuid}, socket) do
+    # Row click navigates to the email Details page (same target as the Emails
+    # list). Action controls inside the row (checkbox, Retry) have their own
+    # phx-click and are handled by their dedicated events.
+    {:noreply,
+     socket
+     |> push_navigate(to: Routes.path("/admin/emails/email/#{email_uuid}"))}
   end
 
   @impl true

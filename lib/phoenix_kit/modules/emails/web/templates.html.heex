@@ -1,23 +1,4 @@
 <div class="container flex-col mx-auto px-4 py-6">
-    <.admin_page_header
-      back={Routes.path("/admin/emails")}
-      title={gettext("Email Templates")}
-      subtitle={gettext("Manage and organize your email templates")}
-    >
-      <:actions>
-        <.link
-          navigate={Routes.path("/admin/emails/templates/new")}
-          class="btn btn-primary btn-sm"
-        >
-          <.icon name="hero-plus" class="w-4 h-4 mr-1" /> {gettext("New Template")}
-        </.link>
-
-        <.button phx-click="refresh" class="btn btn-outline btn-sm">
-          <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> {gettext("Refresh")}
-        </.button>
-      </:actions>
-    </.admin_page_header>
-
     <%!-- Statistics Summary --%>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       <PhoenixKitWeb.Components.Core.StatCard.stat_card
@@ -71,92 +52,7 @@
       </PhoenixKitWeb.Components.Core.StatCard.stat_card>
     </div>
 
-    <%!-- Filters & Search --%>
-    <div class="bg-base-200 rounded-lg p-6 mb-6">
-      <.form for={%{}} phx-change="filter" phx-submit="filter" class="space-y-4">
-        <%!-- Search Bar --%>
-        <div class="flex gap-2 items-center">
-          <input
-            type="text"
-            name="search[query]"
-            value={@filters.search}
-            placeholder={gettext("Search by name, display name, or description...")}
-            class="input input-bordered flex-1"
-          />
-          <button type="button" phx-click="clear_filters" class="btn btn-ghost btn-sm">
-            {gettext("Clear Filters")}
-          </button>
-        </div>
-
-        <%!-- Filter Row --%>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <%!-- Category Filter --%>
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">{gettext("Category")}</span>
-            </label>
-            <label class="select">
-              <select name="filter[category]">
-                <option value="">{gettext("All Categories")}</option>
-                <option value="system" selected={@filters.category == "system"}>
-                  {gettext("System")}
-                </option>
-                <option value="transactional" selected={@filters.category == "transactional"}>
-                  {gettext("Transactional")}
-                </option>
-                <option value="marketing" selected={@filters.category == "marketing"}>
-                  {gettext("Marketing")}
-                </option>
-                <option value="newsletters" selected={@filters.category == "newsletters"}>
-                  {gettext("Newsletters")}
-                </option>
-              </select>
-            </label>
-          </div>
-
-          <%!-- Status Filter --%>
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">{gettext("Status")}</span>
-            </label>
-            <label class="select">
-              <select name="filter[status]">
-                <option value="">{gettext("All Statuses")}</option>
-                <option value="active" selected={@filters.status == "active"}>
-                  {gettext("Active")}
-                </option>
-                <option value="draft" selected={@filters.status == "draft"}>
-                  {gettext("Draft")}
-                </option>
-                <option value="archived" selected={@filters.status == "archived"}>
-                  {gettext("Archived")}
-                </option>
-              </select>
-            </label>
-          </div>
-
-          <%!-- System/Custom Filter --%>
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">{gettext("Type")}</span>
-            </label>
-            <label class="select">
-              <select name="filter[is_system]">
-                <option value="">{gettext("All Types")}</option>
-                <option value="true" selected={@filters.is_system == "true"}>
-                  {gettext("System")}
-                </option>
-                <option value="false" selected={@filters.is_system == "false"}>
-                  {gettext("Custom")}
-                </option>
-              </select>
-            </label>
-          </div>
-        </div>
-      </.form>
-    </div>
-
-    <%!-- Templates Table --%>
+    <%!-- Templates Table (filters/search/actions/sort live in the toolbar) --%>
     <div class="bg-base-100">
       <%= if @loading do %>
         <div class="flex justify-center items-center h-32">
@@ -164,15 +60,44 @@
           <span class="ml-2">{gettext("Loading templates...")}</span>
         </div>
       <% else %>
-        <%= if length(@templates) > 0 do %>
-          <.table_default
-            id="templates-table"
-            variant="zebra"
-            size="sm"
-            class="w-full"
-            toggleable={true}
-            items={@templates}
-            card_fields={
+        <% category_options = [
+          {"", gettext("All Categories")},
+          {"system", gettext("System")},
+          {"transactional", gettext("Transactional")},
+          {"marketing", gettext("Marketing")},
+          {"newsletters", gettext("Newsletters")}
+        ] %>
+        <% status_options = [
+          {"", gettext("All Statuses")},
+          {"active", gettext("Active")},
+          {"draft", gettext("Draft")},
+          {"archived", gettext("Archived")}
+        ] %>
+        <% type_options = [
+          {"", gettext("All Types")},
+          {"true", gettext("System")},
+          {"false", gettext("Custom")}
+        ] %>
+        <% category_label =
+          category_options
+          |> Enum.find(fn {v, _} -> v == @filters.category end)
+          |> then(&(&1 && elem(&1, 1))) %>
+        <% status_label =
+          status_options
+          |> Enum.find(fn {v, _} -> v == @filters.status end)
+          |> then(&(&1 && elem(&1, 1))) %>
+        <% type_label =
+          type_options
+          |> Enum.find(fn {v, _} -> v == @filters.is_system end)
+          |> then(&(&1 && elem(&1, 1))) %>
+        <.table_default
+          id="templates-table"
+          variant="zebra"
+          size="sm"
+          class="w-full"
+          toggleable={true}
+          items={@templates}
+          card_fields={
               fn t ->
                 subject =
                   PhoenixKit.Modules.Emails.Template.get_translation(t.subject, @display_locale)
@@ -264,20 +189,202 @@
                 <% end %>
               </div>
             </:card_actions>
+            <:toolbar_title>
+              <div class="flex flex-wrap items-center gap-2">
+                <%!-- Category Filter (dropdown) --%>
+                <div class="dropdown">
+                  <div
+                    tabindex="0"
+                    role="button"
+                    class={["btn btn-sm gap-2", @filters.category != "" && "btn-active"]}
+                  >
+                    <.icon name="hero-tag" class="w-4 h-4" />
+                    <span class={["sm:inline", @filters.category == "" && "hidden"]}>
+                      {category_label || gettext("Category")}
+                    </span>
+                    <.icon
+                      name="hero-chevron-down"
+                      class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                    />
+                  </div>
+                  <ul
+                    tabindex="0"
+                    onclick="document.activeElement.blur()"
+                    class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200"
+                  >
+                    <%= for {val, label} <- category_options do %>
+                      <li>
+                        <button
+                          phx-click="set_filter"
+                          phx-value-field="category"
+                          phx-value-value={val}
+                          class={@filters.category == val && "active"}
+                        >
+                          {label}
+                        </button>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+
+                <%!-- Status Filter (dropdown) --%>
+                <div class="dropdown">
+                  <div
+                    tabindex="0"
+                    role="button"
+                    class={["btn btn-sm gap-2", @filters.status != "" && "btn-active"]}
+                  >
+                    <.icon name="hero-signal" class="w-4 h-4" />
+                    <span class={["sm:inline", @filters.status == "" && "hidden"]}>
+                      {status_label || gettext("Status")}
+                    </span>
+                    <.icon
+                      name="hero-chevron-down"
+                      class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                    />
+                  </div>
+                  <ul
+                    tabindex="0"
+                    onclick="document.activeElement.blur()"
+                    class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200"
+                  >
+                    <%= for {val, label} <- status_options do %>
+                      <li>
+                        <button
+                          phx-click="set_filter"
+                          phx-value-field="status"
+                          phx-value-value={val}
+                          class={@filters.status == val && "active"}
+                        >
+                          {label}
+                        </button>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+
+                <%!-- Type (System/Custom) Filter (dropdown) --%>
+                <div class="dropdown">
+                  <div
+                    tabindex="0"
+                    role="button"
+                    class={["btn btn-sm gap-2", @filters.is_system != "" && "btn-active"]}
+                  >
+                    <.icon name="hero-squares-2x2" class="w-4 h-4" />
+                    <span class={["sm:inline", @filters.is_system == "" && "hidden"]}>
+                      {type_label || gettext("Type")}
+                    </span>
+                    <.icon
+                      name="hero-chevron-down"
+                      class="hidden sm:inline-block w-3.5 h-3.5 opacity-60"
+                    />
+                  </div>
+                  <ul
+                    tabindex="0"
+                    onclick="document.activeElement.blur()"
+                    class="dropdown-content menu bg-base-100 rounded-box z-20 w-52 p-2 shadow border border-base-200"
+                  >
+                    <%= for {val, label} <- type_options do %>
+                      <li>
+                        <button
+                          phx-click="set_filter"
+                          phx-value-field="is_system"
+                          phx-value-value={val}
+                          class={@filters.is_system == val && "active"}
+                        >
+                          {label}
+                        </button>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+              </div>
+            </:toolbar_title>
+            <:toolbar_actions>
+              <.form for={%{}} phx-change="filter">
+                <label class="input input-sm input-bordered flex items-center gap-2 w-44 sm:w-56">
+                  <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
+                  <input
+                    type="text"
+                    name="search[query]"
+                    value={@filters.search}
+                    class="grow"
+                    placeholder={gettext("Search...")}
+                    phx-debounce="300"
+                  />
+                  <button
+                    :if={@filters.search != ""}
+                    type="button"
+                    phx-click="clear_search"
+                    class="btn btn-ghost btn-xs btn-circle"
+                    aria-label={gettext("Clear search")}
+                  >
+                    <.icon name="hero-x-mark" class="w-4 h-4" />
+                  </button>
+                </label>
+              </.form>
+
+              <.link
+                navigate={Routes.path("/admin/emails/templates/new")}
+                class="btn btn-primary btn-sm"
+              >
+                <.icon name="hero-plus" class="w-4 h-4" />
+                <span class="hidden sm:inline ml-1">{gettext("New Template")}</span>
+              </.link>
+
+              <button type="button" phx-click="refresh" class="btn btn-outline btn-sm">
+                <.icon name="hero-arrow-path" class="w-4 h-4" />
+                <span class="hidden sm:inline ml-1">{gettext("Refresh")}</span>
+              </button>
+            </:toolbar_actions>
             <.table_default_header>
               <.table_default_row>
-                <.table_default_header_cell>{gettext("Template")}</.table_default_header_cell>
+                <.sort_header_cell
+                  field={:name}
+                  sort={%{by: @sort_by, dir: @sort_dir}}
+                  event="toggle_sort"
+                >
+                  {gettext("Template")}
+                </.sort_header_cell>
                 <.table_default_header_cell>{gettext("Subject")}</.table_default_header_cell>
                 <.table_default_header_cell>{gettext("Category")}</.table_default_header_cell>
                 <.table_default_header_cell>{gettext("Status")}</.table_default_header_cell>
-                <.table_default_header_cell>{gettext("Usage")}</.table_default_header_cell>
+                <.sort_header_cell
+                  field={:usage_count}
+                  sort={%{by: @sort_by, dir: @sort_dir}}
+                  event="toggle_sort"
+                >
+                  {gettext("Usage")}
+                </.sort_header_cell>
                 <.table_default_header_cell>{gettext("Actions")}</.table_default_header_cell>
               </.table_default_row>
             </.table_default_header>
 
             <.table_default_body>
+              <%= if @templates == [] do %>
+                <.table_default_row hover={false}>
+                  <.table_default_cell colspan={6}>
+                    <div class="text-center py-12">
+                      <.icon
+                        name="hero-document-text"
+                        class="h-16 w-16 mx-auto text-base-content/40 mb-4"
+                      />
+                      <h3 class="text-lg font-medium text-base-content mb-2">
+                        {gettext("No templates found")}
+                      </h3>
+                      <p class="text-base-content/70">
+                        {gettext("No templates found matching your criteria")}
+                      </p>
+                    </div>
+                  </.table_default_cell>
+                </.table_default_row>
+              <% end %>
               <%= for template <- @templates do %>
-                <.table_default_row>
+                <.table_default_row
+                  class="cursor-pointer"
+                  phx-click="edit_template"
+                  phx-value-uuid={template.uuid}
+                >
                   <%!-- Template Column --%>
                   <.table_default_cell class="max-w-xs">
                     <div class="space-y-1">
@@ -353,7 +460,9 @@
 
                   <%!-- Actions Column --%>
                   <.table_default_cell>
-                    <div class="flex gap-1">
+                    <%!-- stopPropagation so action buttons don't also trigger
+                         the row's edit navigation. --%>
+                    <div class="flex gap-1" onclick="event.stopPropagation()">
                       <%!-- Edit Button --%>
                       <button
                         phx-click="edit_template"
@@ -418,18 +527,6 @@
               <% end %>
             </.table_default_body>
           </.table_default>
-        <% else %>
-          <%!-- Empty state --%>
-          <div class="text-center py-12">
-            <.icon name="hero-document-text" class="h-16 w-16 mx-auto text-base-content/40 mb-4" />
-            <h3 class="text-lg font-medium text-base-content mb-2">
-              {gettext("No templates found")}
-            </h3>
-            <p class="text-base-content/70 mb-4">
-              {gettext("No templates found matching your criteria")}
-            </p>
-          </div>
-        <% end %>
 
         <%!-- Pagination --%>
         <%= if @total_count > @per_page do %>
@@ -443,6 +540,8 @@
                 "category" => @filters.category,
                 "status" => @filters.status,
                 "is_system" => @filters.is_system,
+                "sort_by" => to_string(@sort_by),
+                "sort_dir" => to_string(@sort_dir),
                 "per_page" => @per_page
               }
             }

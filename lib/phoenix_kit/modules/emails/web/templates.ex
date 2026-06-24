@@ -34,7 +34,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   use PhoenixKitWeb, :live_view
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
   import PhoenixKitWeb.Components.Core.Icon
-  import PhoenixKitWeb.Components.Core.Button
   import PhoenixKitWeb.Components.Core.TableDefault
   import PhoenixKitWeb.Components.Core.Badge
   import PhoenixKitWeb.Components.Core.Pagination
@@ -56,7 +55,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     socket =
       socket
-      |> assign(:page_title, "Email Templates")
+      |> assign(:page_title, gettext("Email Templates"))
+      |> assign(:page_subtitle, gettext("Manage and organize your email templates"))
       |> assign(:templates, [])
       |> assign(:total_count, 0)
       |> assign(:stats, %{})
@@ -66,6 +66,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       |> assign(:clone_form, %{name: "", display_name: "", errors: %{}})
       |> assign(:confirmation_modal, %{show: false})
       |> assign(:display_locale, Settings.get_content_language() || "en")
+      |> assign(:sort_by, :inserted_at)
+      |> assign(:sort_dir, :desc)
       |> assign_filter_defaults()
       |> assign_pagination_defaults()
 
@@ -120,6 +122,48 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     {:noreply,
      socket
      |> push_patch(to: Routes.path("/admin/emails/templates"))}
+  end
+
+  @impl true
+  def handle_event("clear_search", _params, socket) do
+    # Clear only the search term (the × inside the search box); keep the other
+    # filters and reset to page 1.
+    new_params = build_url_params(socket.assigns, %{"search" => "", "page" => "1"})
+
+    {:noreply, push_patch(socket, to: Routes.path("/admin/emails/templates?#{new_params}"))}
+  end
+
+  @impl true
+  def handle_event("set_filter", %{"field" => field, "value" => value}, socket) do
+    # Dropdown filter selection (category/status/is_system): set the chosen
+    # filter, reset to page 1, and patch. Empty value clears that filter.
+    new_params = build_url_params(socket.assigns, %{field => value, "page" => "1"})
+
+    {:noreply, push_patch(socket, to: Routes.path("/admin/emails/templates?#{new_params}"))}
+  end
+
+  @impl true
+  def handle_event("toggle_sort", %{"by" => by}, socket) do
+    # Clicking a sortable column header: validate the field, then toggle the
+    # direction if it's already the active sort, otherwise switch to that field
+    # ascending. Resets to page 1 and patches.
+    field = validate_sort_by(by)
+
+    sort_dir =
+      if field == socket.assigns.sort_by do
+        if socket.assigns.sort_dir == :asc, do: :desc, else: :asc
+      else
+        :asc
+      end
+
+    new_params =
+      build_url_params(socket.assigns, %{
+        "sort_by" => to_string(field),
+        "sort_dir" => to_string(sort_dir),
+        "page" => "1"
+      })
+
+    {:noreply, push_patch(socket, to: Routes.path("/admin/emails/templates?#{new_params}"))}
   end
 
   @impl true
@@ -380,18 +424,27 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     page = String.to_integer(params["page"] || "1")
     per_page = min(String.to_integer(params["per_page"] || "#{@default_per_page}"), @max_per_page)
 
+    sort_by = validate_sort_by(params["sort_by"])
+    sort_dir = validate_sort_dir(params["sort_dir"])
+
     socket
     |> assign(:filters, filters)
     |> assign(:page, page)
     |> assign(:per_page, per_page)
+    |> assign(:sort_by, sort_by)
+    |> assign(:sort_dir, sort_dir)
   end
 
   # Load templates based on current filters and pagination
   defp load_templates(socket) do
     %{filters: filters, page: page, per_page: per_page} = socket.assigns
 
-    # Build filters for Templates query
-    query_filters = build_query_filters(filters, page, per_page)
+    # Build filters for Templates query, adding sort order (list only — the
+    # count query below intentionally drops ordering).
+    query_filters =
+      build_query_filters(filters, page, per_page)
+      |> Map.put(:order_by, socket.assigns.sort_by)
+      |> Map.put(:order_direction, socket.assigns.sort_dir)
 
     templates = Templates.list_templates(query_filters)
 
@@ -449,6 +502,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       "category" => assigns.filters.category,
       "status" => assigns.filters.status,
       "is_system" => assigns.filters.is_system,
+      "sort_by" => to_string(assigns.sort_by),
+      "sort_dir" => to_string(assigns.sort_dir),
       "page" => assigns.page,
       "per_page" => assigns.per_page
     }
@@ -458,6 +513,33 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     |> Map.new()
     |> URI.encode_query()
   end
+
+  # Whitelist of fields that may be passed to Templates.list_templates/1
+  # :order_by. Anything outside this set falls back to the default inserted_at.
+  # These are the only DB columns the context's apply_ordering/2 supports.
+  # Only Name (the "Template" column) and Usage get clickable sort headers.
+  # Category and Status are intentionally not sortable because the context's
+  # apply_ordering/2 does not order by them.
+  @sort_fields [:name, :usage_count, :last_used_at, :inserted_at]
+
+  defp validate_sort_by(value) when is_atom(value) do
+    if value in @sort_fields, do: value, else: :inserted_at
+  end
+
+  defp validate_sort_by(value) when is_binary(value) do
+    case Enum.find(@sort_fields, fn field -> Atom.to_string(field) == value end) do
+      nil -> :inserted_at
+      field -> field
+    end
+  end
+
+  defp validate_sort_by(_), do: :inserted_at
+
+  defp validate_sort_dir(:asc), do: :asc
+  defp validate_sort_dir(:desc), do: :desc
+  defp validate_sort_dir("asc"), do: :asc
+  defp validate_sort_dir("desc"), do: :desc
+  defp validate_sort_dir(_), do: :desc
 
   # Validate clone form
   defp validate_clone_form(params) do
