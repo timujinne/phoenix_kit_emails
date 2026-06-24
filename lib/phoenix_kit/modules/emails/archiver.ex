@@ -353,11 +353,7 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
   end
 
   defp process_compression_batches(query, batch_size) do
-    _total_compressed = 0
-    _total_saved = 0
-
     query
-    |> limit(^batch_size)
     |> stream_in_batches(batch_size, fn batch ->
       {batch_compressed, batch_saved} = compress_batch(batch)
       {batch_compressed, batch_saved}
@@ -365,6 +361,13 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
     |> Enum.reduce({0, 0}, fn {count, saved}, {total_count, total_saved} ->
       {total_count + count, total_saved + saved}
     end)
+  rescue
+    # Mirror process_s3_archival's resilience: a raised exception inside the
+    # streaming transaction (the whole run rolls back atomically) must not crash
+    # the background compaction job. Report zero progress for this run.
+    error ->
+      Logger.error("Email archiver: body compression run failed: #{Exception.message(error)}")
+      {0, 0}
   end
 
   defp compress_batch(email_logs) do
@@ -661,11 +664,24 @@ defmodule PhoenixKit.Modules.Emails.Archiver do
 
   ## --- Utility Helpers ---
 
+  # Truly streams the query in chunks of `batch_size`, applying `mapper_func` to
+  # each chunk. Uses Repo.stream (which requires an enclosing transaction) so the
+  # full result set — including large body_full blobs — is never loaded into
+  # memory at once. Returns the list of per-batch mapper results.
   defp stream_in_batches(query, batch_size, mapper_func) do
-    query
-    |> repo().all()
-    |> Enum.chunk_every(batch_size)
-    |> Enum.map(mapper_func)
+    {:ok, results} =
+      repo().transaction(
+        fn ->
+          query
+          |> repo().stream(max_rows: batch_size)
+          |> Stream.chunk_every(batch_size)
+          |> Stream.map(mapper_func)
+          |> Enum.to_list()
+        end,
+        timeout: :infinity
+      )
+
+    results
   end
 
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes}B"

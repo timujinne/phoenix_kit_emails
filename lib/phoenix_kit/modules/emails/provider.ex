@@ -33,7 +33,6 @@ defmodule PhoenixKit.Modules.Emails.Provider do
     end
   rescue
     error ->
-      require Logger
       Logger.error("Failed to update email tracking: #{inspect(error)}")
       :ok
   end
@@ -70,8 +69,6 @@ defmodule PhoenixKit.Modules.Emails.Provider do
   # Test tracking email — sends a test email with tracking enabled
 
   def send_test_tracking_email(recipient_email, _user_uuid) do
-    require Logger
-
     from_email = PhoenixKit.Settings.get_setting("from_email", "noreply@example.com")
     from_name = PhoenixKit.Settings.get_setting("from_name", "PhoenixKit")
     timestamp = DateTime.utc_now() |> Calendar.strftime("%Y-%m-%d %H:%M:%S UTC")

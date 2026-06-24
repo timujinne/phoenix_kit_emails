@@ -270,7 +270,7 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
       log.message_id || "",
       log.to || "",
       log.from || "",
-      escape_csv_field(log.subject || ""),
+      log.subject || "",
       log.status || "",
       get_message_tag(log.message_tags) || "",
       log.provider || ""
@@ -292,7 +292,7 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
       log.template_name || "",
       log.size_bytes || "",
       log.retry_count || 0,
-      escape_csv_field(log.error_message || "")
+      log.error_message || ""
     ]
   end
 
@@ -366,7 +366,7 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
       ["Message ID", log.message_id || ""],
       ["To", log.to || ""],
       ["From", log.from || ""],
-      ["Subject", escape_csv_field(log.subject || "")],
+      ["Subject", log.subject || ""],
       ["Status", log.status || ""],
       ["Provider", log.provider || ""],
       ["Sent At", format_datetime_for_csv(log.sent_at)],
@@ -392,24 +392,26 @@ defmodule PhoenixKit.Modules.Emails.Web.ExportController do
     [
       event.event_type || "",
       format_datetime_for_csv(event.occurred_at),
-      escape_csv_field(event.event_data || "")
+      event.event_data || ""
     ]
   end
 
   # Combine CSV sections
   defp combine_csv_sections(email_section, events_section) do
     (email_section ++ events_section)
-    |> Enum.map_join("\n", fn row ->
-      Enum.map_join(row, ",", &to_string/1)
-    end)
+    |> Enum.map_join("\n", &format_csv_row/1)
   end
 
   # Format CSV output from headers and rows
   defp format_csv_output(headers, rows) do
     [headers | rows]
-    |> Enum.map_join("\n", fn row ->
-      Enum.map_join(row, ",", &to_string/1)
-    end)
+    |> Enum.map_join("\n", &format_csv_row/1)
+  end
+
+  # Join a row into a CSV line, escaping every cell exactly once for both
+  # formula injection and RFC 4180 quoting.
+  defp format_csv_row(row) do
+    Enum.map_join(row, ",", &escape_csv_field/1)
   end
 
   # Format datetime for CSV export

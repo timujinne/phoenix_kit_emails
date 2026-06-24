@@ -66,7 +66,11 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     queue: :sqs_polling,
     max_attempts: 3,
     # Short unique window to coalesce accidental double-submits (e.g. double
-    # clicking the toggle) while still allowing the 5s self-scheduling chain.
+    # clicking the toggle, or schedule_next_poll's delete-then-insert racing an
+    # enable_polling insert). It is only a backstop for *near-simultaneous*
+    # inserts — a full cycle apart they fall outside the window, so the single
+    # queued job is instead guaranteed by delete_queued_jobs/0 in
+    # schedule_next_poll (see there).
     #
     # NOTE: `:executing` is intentionally NOT in the states list. The chain
     # works by an executing job inserting the next one; if `:executing` were
@@ -78,11 +82,12 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     # We match only `[:scheduled]`, which is exactly enough: self-scheduled jobs
     # always land in `:scheduled` (interval >= 1000ms ⇒ schedule_in >= 1s, never
     # `:available`), so this dedups the self-reschedule chain; the immediate
-    # (`:available`) job from enable_polling/0 is already coalesced there by
-    # cancelling queued jobs before inserting. A wider custom list (e.g. adding
-    # `:available`) makes Oban warn that incomplete states are missing, which
-    # `--warnings-as-errors` turns into a build failure. Concurrency is capped at
-    # 1 by the queue, so this cannot cause parallel polling.
+    # (`:available`) job from enable_polling/0 is already coalesced by
+    # delete_queued_jobs/0 cancelling queued jobs before inserting. A wider list
+    # (e.g. adding `:available`) makes Oban warn that incomplete states are
+    # missing, which `--warnings-as-errors` turns into a build failure.
+    # Concurrency is capped at 1 by the queue, so parallel *execution* is
+    # impossible; delete_queued_jobs/0 prevents parallel *chains*.
     unique: [period: 10, states: [:scheduled]]
 
   require Logger
@@ -94,6 +99,10 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
   @default_long_poll_timeout 20
 
+  # Back-off interval used when the config is (recoverably) invalid, so a
+  # misconfigured system is not polled at the full rate while it keeps failing.
+  @misconfig_backoff_ms 30_000
+
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
     # Check if polling is enabled before processing
@@ -102,20 +111,41 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
       config = Emails.get_sqs_config()
 
-      case validate_configuration(config) do
-        :ok ->
-          result = perform_polling_cycle(config)
-          schedule_next_poll(config.polling_interval_ms)
-          result
+      # The self-scheduling chain owns continuation; the poll interval IS the
+      # retry cadence. We ALWAYS schedule the next cycle while polling is enabled
+      # and return :ok — never {:error}. Returning {:error} would either spawn a
+      # duplicate chain (Oban retry + self-schedule both firing) or, once the 3
+      # Oban attempts are exhausted on a sustained outage, let the chain die
+      # permanently until an app restart. A transient receive error simply
+      # retries on the next scheduled poll; a recoverable misconfiguration backs
+      # off but keeps the chain alive so it resumes once fixed.
+      # delete_queued_jobs/0 in schedule_next_poll keeps this to exactly one chain.
+      next_interval =
+        case validate_configuration(config) do
+          :ok ->
+            log_cycle_result(perform_polling_cycle(config))
+            config.polling_interval_ms
 
-        {:error, reason} ->
-          Logger.error("SQS Polling Job: Invalid configuration - #{reason}")
-          {:error, reason}
-      end
+          {:error, reason} ->
+            Logger.error("SQS Polling Job: Invalid configuration - #{reason}")
+            @misconfig_backoff_ms
+        end
+
+      schedule_next_poll(next_interval)
+      :ok
     else
       Logger.debug("SQS Polling Job: Polling disabled, skipping cycle")
       :ok
     end
+  end
+
+  # A failed polling cycle does not fail the Oban job (the chain self-continues);
+  # we log it loudly so a sustained outage stays observable.
+  defp log_cycle_result({:ok, _}), do: :ok
+
+  defp log_cycle_result({:error, reason}) do
+    Logger.error("SQS Polling Job: Polling cycle failed", %{reason: inspect(reason)})
+    :ok
   end
 
   @doc """
@@ -134,16 +164,30 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   """
   @spec cancel_scheduled() :: {:ok, non_neg_integer()}
   def cancel_scheduled do
-    worker_name = inspect(__MODULE__)
-
-    {count, _} =
-      Oban.Job
-      |> where([j], j.worker == ^worker_name)
-      |> where([j], j.state in ["available", "scheduled"])
-      |> get_repo().delete_all()
-
+    {count, _} = delete_queued_jobs()
     Logger.info("SQSPollingJob: Cancelled #{count} scheduled jobs")
     {:ok, count}
+  end
+
+  @doc """
+  Returns the Oban `worker` column value for this job.
+
+  Single source of truth for callers that query `Oban.Job` by worker name
+  (e.g. `SQSPollingManager`), so they never drift from `inspect(__MODULE__)`.
+  """
+  @spec worker_name() :: String.t()
+  def worker_name, do: inspect(__MODULE__)
+
+  # Delete all queued (not-yet-running) polling jobs. Does NOT touch an
+  # :executing job, so the running cycle is never interrupted. Returns the
+  # Repo.delete_all/1 {count, _} tuple.
+  defp delete_queued_jobs do
+    worker = worker_name()
+
+    Oban.Job
+    |> where([j], j.worker == ^worker)
+    |> where([j], j.state in ["available", "scheduled"])
+    |> get_repo().delete_all()
   end
 
   defp get_repo do
@@ -165,8 +209,11 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
       is_nil(config.queue_url) or config.queue_url == "" ->
         {:error, "SQS queue URL not configured"}
 
-      not is_integer(config.polling_interval_ms) or config.polling_interval_ms <= 0 ->
-        {:error, "Invalid polling interval"}
+      not is_integer(config.polling_interval_ms) or config.polling_interval_ms < 1000 ->
+        # Sub-second intervals round down to schedule_in: 0 (Oban schedules in
+        # whole seconds), causing a back-to-back poll loop. Mirror
+        # SQSPollingManager.set_polling_interval/1's >= 1000 guard.
+        {:error, "Invalid polling interval (must be >= 1000ms)"}
 
       not is_integer(config.max_messages_per_poll) or
         config.max_messages_per_poll <= 0 or
@@ -268,8 +315,20 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
         end)
       end)
 
-    results = Task.await_many(tasks, 30_000)
-    Enum.count(results, & &1)
+    # yield_many (not await_many) so a slow task can't RAISE and abort the whole
+    # perform/1: a raised timeout would trigger an Oban retry and tear down the
+    # in-flight delete_message calls, re-cycling messages. Tasks that yield
+    # {:ok, true} count as processed; un-yielded/timed-out ones are shut down and
+    # treated as not-processed, so their messages simply re-receive normally
+    # after the SQS visibility timeout.
+    tasks
+    |> Task.yield_many(30_000)
+    |> Enum.count(fn {task, result} ->
+      case result || Task.shutdown(task, :brutal_kill) do
+        {:ok, true} -> true
+        _ -> false
+      end
+    end)
   end
 
   # Process a single message.
@@ -327,8 +386,23 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # Schedule next polling job
   defp schedule_next_poll(interval_ms) do
     if should_poll?() do
+      # Guarantee exactly one queued future job. The `unique` window only
+      # coalesces near-simultaneous inserts (within its period); but a
+      # self-reschedule fires a full cycle later (long-poll up to 20s + the
+      # interval) than an enable_polling insert, which is outside that window —
+      # leaving two parallel chains that double SQS receive calls. Deleting any
+      # already-queued job immediately before inserting collapses such a stale
+      # duplicate into a single chain, independent of the operator-configurable
+      # interval. The :executing job (this one) is untouched, and the `unique`
+      # window still backstops the tiny delete-then-double-insert race.
+      delete_queued_jobs()
+
+      # Oban schedule_in is in whole SECONDS — div(interval_ms, 1000) is 0 for
+      # any 1..999ms interval, which would queue the next poll immediately and
+      # spin a back-to-back loop. Floor at 1s. (validate_configuration/1 already
+      # rejects sub-second intervals; this is a defensive backstop.)
       %{}
-      |> __MODULE__.new(schedule_in: div(interval_ms, 1000))
+      |> __MODULE__.new(schedule_in: max(div(interval_ms, 1000), 1))
       |> Oban.insert()
       |> case do
         {:ok, _job} ->

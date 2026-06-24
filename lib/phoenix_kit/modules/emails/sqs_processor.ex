@@ -527,14 +527,20 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         # Update headers if empty
         update_log_headers_if_empty(log, mail_data)
 
-        # Update status only if current status is not "clicked"
-        # (click is more important than open)
+        # Only upgrade to "opened" from a pre-engagement delivery state. Never
+        # overwrite a higher engagement level ("clicked") or a terminal status
+        # (hard_bounced/soft_bounced/bounced/complaint/rejected/failed): AWS
+        # fires open pixels even after a bounce or from spam/security scanners
+        # prefetching the tracking pixel. The open Event is still recorded below.
         status_update =
-          case log.status do
-            # Do not change
-            "clicked" -> %{}
-            _ -> %{status: "opened"}
-          end
+          if log.status in ["sent", "delivered"], do: %{status: "opened"}, else: %{}
+
+        # Record the first open timestamp for per-template analytics even when the
+        # status is not upgraded (terminal/clicked): the engagement still happened.
+        status_update =
+          if is_nil(log.opened_at),
+            do: Map.put(status_update, :opened_at, parse_timestamp(open_timestamp)),
+            else: status_update
 
         case Log.update_log(log, status_update) do
           {:ok, updated_log} ->
@@ -555,7 +561,9 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
       {:error, :not_found} ->
         handle_placeholder_creation(event_data, message_id, "open", "opened", fn log ->
-          # Create event record for created log
+          # Record the first open timestamp on the freshly created placeholder
+          # (best-effort; the Event below is the source of truth either way).
+          maybe_set_first_opened_at(log, open_timestamp)
           create_open_event(log, open_data, open_timestamp)
 
           Logger.info("Created placeholder log for open event", %{
@@ -567,6 +575,13 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         end)
     end
   end
+
+  # Persist the first open timestamp only if not already set ("first opened"
+  # semantics). Best-effort: a failure here must not abort event processing.
+  defp maybe_set_first_opened_at(%Log{opened_at: nil} = log, timestamp),
+    do: Log.update_log(log, %{opened_at: parse_timestamp(timestamp)})
+
+  defp maybe_set_first_opened_at(%Log{} = log, _timestamp), do: {:ok, log}
 
   # Processes click event
   defp process_click_event(event_data) do
@@ -580,8 +595,20 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         # Update headers if empty
         update_log_headers_if_empty(log, mail_data)
 
-        # Click - highest engagement level
-        update_attrs = %{status: "clicked"}
+        # Click is the highest engagement level, but only upgrade from an
+        # engagement-eligible state. Never overwrite a terminal status
+        # (hard_bounced/soft_bounced/bounced/complaint/rejected/failed): link
+        # prefetching by scanners can fire clicks even on a bounced message.
+        # The click Event is still recorded below regardless of status change.
+        update_attrs =
+          if log.status in ["sent", "delivered", "opened"], do: %{status: "clicked"}, else: %{}
+
+        # Record the first click timestamp for per-template analytics even when the
+        # status is not upgraded (terminal status): the engagement still happened.
+        update_attrs =
+          if is_nil(log.clicked_at),
+            do: Map.put(update_attrs, :clicked_at, parse_timestamp(click_timestamp)),
+            else: update_attrs
 
         case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
@@ -608,8 +635,11 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
       {:error, :not_found} ->
         handle_placeholder_creation(event_data, message_id, "click", "clicked", fn log ->
-          # Click - highest engagement level
-          update_attrs = %{status: "clicked"}
+          # Click - highest engagement level. Also record the first click timestamp.
+          update_attrs =
+            if is_nil(log.clicked_at),
+              do: %{status: "clicked", clicked_at: parse_timestamp(click_timestamp)},
+              else: %{status: "clicked"}
 
           case Log.update_log(log, update_attrs) do
             {:ok, updated_log} ->
@@ -1024,7 +1054,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
           {:error, :not_found} ->
             Logger.warning("No email log found for message_id", %{
               message_id: message_id,
-              searched_strategies: ["direct", "aws_field", "metadata"]
+              searched_strategies: ["direct", "aws_field"]
             })
 
             {:error, :not_found}
@@ -1114,15 +1144,20 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
   # Creates event record for open
   defp create_open_event(log, open_data, timestamp) do
-    # Check if open event already exists to prevent duplicates
-    if Event.event_exists?(log.uuid, "open") do
+    occurred_at = parse_timestamp(timestamp)
+
+    # Opens can legitimately recur (a recipient opens the email multiple times),
+    # so dedup on (uuid, type, occurred_at) rather than one-per-type — only an
+    # at-least-once SQS redelivery of the SAME open (identical timestamp) is
+    # skipped. The DB unique index backstops the race.
+    if Event.event_exists_at?(log.uuid, "open", occurred_at) do
       {:ok, :duplicate_event}
     else
       event_attrs = %{
         email_log_uuid: log.uuid,
         event_type: "open",
         event_data: open_data,
-        occurred_at: parse_timestamp(timestamp),
+        occurred_at: occurred_at,
         ip_address: get_in(open_data, ["ipAddress"]),
         user_agent: get_in(open_data, ["userAgent"])
       }
@@ -1133,16 +1168,20 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
   # Creates event record for click
   defp create_click_event(log, click_data, timestamp) do
-    # For clicks, we might want to allow multiple click events (different links)
-    # but for now, let's prevent duplicate click events too
-    if Event.event_exists?(log.uuid, "click") do
+    occurred_at = parse_timestamp(timestamp)
+
+    # Clicks on different links (or the same link at different times) are distinct
+    # engagements worth keeping, so dedup on (uuid, type, occurred_at) — only an
+    # exact SQS redelivery (identical timestamp) is skipped. The DB unique index
+    # backstops the race.
+    if Event.event_exists_at?(log.uuid, "click", occurred_at) do
       {:ok, :duplicate_event}
     else
       event_attrs = %{
         email_log_uuid: log.uuid,
         event_type: "click",
         event_data: click_data,
-        occurred_at: parse_timestamp(timestamp),
+        occurred_at: occurred_at,
         link_url: get_in(click_data, ["link"]),
         ip_address: get_in(click_data, ["ipAddress"]),
         user_agent: get_in(click_data, ["userAgent"])
@@ -1310,7 +1349,13 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
       campaign_id: "recovered_from_event"
     }
 
-    Emails.create_log(log_attrs)
+    # Insert directly via Log.create_log/1 rather than Emails.create_log/1.
+    # Emails.create_log/1 applies the email_sampling_rate roll and returns
+    # {:ok, :skipped} when the roll fails — but a placeholder represents an SES
+    # event that already happened, so it must always be persisted. Returning
+    # :skipped here would crash every caller (they dereference log.uuid) and
+    # leave the SQS message undeleted, re-cycling it forever.
+    Log.create_log(log_attrs)
   end
 
   # Builds error message for reject events
