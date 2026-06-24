@@ -323,7 +323,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     extraction_result = extract_provider_data(provider_response, log.uuid)
 
     case extraction_result do
-      %{message_id: aws_message_id} = provider_data when is_binary(aws_message_id) ->
+      %{message_id: aws_message_id} when is_binary(aws_message_id) ->
         Logger.info("EmailInterceptor: Storing AWS message_id in aws_message_id field", %{
           log_uuid: log.uuid,
           internal_message_id: log.message_id,
@@ -331,22 +331,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
         })
 
         log_extraction_metric(true, log.uuid, aws_message_id)
-
-        # Store the AWS message_id in the dedicated aws_message_id field
-        # Keep internal pk_ message_id in the message_id field for compatibility
-        # Store internal IDs and provider response in message_tags for debugging
-        updated_message_tags =
-          Map.merge(log.message_tags || %{}, %{
-            "internal_message_id" => log.message_id,
-            "aws_message_id" => aws_message_id,
-            "provider_response_debug" => sanitize_provider_response(provider_response)
-          })
-
-        provider_data
-        |> Map.delete(:message_id)
-        |> Map.merge(update_attrs)
-        |> Map.put(:aws_message_id, aws_message_id)
-        |> Map.put(:message_tags, updated_message_tags)
+        store_aws_message_id(log, aws_message_id, provider_response, update_attrs)
 
       %{} = provider_data when map_size(provider_data) > 0 ->
         log_extraction_metric(false, log.uuid, nil)
@@ -380,7 +365,52 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     end
   end
 
+  # For a non-"aws_ses" detected provider the response may still carry a real
+  # AWS MessageId — notably "unknown" from an Option-1 host-app Swoosh mailer
+  # whose AmazonSES config lives under the app's OWN otp_app (which
+  # detect_provider_from_config cannot read, so detect_provider/2 falls back to
+  # "unknown"). Try a SILENT extraction: no failure warning, since Test/Local/
+  # SMTP responses legitimately carry no id and we don't want noise on every
+  # send. On success, capture the id and reclassify the log as "aws_ses" so the
+  # SQS/SNS poller can correlate later events (which are keyed on this MessageId).
+  defp maybe_extract_provider_data(%Log{} = log, provider_response, update_attrs) do
+    case extract_message_id_from_response(provider_response) do
+      %{message_id: aws_message_id} when is_binary(aws_message_id) ->
+        Logger.info("EmailInterceptor: Recovered AWS message_id for non-SES-detected provider", %{
+          log_uuid: log.uuid,
+          detected_provider: log.provider,
+          aws_message_id: aws_message_id
+        })
+
+        log_extraction_metric(true, log.uuid, aws_message_id)
+
+        update_attrs
+        |> Map.put(:provider, "aws_ses")
+        |> then(&store_aws_message_id(log, aws_message_id, provider_response, &1))
+
+      _ ->
+        update_attrs
+    end
+  end
+
   defp maybe_extract_provider_data(_log, _provider_response, update_attrs), do: update_attrs
+
+  # Persist a recovered AWS MessageId into the dedicated aws_message_id field
+  # (the SQS/SNS poller correlates events on it) and mirror the internal/AWS ids
+  # plus a sanitized provider response into message_tags for debugging. The
+  # internal pk_ id stays in message_id for backward compatibility.
+  defp store_aws_message_id(%Log{} = log, aws_message_id, provider_response, update_attrs) do
+    updated_message_tags =
+      Map.merge(log.message_tags || %{}, %{
+        "internal_message_id" => log.message_id,
+        "aws_message_id" => aws_message_id,
+        "provider_response_debug" => sanitize_provider_response(provider_response)
+      })
+
+    update_attrs
+    |> Map.put(:aws_message_id, aws_message_id)
+    |> Map.put(:message_tags, updated_message_tags)
+  end
 
   # Extract comprehensive data from Swoosh.Email
   defp extract_email_data(%Email{} = email, opts) do

@@ -527,14 +527,13 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         # Update headers if empty
         update_log_headers_if_empty(log, mail_data)
 
-        # Update status only if current status is not "clicked"
-        # (click is more important than open)
+        # Only upgrade to "opened" from a pre-engagement delivery state. Never
+        # overwrite a higher engagement level ("clicked") or a terminal status
+        # (hard_bounced/soft_bounced/bounced/complaint/rejected/failed): AWS
+        # fires open pixels even after a bounce or from spam/security scanners
+        # prefetching the tracking pixel. The open Event is still recorded below.
         status_update =
-          case log.status do
-            # Do not change
-            "clicked" -> %{}
-            _ -> %{status: "opened"}
-          end
+          if log.status in ["sent", "delivered"], do: %{status: "opened"}, else: %{}
 
         case Log.update_log(log, status_update) do
           {:ok, updated_log} ->
@@ -580,8 +579,13 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         # Update headers if empty
         update_log_headers_if_empty(log, mail_data)
 
-        # Click - highest engagement level
-        update_attrs = %{status: "clicked"}
+        # Click is the highest engagement level, but only upgrade from an
+        # engagement-eligible state. Never overwrite a terminal status
+        # (hard_bounced/soft_bounced/bounced/complaint/rejected/failed): link
+        # prefetching by scanners can fire clicks even on a bounced message.
+        # The click Event is still recorded below regardless of status change.
+        update_attrs =
+          if log.status in ["sent", "delivered", "opened"], do: %{status: "clicked"}, else: %{}
 
         case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
@@ -1310,7 +1314,13 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
       campaign_id: "recovered_from_event"
     }
 
-    Emails.create_log(log_attrs)
+    # Insert directly via Log.create_log/1 rather than Emails.create_log/1.
+    # Emails.create_log/1 applies the email_sampling_rate roll and returns
+    # {:ok, :skipped} when the roll fails — but a placeholder represents an SES
+    # event that already happened, so it must always be persisted. Returning
+    # :skipped here would crash every caller (they dereference log.uuid) and
+    # leave the SQS message undeleted, re-cycling it forever.
+    Log.create_log(log_attrs)
   end
 
   # Builds error message for reject events

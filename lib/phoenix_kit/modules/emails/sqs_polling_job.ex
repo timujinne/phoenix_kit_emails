@@ -66,7 +66,11 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     queue: :sqs_polling,
     max_attempts: 3,
     # Short unique window to coalesce accidental double-submits (e.g. double
-    # clicking the toggle) while still allowing the 5s self-scheduling chain.
+    # clicking the toggle, or schedule_next_poll's delete-then-insert racing an
+    # enable_polling insert). It is only a backstop for *near-simultaneous*
+    # inserts — a full cycle apart they fall outside the window, so the single
+    # queued job is instead guaranteed by delete_queued_jobs/0 in
+    # schedule_next_poll (see there).
     #
     # NOTE: `:executing` is intentionally NOT in the states list. The chain
     # works by an executing job inserting the next one; if `:executing` were
@@ -74,8 +78,8 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     # job and the chain would stall. Worse, a job orphaned in `:executing` by a
     # hard crash (SIGKILL mid-poll) would permanently block every future insert,
     # killing polling until manual intervention. Matching only queued states
-    # avoids both. Concurrency is capped at 1 by the queue, so this cannot cause
-    # parallel polling.
+    # avoids both. Concurrency is capped at 1 by the queue, so parallel
+    # *execution* is impossible; delete_queued_jobs/0 prevents parallel *chains*.
     unique: [period: 10, states: [:scheduled, :available]]
 
   require Logger
@@ -127,16 +131,21 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   """
   @spec cancel_scheduled() :: {:ok, non_neg_integer()}
   def cancel_scheduled do
-    worker_name = inspect(__MODULE__)
-
-    {count, _} =
-      Oban.Job
-      |> where([j], j.worker == ^worker_name)
-      |> where([j], j.state in ["available", "scheduled"])
-      |> get_repo().delete_all()
-
+    {count, _} = delete_queued_jobs()
     Logger.info("SQSPollingJob: Cancelled #{count} scheduled jobs")
     {:ok, count}
+  end
+
+  # Delete all queued (not-yet-running) polling jobs. Does NOT touch an
+  # :executing job, so the running cycle is never interrupted. Returns the
+  # Repo.delete_all/1 {count, _} tuple.
+  defp delete_queued_jobs do
+    worker_name = inspect(__MODULE__)
+
+    Oban.Job
+    |> where([j], j.worker == ^worker_name)
+    |> where([j], j.state in ["available", "scheduled"])
+    |> get_repo().delete_all()
   end
 
   defp get_repo do
@@ -320,6 +329,17 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
   # Schedule next polling job
   defp schedule_next_poll(interval_ms) do
     if should_poll?() do
+      # Guarantee exactly one queued future job. The `unique` window only
+      # coalesces near-simultaneous inserts (within its period); but a
+      # self-reschedule fires a full cycle later (long-poll up to 20s + the
+      # interval) than an enable_polling insert, which is outside that window —
+      # leaving two parallel chains that double SQS receive calls. Deleting any
+      # already-queued job immediately before inserting collapses such a stale
+      # duplicate into a single chain, independent of the operator-configurable
+      # interval. The :executing job (this one) is untouched, and the `unique`
+      # window still backstops the tiny delete-then-double-insert race.
+      delete_queued_jobs()
+
       %{}
       |> __MODULE__.new(schedule_in: div(interval_ms, 1000))
       |> Oban.insert()
