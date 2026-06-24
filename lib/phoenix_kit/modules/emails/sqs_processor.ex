@@ -535,6 +535,13 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         status_update =
           if log.status in ["sent", "delivered"], do: %{status: "opened"}, else: %{}
 
+        # Record the first open timestamp for per-template analytics even when the
+        # status is not upgraded (terminal/clicked): the engagement still happened.
+        status_update =
+          if is_nil(log.opened_at),
+            do: Map.put(status_update, :opened_at, parse_timestamp(open_timestamp)),
+            else: status_update
+
         case Log.update_log(log, status_update) do
           {:ok, updated_log} ->
             # Create event record
@@ -554,7 +561,9 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
       {:error, :not_found} ->
         handle_placeholder_creation(event_data, message_id, "open", "opened", fn log ->
-          # Create event record for created log
+          # Record the first open timestamp on the freshly created placeholder
+          # (best-effort; the Event below is the source of truth either way).
+          maybe_set_first_opened_at(log, open_timestamp)
           create_open_event(log, open_data, open_timestamp)
 
           Logger.info("Created placeholder log for open event", %{
@@ -566,6 +575,13 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         end)
     end
   end
+
+  # Persist the first open timestamp only if not already set ("first opened"
+  # semantics). Best-effort: a failure here must not abort event processing.
+  defp maybe_set_first_opened_at(%Log{opened_at: nil} = log, timestamp),
+    do: Log.update_log(log, %{opened_at: parse_timestamp(timestamp)})
+
+  defp maybe_set_first_opened_at(%Log{} = log, _timestamp), do: {:ok, log}
 
   # Processes click event
   defp process_click_event(event_data) do
@@ -586,6 +602,13 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         # The click Event is still recorded below regardless of status change.
         update_attrs =
           if log.status in ["sent", "delivered", "opened"], do: %{status: "clicked"}, else: %{}
+
+        # Record the first click timestamp for per-template analytics even when the
+        # status is not upgraded (terminal status): the engagement still happened.
+        update_attrs =
+          if is_nil(log.clicked_at),
+            do: Map.put(update_attrs, :clicked_at, parse_timestamp(click_timestamp)),
+            else: update_attrs
 
         case Log.update_log(log, update_attrs) do
           {:ok, updated_log} ->
@@ -612,8 +635,11 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
 
       {:error, :not_found} ->
         handle_placeholder_creation(event_data, message_id, "click", "clicked", fn log ->
-          # Click - highest engagement level
-          update_attrs = %{status: "clicked"}
+          # Click - highest engagement level. Also record the first click timestamp.
+          update_attrs =
+            if is_nil(log.clicked_at),
+              do: %{status: "clicked", clicked_at: parse_timestamp(click_timestamp)},
+              else: %{status: "clicked"}
 
           case Log.update_log(log, update_attrs) do
             {:ok, updated_log} ->

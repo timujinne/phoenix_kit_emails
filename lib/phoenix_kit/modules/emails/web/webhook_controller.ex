@@ -311,30 +311,31 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
     {:ok, :unknown_type}
   end
 
-  # Automatically confirm SNS subscription
+  # Automatically confirm SNS subscription by issuing the GET to SubscribeURL.
+  # The URL host is validated the same way as the signing cert URL to avoid SSRF.
   defp confirm_subscription(%{"SubscribeURL" => subscribe_url}) do
-    # Log subscription URL for manual confirmation if needed
     Logger.info("SNS subscription confirmation requested", %{
       subscribe_url: subscribe_url
     })
 
-    # For now, just log the URL - implement actual HTTP client based on your needs
-    # You can add :httpc (built into Erlang) or :req if needed:
-    #
-    # case :httpc.request(:get, {subscribe_url, []}, [{:timeout, 10_000}], []) do
-    #   {:ok, {{_, 200, _}, _headers, _body}} ->
-    #     Logger.info("SNS subscription confirmed")
-    #     {:ok, :subscription_confirmed}
-    #   {:ok, {{_, status_code, _}, _headers, _body}} ->
-    #     Logger.error("Failed to confirm SNS subscription", %{status_code: status_code})
-    #     {:error, :confirmation_failed}
-    #   {:error, reason} ->
-    #     Logger.error("HTTP error confirming SNS subscription", %{reason: inspect(reason)})
-    #     {:error, :http_error}
-    # end
+    with :ok <- validate_aws_sns_url(subscribe_url),
+         {:ok, status} <- http_get_status(subscribe_url) do
+      if status == 200 do
+        Logger.info("SNS subscription confirmed")
+        {:ok, :subscription_confirmed}
+      else
+        Logger.error("Failed to confirm SNS subscription", %{status_code: status})
+        {:error, :confirmation_failed}
+      end
+    else
+      :error ->
+        Logger.error("Invalid SNS SubscribeURL", %{subscribe_url: subscribe_url})
+        {:error, :invalid_subscribe_url}
 
-    # For now, return success and log for manual confirmation
-    {:ok, :subscription_logged}
+      {:error, reason} ->
+        Logger.error("HTTP error confirming SNS subscription", %{reason: inspect(reason)})
+        {:error, :http_error}
+    end
   end
 
   defp confirm_subscription(_message) do
@@ -413,21 +414,41 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
 
   ## --- Helper Functions ---
 
-  # Get remote IP address from connection
+  # Get remote IP address from connection.
+  #
+  # X-Forwarded-For is honored ONLY when the immediate peer (conn.remote_ip) is a
+  # configured trusted proxy; otherwise the header is client-controlled and is
+  # ignored in favour of conn.remote_ip. When honored, we walk the forwarded chain
+  # from right to left and return the right-most hop that is NOT itself a trusted
+  # proxy, since left-most entries can be forged by the original client.
   defp get_remote_ip(conn) do
-    case Plug.Conn.get_req_header(conn, "x-forwarded-for") do
-      [forwarded_ips] ->
-        # Take first IP from forwarded chain
-        forwarded_ips
-        |> String.split(",")
-        |> List.first()
-        |> String.trim()
+    peer_ip = conn.remote_ip |> :inet.ntoa() |> to_string()
 
-      [] ->
-        # Direct connection
-        conn.remote_ip
-        |> :inet.ntoa()
-        |> to_string()
+    with true <- peer_ip in trusted_proxies(),
+         [forwarded_ips] <- Plug.Conn.get_req_header(conn, "x-forwarded-for") do
+      forwarded_ips
+      |> String.split(",")
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.reverse()
+      |> Enum.find(peer_ip, &(&1 not in trusted_proxies()))
+    else
+      _ -> peer_ip
+    end
+  end
+
+  # Trusted reverse-proxy IPs allowed to set X-Forwarded-For.
+  # Defaults to an empty list, in which case the header is never trusted.
+  defp trusted_proxies do
+    case Settings.get_setting("webhook_trusted_proxies", "") do
+      value when is_binary(value) ->
+        value
+        |> String.split([",", " "], trim: true)
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+
+      _ ->
+        []
     end
   end
 
@@ -498,14 +519,25 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
   defp verify_aws_sns_signature(sns_message) do
     with {:ok, signature} <- fetch_field(sns_message, "Signature"),
          {:ok, cert_url} <- fetch_field(sns_message, "SigningCertURL"),
+         {:ok, digest} <- signature_digest(sns_message),
          :ok <- validate_cert_url(cert_url),
          {:ok, cert_pem} <- fetch_certificate(cert_url),
          {:ok, public_key} <- extract_public_key(cert_pem),
          signing_string <- build_signing_string(sns_message),
          {:ok, decoded_sig} <- Base.decode64(signature) |> wrap_decode_result(),
-         true <- :public_key.verify(signing_string, :sha, decoded_sig, public_key) do
+         true <- :public_key.verify(signing_string, digest, decoded_sig, public_key) do
       :ok
     else
+      _ -> :error
+    end
+  end
+
+  # Map SNS SignatureVersion to the hash algorithm. Version "1" uses SHA-1,
+  # version "2" uses SHA-256. Unknown/missing versions are rejected.
+  defp signature_digest(sns_message) do
+    case sns_message["SignatureVersion"] do
+      "1" -> {:ok, :sha}
+      "2" -> {:ok, :sha256}
       _ -> :error
     end
   end
@@ -517,21 +549,36 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
     end
   end
 
-  # Ensure the signing certificate URL is hosted by AWS SNS
+  # Host pattern for AWS SNS endpoints: sns.<region>.amazonaws.com
+  @sns_host_regex ~r/^sns\.[a-z0-9-]+\.amazonaws\.com$/
+
+  # Validate the signing certificate URL before any network fetch. Requires https,
+  # an exact sns.<region>.amazonaws.com host, and a SimpleNotificationService PEM
+  # path. This blocks SSRF and signature forgery via attacker-hosted certs on
+  # arbitrary *.amazonaws.com origins (e.g. public S3 buckets).
   defp validate_cert_url(url) do
     uri = URI.parse(url)
+    path = uri.path || ""
 
-    cond do
-      uri.scheme != "https" ->
-        :error
+    pem_path? =
+      String.starts_with?(path, "/SimpleNotificationService-") and
+        String.ends_with?(path, ".pem")
 
-      not String.ends_with?(uri.host || "", ".amazonaws.com") ->
-        :error
-
-      true ->
-        :ok
-    end
+    if sns_host?(uri) and pem_path?, do: :ok, else: :error
   end
+
+  # Validate the SubscribeURL before issuing the confirmation GET. Same host/scheme
+  # rules as the cert URL (the path differs for SubscribeURL, so it is not checked).
+  defp validate_aws_sns_url(url) do
+    uri = URI.parse(url)
+    if sns_host?(uri), do: :ok, else: :error
+  end
+
+  defp sns_host?(%URI{scheme: "https", host: host}) when is_binary(host) do
+    Regex.match?(@sns_host_regex, host)
+  end
+
+  defp sns_host?(_uri), do: false
 
   # Fetch the PEM certificate from AWS (with simple in-memory cache via persistent_term)
   defp fetch_certificate(cert_url) do
@@ -564,6 +611,17 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
 
       _ ->
         :error
+    end
+  end
+
+  # Issue a GET (reusing the :httpc pattern) and return the HTTP status code.
+  defp http_get_status(url) do
+    :inets.start()
+    :ssl.start()
+
+    case :httpc.request(:get, {String.to_charlist(url), []}, [{:timeout, 10_000}], []) do
+      {:ok, {{_, status, _}, _headers, _body}} -> {:ok, status}
+      {:error, reason} -> {:error, reason}
     end
   end
 

@@ -95,9 +95,6 @@ defmodule PhoenixKit.Modules.Emails.Log do
 
   # 2. AWS message_id field search (for provider IDs)
   find_by_aws_message_id(aws_message_id)
-
-  # 3. Metadata search (fallback for legacy data)
-  # searches in headers for aws_message_id
   ```
 
   ### Database Constraints
@@ -286,7 +283,6 @@ defmodule PhoenixKit.Modules.Emails.Log do
       "delayed",
       "complaint"
     ])
-    |> validate_message_id_uniqueness()
     |> unique_constraint(:message_id)
     |> unique_constraint(:aws_message_id)
     |> maybe_set_queued_at()
@@ -316,6 +312,9 @@ defmodule PhoenixKit.Modules.Emails.Log do
   - `:user_uuid` - Filter by associated user UUID
   - `:limit` - Limit number of results (default: 50)
   - `:offset` - Offset for pagination
+  - `:preload` - Associations to preload (default: `[]`). The admin list does not
+    use `:user`/`:events`, so they are not preloaded by default to avoid loading
+    every event row for every listed log on the hot path.
 
   ## Examples
 
@@ -323,11 +322,13 @@ defmodule PhoenixKit.Modules.Emails.Log do
       [%PhoenixKit.Modules.Emails.Log{}, ...]
   """
   def list_logs(filters \\ %{}) do
+    preloads = Map.get(filters, :preload, [])
+
     base_query()
     |> apply_filters(filters)
     |> apply_pagination(filters)
     |> apply_ordering(filters)
-    |> preload([:user, :events])
+    |> preload(^preloads)
     |> repo().all()
   end
 
@@ -443,11 +444,11 @@ defmodule PhoenixKit.Modules.Emails.Log do
       {:error, :not_found}
   """
   def find_by_aws_message_id(aws_message_id) when is_binary(aws_message_id) do
-    # Try multiple search strategies for AWS message ID
-    case find_by_direct_aws_id(aws_message_id) do
-      {:ok, log} -> {:ok, log}
-      {:error, :not_found} -> find_by_metadata_search(aws_message_id)
-    end
+    # Match against the dedicated, indexed aws_message_id column (and the
+    # message_id column for internal pk_ ids). The legacy unindexed JSONB
+    # headers fallback was removed: it caused a sequential scan on the hot SQS
+    # lookup path now that aws_message_id is a first-class indexed column.
+    find_by_direct_aws_id(aws_message_id)
   end
 
   # Direct search using dedicated aws_message_id field
@@ -455,20 +456,6 @@ defmodule PhoenixKit.Modules.Emails.Log do
     case __MODULE__
          |> where([l], l.aws_message_id == ^aws_message_id)
          |> or_where([l], l.message_id == ^aws_message_id)
-         |> preload([:user, :events])
-         |> repo().one() do
-      nil -> {:error, :not_found}
-      log -> {:ok, log}
-    end
-  end
-
-  # Search in metadata/headers for AWS message ID
-  defp find_by_metadata_search(aws_message_id) do
-    # Look for AWS message ID in headers or other metadata
-    case __MODULE__
-         |> where([l], fragment("?->>'aws_message_id' = ?", l.headers, ^aws_message_id))
-         |> or_where([l], fragment("?->>'X-AWS-Message-Id' = ?", l.headers, ^aws_message_id))
-         |> or_where([l], fragment("?->>'MessageId' = ?", l.headers, ^aws_message_id))
          |> preload([:user, :events])
          |> repo().one() do
       nil -> {:error, :not_found}
@@ -619,18 +606,25 @@ defmodule PhoenixKit.Modules.Emails.Log do
       {:ok, %PhoenixKit.Modules.Emails.Log{}}
   """
   def mark_as_opened(%__MODULE__{} = email_log, opened_at \\ nil) do
+    opened_at = opened_at || UtilsDate.utc_now()
+
     repo().transaction(fn ->
       # Only update status if not already at a higher engagement level
       new_status =
         if email_log.status in ["sent", "delivered"], do: "opened", else: email_log.status
 
-      {:ok, updated_log} = update_log(email_log, %{status: new_status})
+      # Preserve "first opened" semantics: only set opened_at if not already set
+      changes =
+        %{status: new_status}
+        |> put_new_timestamp(:opened_at, email_log.opened_at, opened_at)
+
+      {:ok, updated_log} = update_log(email_log, changes)
 
       # Create open event
       Event.create_event(%{
         email_log_uuid: updated_log.uuid,
         event_type: "open",
-        occurred_at: opened_at || UtilsDate.utc_now()
+        occurred_at: opened_at
       })
 
       updated_log
@@ -646,15 +640,28 @@ defmodule PhoenixKit.Modules.Emails.Log do
       {:ok, %PhoenixKit.Modules.Emails.Log{}}
   """
   def mark_as_clicked(%__MODULE__{} = email_log, link_url, clicked_at \\ nil) do
+    clicked_at = clicked_at || UtilsDate.utc_now()
+
     repo().transaction(fn ->
-      # Clicked is the highest engagement level
-      {:ok, updated_log} = update_log(email_log, %{status: "clicked"})
+      # Clicked is the highest engagement level, but never downgrade a terminal
+      # status (bounced/complaint/rejected/failed) back to "clicked".
+      new_status =
+        if email_log.status in ["sent", "delivered", "opened"],
+          do: "clicked",
+          else: email_log.status
+
+      # Preserve "first clicked" semantics: only set clicked_at if not already set
+      changes =
+        %{status: new_status}
+        |> put_new_timestamp(:clicked_at, email_log.clicked_at, clicked_at)
+
+      {:ok, updated_log} = update_log(email_log, changes)
 
       # Create click event
       Event.create_event(%{
         email_log_uuid: updated_log.uuid,
         event_type: "click",
-        occurred_at: clicked_at || UtilsDate.utc_now(),
+        occurred_at: clicked_at,
         link_url: link_url
       })
 
@@ -792,29 +799,24 @@ defmodule PhoenixKit.Modules.Emails.Log do
       %{total_sent: 1500, delivered: 1450, bounced: 30, opened: 800, clicked: 200}
   """
   def get_stats_for_period(start_date, end_date) do
-    base_period_query =
-      from(l in __MODULE__, where: l.sent_at >= ^start_date and l.sent_at <= ^end_date)
-
-    %{
-      total_sent: repo().aggregate(base_period_query, :count),
-      delivered:
-        repo().aggregate(
-          from(l in base_period_query, where: l.status in ["delivered", "opened", "clicked"]),
-          :count
-        ),
-      bounced:
-        repo().aggregate(from(l in base_period_query, where: l.status == "bounced"), :count),
-      complained:
-        repo().aggregate(from(l in base_period_query, where: l.status == "complained"), :count),
-      opened:
-        repo().aggregate(
-          from(l in base_period_query, where: l.status in ["opened", "clicked"]),
-          :count
-        ),
-      clicked:
-        repo().aggregate(from(l in base_period_query, where: l.status == "clicked"), :count),
-      failed: repo().aggregate(from(l in base_period_query, where: l.status == "failed"), :count)
-    }
+    # Single grouped query with conditional counts (mirrors get_provider_performance)
+    # instead of one aggregate round-trip per status.
+    from(l in __MODULE__,
+      where: l.sent_at >= ^start_date and l.sent_at <= ^end_date,
+      select: %{
+        total_sent: count(l.uuid),
+        delivered:
+          count(
+            fragment("CASE WHEN ? IN ('delivered', 'opened', 'clicked') THEN 1 END", l.status)
+          ),
+        bounced: count(fragment("CASE WHEN ? = 'bounced' THEN 1 END", l.status)),
+        complained: count(fragment("CASE WHEN ? = 'complained' THEN 1 END", l.status)),
+        opened: count(fragment("CASE WHEN ? IN ('opened', 'clicked') THEN 1 END", l.status)),
+        clicked: count(fragment("CASE WHEN ? = 'clicked' THEN 1 END", l.status)),
+        failed: count(fragment("CASE WHEN ? = 'failed' THEN 1 END", l.status))
+      }
+    )
+    |> repo().one()
   end
 
   @doc """
@@ -1114,34 +1116,10 @@ defmodule PhoenixKit.Modules.Emails.Log do
     order_by(query, [log: l], [{^order_dir, field(l, ^order_by)}])
   end
 
-  # Validate message_id uniqueness
-  defp validate_message_id_uniqueness(changeset) do
-    case get_field(changeset, :message_id) do
-      nil ->
-        changeset
-
-      "" ->
-        changeset
-
-      message_id ->
-        existing_log = get_log_by_message_id(message_id)
-        current_uuid = get_field(changeset, :uuid)
-
-        case {existing_log, current_uuid} do
-          # No existing log, valid
-          {nil, _} ->
-            changeset
-
-          # Existing log is the same as current record, valid
-          {%__MODULE__{uuid: uuid}, uuid} ->
-            changeset
-
-          # Different existing log, invalid
-          {%__MODULE__{}, _} ->
-            add_error(changeset, :message_id, "has already been taken")
-        end
-    end
-  end
+  # Put a timestamp into the update map only when it isn't already set on the log,
+  # preserving "first opened"/"first clicked" semantics.
+  defp put_new_timestamp(changes, _key, existing, _value) when not is_nil(existing), do: changes
+  defp put_new_timestamp(changes, key, _existing, value), do: Map.put(changes, key, value)
 
   # Set queued_at if not provided
   defp maybe_set_queued_at(changeset) do

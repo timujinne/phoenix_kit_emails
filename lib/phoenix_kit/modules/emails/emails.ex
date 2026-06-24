@@ -39,7 +39,6 @@ defmodule PhoenixKit.Modules.Emails do
   - `get_config/0` - Get current system configuration
   - `placeholder_logs_enabled?/0` - Check if placeholder log creation is enabled
   - `set_placeholder_logs/1` - Enable/disable placeholder log creation
-  - `get_placeholder_stats/1` - Get statistics about placeholder logs
 
   ### Email Log Management
   - `list_logs/1` - Get emails with filters
@@ -102,7 +101,7 @@ defmodule PhoenixKit.Modules.Emails do
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
-  import Ecto.Query, only: [where: 3, group_by: 3, select: 3, from: 2]
+  import Ecto.Query, only: [where: 3, group_by: 3, select: 3]
 
   require Logger
 
@@ -415,8 +414,11 @@ defmodule PhoenixKit.Modules.Emails do
             queue_url: queue_url
           })
 
+          # Compute AWS config once and thread it through the poll/delete recursion
+          aws_config = get_aws_config()
+
           # Poll multiple batches to find the target message
-          found_events = poll_sqs_for_message(queue_url, message_id, [], 0, 5)
+          found_events = poll_sqs_for_message(queue_url, aws_config, message_id, [], 0, 5)
 
           Logger.info("SQS search completed", %{
             message_id: message_id,
@@ -488,13 +490,17 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   # Helper function to poll SQS in batches to find specific message
-  defp poll_sqs_for_message(queue_url, target_message_id, found_events, batch_count, max_batches) do
+  defp poll_sqs_for_message(
+         queue_url,
+         aws_config,
+         target_message_id,
+         found_events,
+         batch_count,
+         max_batches
+       ) do
     if batch_count >= max_batches do
       found_events
     else
-      # Get AWS configuration
-      aws_config = get_aws_config()
-
       # Poll for messages with visibility timeout
       # Use system settings for configuration
       max_messages = get_sqs_max_messages()
@@ -544,7 +550,7 @@ defmodule PhoenixKit.Modules.Emails do
           process_sqs_batch(messages, target_message_id)
 
         # Delete processed messages from queue
-        delete_sqs_messages(queue_url, messages_to_delete)
+        delete_sqs_messages(queue_url, aws_config, messages_to_delete)
 
         new_found_events = found_events ++ matching_messages
 
@@ -552,6 +558,7 @@ defmodule PhoenixKit.Modules.Emails do
           # No matches in this batch, continue to next batch
           poll_sqs_for_message(
             queue_url,
+            aws_config,
             target_message_id,
             new_found_events,
             batch_count + 1,
@@ -589,7 +596,7 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   # Delete processed messages from SQS
-  defp delete_sqs_messages(queue_url, messages) do
+  defp delete_sqs_messages(queue_url, aws_config, messages) do
     Enum.each(messages, fn message ->
       receipt_handle =
         message["ReceiptHandle"] || message["receiptHandle"] || message["receipt_handle"] ||
@@ -597,7 +604,7 @@ defmodule PhoenixKit.Modules.Emails do
 
       if receipt_handle do
         case ExAws.SQS.delete_message(queue_url, receipt_handle)
-             |> ExAws.request(get_aws_config()) do
+             |> ExAws.request(aws_config) do
           {:ok, _} ->
             :ok
 
@@ -1035,92 +1042,6 @@ defmodule PhoenixKit.Modules.Emails do
       enabled,
       "email_system"
     )
-  end
-
-  @doc """
-  Gets statistics about placeholder logs created in the system.
-
-  Returns a map with counts of placeholder logs by status and time period.
-
-  ## Parameters
-
-  - `period` - Time period to analyze (:last_24_hours, :last_7_days, :last_30_days, :all_time)
-
-  ## Returns
-
-  A map with placeholder log statistics:
-  - `total` - Total placeholder logs created
-  - `by_status` - Breakdown by email status
-  - `by_event_type` - Breakdown by event type that created the placeholder
-  - `recent_count` - Count in the specified period
-
-  ## Examples
-
-      iex> PhoenixKit.Modules.Emails.get_placeholder_stats(:last_7_days)
-      %{
-        total: 45,
-        recent_count: 12,
-        by_status: %{"delivered" => 8, "opened" => 3, "clicked" => 1},
-        by_event_type: %{"Delivery" => 8, "Open" => 3, "Click" => 1}
-      }
-  """
-  def get_placeholder_stats(period \\ :last_30_days) do
-    cutoff_date =
-      case period do
-        :last_24_hours -> DateTime.add(UtilsDate.utc_now(), -1, :day)
-        :last_7_days -> DateTime.add(UtilsDate.utc_now(), -7, :day)
-        :last_30_days -> DateTime.add(UtilsDate.utc_now(), -30, :day)
-        :all_time -> ~U[2000-01-01 00:00:00Z]
-        _ -> DateTime.add(UtilsDate.utc_now(), -30, :day)
-      end
-
-    repo = PhoenixKit.RepoHelper.repo()
-
-    # Query for all placeholder logs
-    placeholder_query =
-      from(l in Log,
-        where:
-          fragment(
-            "?->'x-placeholder-log' = ?",
-            l.headers,
-            ^"true"
-          ) or l.template_name == "placeholder",
-        select: %{
-          uuid: l.uuid,
-          status: l.status,
-          event_type: fragment("?->>'x-created-from-event'", l.headers),
-          inserted_at: l.inserted_at
-        }
-      )
-
-    all_placeholders = repo.all(placeholder_query)
-
-    # Filter for recent placeholders
-    recent_placeholders =
-      Enum.filter(all_placeholders, fn log ->
-        DateTime.compare(log.inserted_at, cutoff_date) != :lt
-      end)
-
-    # Count by status
-    by_status =
-      Enum.reduce(all_placeholders, %{}, fn log, acc ->
-        Map.update(acc, log.status || "unknown", 1, &(&1 + 1))
-      end)
-
-    # Count by event type
-    by_event_type =
-      Enum.reduce(all_placeholders, %{}, fn log, acc ->
-        event_type = log.event_type || "Unknown"
-        Map.update(acc, String.capitalize(event_type), 1, &(&1 + 1))
-      end)
-
-    %{
-      total: length(all_placeholders),
-      recent_count: length(recent_placeholders),
-      by_status: by_status,
-      by_event_type: by_event_type,
-      period: period
-    }
   end
 
   @doc """

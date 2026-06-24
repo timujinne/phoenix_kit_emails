@@ -296,12 +296,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
 
   @impl true
   def handle_info({:email_log_updated, %{uuid: uuid}}, socket) do
-    # Only refresh when the changed log is currently displayed. We reload the
-    # page (cheap, paginated, with the right preloads) but deliberately skip
-    # load_stats/0 — the 30-day aggregate doesn't need to recompute per event,
-    # and reloading on every system-wide event would be a query storm.
+    # Only react when the changed log is on the current page. We then update
+    # just that one row in place (single fetch by uuid) instead of re-running
+    # the paginated list + count query for every event — during a delivery
+    # burst that would be a query storm across all connected admins. We also
+    # deliberately skip load_stats/0: the 30-day aggregate doesn't need to
+    # recompute per status change.
     if Enum.any?(socket.assigns.logs, &(&1.uuid == uuid)) do
-      {:noreply, load_email_logs(socket)}
+      {:noreply, update_log_row(socket, uuid)}
     else
       {:noreply, socket}
     end
@@ -434,6 +436,26 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
     |> assign(:total_count, total_count)
     |> assign(:total_pages, total_pages)
     |> assign(:loading, false)
+  end
+
+  # Replace a single displayed log row with its freshly-fetched version.
+  # Avoids re-running the paginated list/count queries on PubSub status events.
+  # If the log can no longer be loaded (e.g. deleted), the existing row is kept
+  # until the next real navigation/refresh.
+  defp update_log_row(socket, uuid) do
+    case Emails.get_log(uuid) do
+      nil ->
+        socket
+
+      log ->
+        logs =
+          Enum.map(socket.assigns.logs, fn
+            %{uuid: ^uuid} -> log
+            other -> other
+          end)
+
+        assign(socket, :logs, logs)
+    end
   end
 
   # Load summary statistics

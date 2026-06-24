@@ -447,11 +447,38 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
             do: Date.to_iso8601(DateTime.to_date(blocked.expires_at)),
             else: ""
 
-        "#{blocked.email},#{blocked.reason},#{Date.to_iso8601(DateTime.to_date(blocked.inserted_at))},#{expires_str}"
+        added_str = Date.to_iso8601(DateTime.to_date(blocked.inserted_at))
+
+        [blocked.email, blocked.reason, added_str, expires_str]
+        |> Enum.map_join(",", &escape_csv_field/1)
       end)
 
     headers <> rows
   end
+
+  # Escape CSV field value, including formula injection protection.
+  # Cells starting with =, +, -, @, tab, or CR are prefixed with a single quote
+  # to prevent formula execution when opened in spreadsheet applications.
+  defp escape_csv_field(nil), do: ""
+
+  defp escape_csv_field(value) when is_binary(value) do
+    value = sanitize_csv_formula(value)
+
+    if String.contains?(value, [",", "\"", "\n", "\r"]) do
+      "\"#{String.replace(value, "\"", "\"\"")}\""
+    else
+      value
+    end
+  end
+
+  defp escape_csv_field(value), do: value |> to_string() |> escape_csv_field()
+
+  defp sanitize_csv_formula(<<first, _::binary>> = value)
+       when first in [?=, ?+, ?-, ?@, ?\t, ?\r] do
+    "'" <> value
+  end
+
+  defp sanitize_csv_formula(value), do: value
 
   defp import_blocklist_csv(csv_content) do
     lines =

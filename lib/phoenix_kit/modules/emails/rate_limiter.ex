@@ -667,7 +667,9 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
         if(custom_limits, do: custom_limits["sender_limit"], else: get_sender_limit())
     }
   rescue
-    _error ->
+    error ->
+      Logger.error("Failed to get user limit status for user #{user_uuid}: #{inspect(error)}")
+
       %{
         user_uuid: user_uuid,
         has_custom_limits: false,
@@ -1040,7 +1042,8 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
       _ -> user_limits
     end
   rescue
-    _error ->
+    error ->
+      Logger.error("Failed to get user limits for user #{user_uuid}: #{inspect(error)}")
       nil
   end
 
@@ -1060,7 +1063,8 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
         :ok
     end
   rescue
-    _error ->
+    error ->
+      Logger.error("Failed to clear user limits for user #{user_uuid}: #{inspect(error)}")
       :ok
   end
 
@@ -1070,7 +1074,8 @@ defmodule PhoenixKit.Modules.Emails.RateLimiter do
     monitoring_key = "user_monitoring_#{user_uuid}"
     Settings.get_json_setting(monitoring_key)
   rescue
-    _error ->
+    error ->
+      Logger.error("Failed to get user monitoring for user #{user_uuid}: #{inspect(error)}")
       nil
   end
 

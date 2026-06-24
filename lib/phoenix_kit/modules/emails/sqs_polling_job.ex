@@ -101,11 +101,23 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
 
       case validate_configuration(config) do
         :ok ->
-          result = perform_polling_cycle(config)
-          schedule_next_poll(config.polling_interval_ms)
-          result
+          case perform_polling_cycle(config) do
+            {:ok, _} = result ->
+              # Only the success path self-schedules the next cycle. On a
+              # transient receive error we return {:error, _} and let Oban retry
+              # this same job (max_attempts 3) — scheduling a next poll here too
+              # would spawn a duplicate chain (Oban retry + self-schedule both
+              # firing). Exactly one of the two mechanisms owns the continuation.
+              schedule_next_poll(config.polling_interval_ms)
+              result
+
+            {:error, _reason} = error ->
+              error
+          end
 
         {:error, reason} ->
+          # Config error: do not schedule and let Oban retry (matches the
+          # transient-error contract above).
           Logger.error("SQS Polling Job: Invalid configuration - #{reason}")
           {:error, reason}
       end
@@ -136,14 +148,23 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     {:ok, count}
   end
 
+  @doc """
+  Returns the Oban `worker` column value for this job.
+
+  Single source of truth for callers that query `Oban.Job` by worker name
+  (e.g. `SQSPollingManager`), so they never drift from `inspect(__MODULE__)`.
+  """
+  @spec worker_name() :: String.t()
+  def worker_name, do: inspect(__MODULE__)
+
   # Delete all queued (not-yet-running) polling jobs. Does NOT touch an
   # :executing job, so the running cycle is never interrupted. Returns the
   # Repo.delete_all/1 {count, _} tuple.
   defp delete_queued_jobs do
-    worker_name = inspect(__MODULE__)
+    worker = worker_name()
 
     Oban.Job
-    |> where([j], j.worker == ^worker_name)
+    |> where([j], j.worker == ^worker)
     |> where([j], j.state in ["available", "scheduled"])
     |> get_repo().delete_all()
   end
@@ -167,8 +188,11 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
       is_nil(config.queue_url) or config.queue_url == "" ->
         {:error, "SQS queue URL not configured"}
 
-      not is_integer(config.polling_interval_ms) or config.polling_interval_ms <= 0 ->
-        {:error, "Invalid polling interval"}
+      not is_integer(config.polling_interval_ms) or config.polling_interval_ms < 1000 ->
+        # Sub-second intervals round down to schedule_in: 0 (Oban schedules in
+        # whole seconds), causing a back-to-back poll loop. Mirror
+        # SQSPollingManager.set_polling_interval/1's >= 1000 guard.
+        {:error, "Invalid polling interval (must be >= 1000ms)"}
 
       not is_integer(config.max_messages_per_poll) or
         config.max_messages_per_poll <= 0 or
@@ -270,8 +294,20 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
         end)
       end)
 
-    results = Task.await_many(tasks, 30_000)
-    Enum.count(results, & &1)
+    # yield_many (not await_many) so a slow task can't RAISE and abort the whole
+    # perform/1: a raised timeout would trigger an Oban retry and tear down the
+    # in-flight delete_message calls, re-cycling messages. Tasks that yield
+    # {:ok, true} count as processed; un-yielded/timed-out ones are shut down and
+    # treated as not-processed, so their messages simply re-receive normally
+    # after the SQS visibility timeout.
+    tasks
+    |> Task.yield_many(30_000)
+    |> Enum.count(fn {task, result} ->
+      case result || Task.shutdown(task, :brutal_kill) do
+        {:ok, true} -> true
+        _ -> false
+      end
+    end)
   end
 
   # Process a single message.
@@ -340,8 +376,12 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
       # window still backstops the tiny delete-then-double-insert race.
       delete_queued_jobs()
 
+      # Oban schedule_in is in whole SECONDS — div(interval_ms, 1000) is 0 for
+      # any 1..999ms interval, which would queue the next poll immediately and
+      # spin a back-to-back loop. Floor at 1s. (validate_configuration/1 already
+      # rejects sub-second intervals; this is a defensive backstop.)
       %{}
-      |> __MODULE__.new(schedule_in: div(interval_ms, 1000))
+      |> __MODULE__.new(schedule_in: max(div(interval_ms, 1000), 1))
       |> Oban.insert()
       |> case do
         {:ok, _job} ->

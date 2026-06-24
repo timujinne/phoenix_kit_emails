@@ -135,6 +135,9 @@ defmodule PhoenixKit.Modules.Emails.Event do
     |> validate_complaint_type_consistency()
     |> validate_click_event_consistency()
     |> foreign_key_constraint(:email_log_uuid)
+    |> unique_constraint([:email_log_uuid, :event_type],
+      name: :phoenix_kit_email_events_log_uuid_event_type_index
+    )
     |> maybe_set_occurred_at()
     |> validate_ip_address_format()
   end
@@ -158,9 +161,46 @@ defmodule PhoenixKit.Modules.Emails.Event do
   def create_event(attrs \\ %{}) do
     attrs = maybe_resolve_email_log_uuid(attrs)
 
-    %__MODULE__{}
-    |> changeset(attrs)
-    |> repo().insert()
+    changeset = changeset(%__MODULE__{}, attrs)
+
+    # Idempotent insert. The dedup of duplicate SES events (at-least-once SQS
+    # delivery, two pollers racing the event_exists?/2 pre-check) is enforced
+    # atomically at the DB level by the unique index on
+    # (email_log_uuid, event_type). A concurrent duplicate hits the
+    # unique_constraint and surfaces as a changeset error here, which we
+    # translate into a graceful {:ok, :duplicate_event} so callers do not log a
+    # spurious failure.
+    #
+    # We deliberately let the constraint produce the error rather than using
+    # on_conflict: :nothing: the primary key is generated client-side (UUIDv7
+    # autogenerate), so an on_conflict no-op insert still returns a fully
+    # populated struct and cannot be distinguished from a real insert.
+    #
+    # NOTE: this dedup only takes effect once the partial unique index exists in
+    # core phoenix_kit. Until then the insert succeeds and the cheap
+    # event_exists?/2 guard in callers remains the (racy) first line of defence.
+    case repo().insert(changeset) do
+      {:error, %Ecto.Changeset{errors: errors} = failed} ->
+        if duplicate_event_error?(errors) do
+          {:ok, :duplicate_event}
+        else
+          {:error, failed}
+        end
+
+      other ->
+        other
+    end
+  end
+
+  # Detects the unique-constraint violation produced by a concurrent duplicate
+  # event so it can be reported as :duplicate_event rather than an error. The
+  # constraint is declared on [:email_log_uuid, :event_type], so Ecto attaches
+  # the error to the :email_log_uuid field.
+  defp duplicate_event_error?(errors) do
+    Enum.any?(errors, fn
+      {:email_log_uuid, {_msg, opts}} -> opts[:constraint] == :unique
+      _ -> false
+    end)
   end
 
   @doc """

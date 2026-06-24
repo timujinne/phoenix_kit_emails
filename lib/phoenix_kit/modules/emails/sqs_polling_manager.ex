@@ -51,7 +51,10 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   ## Integration
 
   This manager is the single control surface for SQS polling: it drives the
-  Oban `SQSPollingJob` and is wired to the admin UI toggle.
+  Oban `SQSPollingJob`. `enable_polling/0` and `disable_polling/0` back the
+  admin UI toggle. `poll_now/0` and `set_polling_interval/1` are part of the
+  public consumer API (no admin-UI caller today); they are safe to call
+  directly from host applications.
   """
 
   require Logger
@@ -85,7 +88,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
     SQSPollingJob.cancel_scheduled()
 
     with {:ok, _setting} <- Emails.set_sqs_polling(true),
-         {:ok, job} <- start_initial_job() do
+         {:ok, job} <- insert_poll_job() do
       Logger.info("SQS Polling Manager: Polling enabled and first job started")
       {:ok, job}
     else
@@ -182,7 +185,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
       Logger.warning("SQS Polling Manager: Polling is disabled, but executing manual poll")
     end
 
-    case start_immediate_job() do
+    case insert_poll_job() do
       {:ok, job} ->
         Logger.info("SQS Polling Manager: Immediate poll job created", %{job_id: job.id})
         {:ok, job}
@@ -240,15 +243,9 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
   ## --- Private Functions ---
 
-  # Start the initial polling job
-  defp start_initial_job do
-    %{}
-    |> SQSPollingJob.new()
-    |> Oban.insert()
-  end
-
-  # Start an immediate polling job
-  defp start_immediate_job do
+  # Insert an immediately-available polling job. Used both to start the chain on
+  # enable_polling/0 and to force an out-of-schedule poll via poll_now/0.
+  defp insert_poll_job do
     %{}
     |> SQSPollingJob.new()
     |> Oban.insert()
@@ -265,8 +262,10 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
     import Ecto.Query
 
+    worker = SQSPollingJob.worker_name()
+
     from(j in Oban.Job,
-      where: j.worker == "PhoenixKit.Modules.Emails.SQSPollingJob",
+      where: j.worker == ^worker,
       where: j.state in ["available", "scheduled", "executing"],
       select: count(j.id)
     )
@@ -281,8 +280,10 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
 
     import Ecto.Query
 
+    worker = SQSPollingJob.worker_name()
+
     from(j in Oban.Job,
-      where: j.worker == "PhoenixKit.Modules.Emails.SQSPollingJob",
+      where: j.worker == ^worker,
       where: j.state == "completed",
       order_by: [desc: j.completed_at],
       limit: 1
