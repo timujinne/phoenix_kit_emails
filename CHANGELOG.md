@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.8 - 2026-06-24
+
+### Added
+- Admin UI overhaul for the Emails module: page title/subtitle moved into the admin shell top bar; a daisyUI table toolbar across Emails/Templates/Queue/Blocklist (dropdown filters, a persistent inline search with inline clear, action buttons); clickable column-header sorting (server-side, URL-backed, field-whitelisted) on the contexts that support ordering; body-row click-to-open (Emails/Queue → Details, Templates → edit); a drag-and-drop column customizer on Emails; and a "Get update on this email" per-row status sync. (#13)
+- `Send Test` now renders and sends the seeded `test_email` system template (falling back to a built-in body) and records `template_name`, the sending admin's `user_uuid`, and `source_module: "emails"`, so the email Details page shows the template, user, and module. (#13)
+
+### Fixed
+- Webhook security (SNS): the signing-certificate URL is locked to `sns.<region>.amazonaws.com` with a `/SimpleNotificationService-*.pem` path before any fetch (blocks forged-cert signature bypass and SSRF); `SignatureVersion` is honored (SHA-1 vs SHA-256); `X-Forwarded-For` is trusted only from configured proxies (new `webhook_trusted_proxies` setting, default empty); and `confirm_subscription/1` actually issues the SubscribeURL GET. (#12)
+- Event ingestion: open/click events no longer overwrite terminal statuses (bounced/complaint/rejected/failed); event creation is idempotent via DB unique constraints with graceful `{:ok, :duplicate_event}` mapping; open/click dedup on `occurred_at` preserves multiple distinct engagements while collapsing exact SQS redeliveries; `opened_at`/`clicked_at` are now recorded. (#12)
+- SQS pipeline: placeholder logs are inserted directly, bypassing the sampling roll that previously returned `{:ok, :skipped}`, crashed callers, and re-cycled messages forever; the Oban poller is collapsed to exactly one self-healing chain (always self-schedules while enabled, backs off on misconfiguration instead of dying); `Task.yield_many` prevents a slow task from aborting a whole batch; sub-second polling intervals are rejected. (#12)
+- The dedup insert in `Event.create_event/1` runs with `mode: :savepoint`, so a unique-constraint violation inside `Log.mark_as_opened/2`/`mark_as_clicked/3`'s transaction no longer aborts the transaction and silently rolls back the status update.
+- Analytics: `get_stats_for_period/2` now counts the `complaint` status (it previously matched a `complained` string that is never written, so the metric was always 0) and runs as one grouped query instead of seven aggregate round-trips. (#12)
+- The Emails table column customizer validates column ids against the available-column set before persisting, so a crafted client event can no longer store an unknown column. (#13)
+- List sorting applies a deterministic UUID (primary-key) tiebreaker, so rows with equal primary-sort values page consistently across the Emails, Templates, and Blocklist lists. (#13)
+
+### Changed
+- Archiver body compression truly streams via `Repo.stream` in a transaction (was loading the full result set and only compressing the first batch); CSV exports route every cell through formula-injection + RFC 4180 escaping; `list_logs` no longer preloads `[:user, :events]` on the admin hot path; PubSub status updates refresh a single row instead of reloading the list. (#12)
+- Adopt `phoenix_kit` 1.7.165 (provides the core migration backing the email-event dedup unique indexes).
+
 ## 0.1.7 - 2026-06-23
 
 ### Added
