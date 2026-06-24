@@ -190,7 +190,15 @@ defmodule PhoenixKit.Modules.Emails.Event do
     # NOTE: this dedup only takes effect once the partial unique index exists in
     # core phoenix_kit. Until then the insert succeeds and the cheap
     # event_exists?/2 guard in callers remains the (racy) first line of defence.
-    case repo().insert(changeset) do
+    #
+    # mode: :savepoint is required because some callers (Log.mark_as_opened/
+    # mark_as_clicked) run this insert inside a Repo.transaction. Without a
+    # savepoint, a unique violation aborts the whole Postgres transaction, so the
+    # caller's preceding status update is silently rolled back at commit even
+    # though we translate the violation to {:ok, :duplicate_event} here. The
+    # savepoint scopes the rollback to just this failed insert, and is a no-op for
+    # non-transactional callers (the SQS processor paths).
+    case repo().insert(changeset, mode: :savepoint) do
       {:error, %Ecto.Changeset{errors: errors} = failed} ->
         if duplicate_event_error?(errors) do
           {:ok, :duplicate_event}

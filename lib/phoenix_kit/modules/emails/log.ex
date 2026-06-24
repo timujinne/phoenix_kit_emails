@@ -811,7 +811,7 @@ defmodule PhoenixKit.Modules.Emails.Log do
             fragment("CASE WHEN ? IN ('delivered', 'opened', 'clicked') THEN 1 END", l.status)
           ),
         bounced: count(fragment("CASE WHEN ? = 'bounced' THEN 1 END", l.status)),
-        complained: count(fragment("CASE WHEN ? = 'complained' THEN 1 END", l.status)),
+        complained: count(fragment("CASE WHEN ? = 'complaint' THEN 1 END", l.status)),
         opened: count(fragment("CASE WHEN ? IN ('opened', 'clicked') THEN 1 END", l.status)),
         clicked: count(fragment("CASE WHEN ? = 'clicked' THEN 1 END", l.status)),
         failed: count(fragment("CASE WHEN ? = 'failed' THEN 1 END", l.status))
