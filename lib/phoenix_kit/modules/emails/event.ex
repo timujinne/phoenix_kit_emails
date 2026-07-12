@@ -58,6 +58,7 @@ defmodule PhoenixKit.Modules.Emails.Event do
   """
 
   use Ecto.Schema
+  use PhoenixKit.SchemaPrefix
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
