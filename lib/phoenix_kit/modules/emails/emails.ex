@@ -97,6 +97,7 @@ defmodule PhoenixKit.Modules.Emails do
 
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Dashboard.Tab
+  alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails.{Event, Log, SQSProcessor}
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -1278,12 +1279,19 @@ defmodule PhoenixKit.Modules.Emails do
   @doc """
   Gets the AWS region for SES and SQS services.
 
+  Priority: selected Integrations connection → Settings Database →
+  Environment Variables (see `aws_ses_credentials/0`).
+
   ## Examples
 
       iex> PhoenixKit.Modules.Emails.get_aws_region()
       "eu-north-1"
   """
   def get_aws_region do
+    Map.get(aws_ses_credentials(), "aws_region") || legacy_aws_region()
+  end
+
+  defp legacy_aws_region do
     Settings.get_setting_cached("aws_region", AWS.region())
   end
 
@@ -2159,9 +2167,10 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   @doc """
-  Gets AWS access key with Settings DB priority.
+  Gets AWS access key.
 
-  Priority: Settings Database → Environment Variables
+  Priority: selected Integrations connection → Settings Database →
+  Environment Variables (see `aws_ses_credentials/0`).
 
   ## Examples
 
@@ -2169,6 +2178,10 @@ defmodule PhoenixKit.Modules.Emails do
       "AKIA..."
   """
   def get_aws_access_key do
+    Map.get(aws_ses_credentials(), "access_key") || legacy_aws_access_key()
+  end
+
+  defp legacy_aws_access_key do
     Settings.get_setting("aws_access_key_id")
     |> case do
       key when is_binary(key) and key != "" -> key
@@ -2177,9 +2190,10 @@ defmodule PhoenixKit.Modules.Emails do
   end
 
   @doc """
-  Gets AWS secret key with Settings DB priority.
+  Gets AWS secret key.
 
-  Priority: Settings Database → Environment Variables
+  Priority: selected Integrations connection → Settings Database →
+  Environment Variables (see `aws_ses_credentials/0`).
 
   ## Examples
 
@@ -2187,10 +2201,31 @@ defmodule PhoenixKit.Modules.Emails do
       "secret..."
   """
   def get_aws_secret_key do
+    Map.get(aws_ses_credentials(), "secret_key") || legacy_aws_secret_key()
+  end
+
+  defp legacy_aws_secret_key do
     Settings.get_setting("aws_secret_access_key")
     |> case do
       key when is_binary(key) and key != "" -> key
       _ -> AWS.secret_access_key()
+    end
+  end
+
+  # Credentials from the `aws_ses` Integrations connection selected via
+  # the `emails_aws_integration_uuid` setting, or an empty map when no
+  # integration is selected / configured. `get_aws_*` getters merge this
+  # over the legacy `aws_*` Settings fallback.
+  defp aws_ses_credentials do
+    case Settings.get_setting("emails_aws_integration_uuid") do
+      uuid when is_binary(uuid) and uuid != "" ->
+        case Integrations.get_credentials(uuid) do
+          {:ok, creds} -> creds
+          _ -> %{}
+        end
+
+      _ ->
+        %{}
     end
   end
 
