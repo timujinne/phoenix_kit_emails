@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.11 - 2026-07-12
+
+### Security
+- **`ex_aws_sqs` replaced with [`beamlab_ex_aws_sqs`](https://hex.pm/packages/beamlab_ex_aws_sqs), matching the switch already made in core (`phoenix_kit` 1.7.188/189).** `ex_aws_sqs` (last released Jan 2023, since archived upstream) pins `hackney ~> 1.9`, which was blocking the `hackney ~> 4.0` upgrade needed to clear a batch of hackney CVEs and made `mix hex.audit` fail on every `precommit`/release. The fork is a maintained drop-in with the same public API (`ExAws.SQS`) and no hackney dependency, but switches SQS from the legacy Query/XML protocol to AWS's JSON protocol, which changes response shapes (`%{"Messages" => [...]}` with string keys like `"ReceiptHandle"`, instead of `%{body: %{messages: [...]}}` with atom keys). `SQSPollingJob` already matched both shapes defensively; `Emails.poll_sqs_for_message/5` and `poll_dlq_for_message/5` (used by the email-details "find delivery events" lookup) only matched the old shape and were updated to match both. `mix hex.audit` now reports zero advisories. Pulls in `phoenix_kit` ~> 1.7.189 and `ex_aws` 2.7.x as part of the same hackney 4.x resolution.
+
 ## 0.1.10 - 2026-07-12
 
 ### Changed
