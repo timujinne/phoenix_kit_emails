@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.10 - 2026-07-12
+
+### Changed
+- Emails admin UI: Settings/Dashboard now share phoenix_kit's core `<.input>`/`<.checkbox>` components instead of hand-rolled markup, section headers sized to match core's other Settings pages, and the breadcrumb reads "Settings / Emails" instead of "Emails Settings".
+- AWS Region is now a static searchable dropdown (backed by the `aws_regions` package, now a direct dependency) instead of manual entry plus a "Load regions" AWS API call.
+
+### Fixed
+- SES Configuration Set, SNS Topic ARN, and SQS Queue URL/ARN/DLQ settings were only visible in the AWS Configuration card after enabling "AWS SES Events Options", even though "Setup AWS Infrastructure" could already populate them without that toggle — they're now always visible/editable alongside the rest of AWS Configuration.
+- The Dashboard's "System Status" card showed a hardcoded "Active" badge regardless of whether email delivery was actually configured.
+
+### Added
+- Mailer adapter transparency: `Utils.mailer_adapter_status/0` detects the real Swoosh adapter using the same built-in/delegated-mailer resolution logic as `PhoenixKit.Mailer` itself, and both Settings and the Dashboard now show what's actually configured — plus a copy-pasteable `config.exs` snippet when it's missing or isn't Amazon SES — instead of silently assuming AWS SES everywhere.
+
 ## 0.1.9 - 2026-07-08
 
 ### Fixed
