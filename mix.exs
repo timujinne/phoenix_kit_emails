@@ -48,7 +48,8 @@ defmodule PhoenixKitEmails.MixProject do
   defp deps do
     [
       # Core
-      {:phoenix_kit, "~> 1.7.106"},
+      {:hackney, "~> 4.0", override: true},
+      {:phoenix_kit, "~> 1.7.189"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},
