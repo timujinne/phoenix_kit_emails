@@ -2,10 +2,60 @@
     <%!-- Main Content --%>
     <div class="space-y-8">
       <%= if @email_enabled do %>
+        <%!-- Mailer Configuration status --%>
+        <div class={[
+          "alert",
+          case @mailer_status.adapter do
+            Swoosh.Adapters.AmazonSES -> if @aws_configured, do: "alert-success", else: "alert-warning"
+            nil -> "alert-warning"
+            _ -> "alert-info"
+          end
+        ]}>
+          <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
+          <div class="w-full">
+            <%= case @mailer_status.adapter do %>
+              <% Swoosh.Adapters.AmazonSES -> %>
+                <h3 class="font-bold flex items-center gap-2">
+                  {gettext("Mailer Adapter: Amazon SES")}
+                  <span class={["badge", if(@aws_configured, do: "badge-success", else: "badge-warning")]}>
+                    {if @aws_configured, do: gettext("Configured"), else: gettext("Not Configured")}
+                  </span>
+                </h3>
+                <p class="text-sm mt-1">
+                  {gettext("Configured via")}
+                  <code>config :{@mailer_status.config_app}, {inspect(@mailer_status.config_module)}</code>.
+                  <%= unless @aws_configured do %>
+                    {gettext(
+                      "Enter your AWS Access Key ID / Secret Access Key in AWS Configuration below, or set them via config :phoenix_kit, aws: [access_key_id: ..., secret_access_key: ...]."
+                    )}
+                  <% end %>
+                </p>
+
+              <% nil -> %>
+                <h3 class="font-bold">{gettext("No Mailer Adapter Configured Yet")}</h3>
+                <p class="text-sm mt-1">
+                  {gettext("Add this to your config/config.exs to start sending via Amazon SES:")}
+                </p>
+                <pre class="bg-base-300 rounded p-3 mt-2 text-xs overflow-x-auto"><code>{mailer_config_snippet(@mailer_status)}</code></pre>
+
+              <% other -> %>
+                <h3 class="font-bold">
+                  {gettext("Mailer Adapter: %{adapter}", adapter: inspect(other))}
+                </h3>
+                <p class="text-sm mt-1">
+                  {gettext(
+                    "Configured via your application's config — this admin panel manages Amazon SES only. To switch to Amazon SES, update your config to:"
+                  )}
+                </p>
+                <pre class="bg-base-300 rounded p-3 mt-2 text-xs overflow-x-auto"><code>{mailer_config_snippet(@mailer_status)}</code></pre>
+            <% end %>
+          </div>
+        </div>
+
         <%!-- Sender Configuration Card --%>
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">
-            <h2 class="card-title text-2xl mb-4">
+            <h2 class="card-title text-xl mb-6">
               <.icon name="hero-envelope" class="w-6 h-6" /> {gettext("Sender Configuration")}
             </h2>
 
@@ -13,15 +63,12 @@
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <%!-- From Email --%>
                 <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-medium">{gettext("From Email")}</span>
-                  </label>
-                  <input
+                  <.input
                     name="sender[from_email]"
                     type="email"
+                    label={gettext("From Email")}
                     placeholder="noreply@example.com"
                     value={@sender_settings.from_email}
-                    class="input input-bordered focus:input-primary"
                     required
                   />
                   <label class="label">
@@ -33,15 +80,12 @@
 
                 <%!-- From Name --%>
                 <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-medium">{gettext("From Name")}</span>
-                  </label>
-                  <input
+                  <.input
                     name="sender[from_name]"
                     type="text"
+                    label={gettext("From Name")}
                     placeholder="My Application"
                     value={@sender_settings.from_name}
-                    class="input input-bordered focus:input-primary"
                     required
                   />
                   <label class="label">
@@ -78,68 +122,53 @@
         <%!-- Options Card --%>
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">
-            <h2 class="card-title text-2xl mb-4">
+            <h2 class="card-title text-xl mb-6">
               <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> {gettext("Options")}
             </h2>
 
             <%!-- Save Email Bodies --%>
             <div class="form-control mb-4">
-              <label class="label cursor-pointer">
-                <span class="label-text text-lg">
-                  <span class="font-semibold">{gettext("Save Email Bodies")}</span>
-                  <div class="text-sm text-base-content/70 mt-1">
-                    {gettext("Store the full content of sent emails for debugging and analysis")}
-                  </div>
-                </span>
-                <input
-                  type="checkbox"
-                  class="toggle toggle-secondary"
-                  checked={@email_save_body}
-                  phx-click="toggle_email_save_body"
-                />
-              </label>
+              <.checkbox
+                checked={@email_save_body}
+                phx-click="toggle_email_save_body"
+                label={gettext("Save Email Bodies")}
+              >
+                <:description>
+                  {gettext("Store the full content of sent emails for debugging and analysis")}
+                </:description>
+              </.checkbox>
             </div>
 
             <div class="divider"></div>
 
             <%!-- Save Email Headers --%>
             <div class="form-control mb-4">
-              <label class="label cursor-pointer">
-                <span class="label-text text-lg">
-                  <span class="font-semibold">{gettext("Save Email Headers")}</span>
-                  <div class="text-sm text-base-content/70 mt-1">
-                    {gettext(
-                      "Store email headers for debugging and analysis (increases storage usage)"
-                    )}
-                  </div>
-                </span>
-                <input
-                  type="checkbox"
-                  class="toggle toggle-secondary"
-                  checked={@email_save_headers}
-                  phx-click="toggle_email_save_headers"
-                />
-              </label>
+              <.checkbox
+                checked={@email_save_headers}
+                phx-click="toggle_email_save_headers"
+                label={gettext("Save Email Headers")}
+              >
+                <:description>
+                  {gettext(
+                    "Store email headers for debugging and analysis (increases storage usage)"
+                  )}
+                </:description>
+              </.checkbox>
             </div>
 
             <div class="divider"></div>
 
             <%!-- AWS SES Events --%>
             <div class="form-control mb-4">
-              <label class="label cursor-pointer">
-                <span class="label-text text-lg">
-                  <span class="font-semibold">{gettext("AWS SES Events Options")}</span>
-                  <div class="text-sm text-base-content/70 mt-1">
-                    {gettext("Track delivery, bounce, and complaint events from Amazon SES")}
-                  </div>
-                </span>
-                <input
-                  type="checkbox"
-                  class="toggle toggle-accent"
-                  checked={@email_ses_events}
-                  phx-click="toggle_email_ses_events"
-                />
-              </label>
+              <.checkbox
+                checked={@email_ses_events}
+                phx-click="toggle_email_ses_events"
+                label={gettext("AWS SES Events Options")}
+              >
+                <:description>
+                  {gettext("Track delivery, bounce, and complaint events from Amazon SES")}
+                </:description>
+              </.checkbox>
             </div>
 
             <div class="divider"></div>
@@ -176,7 +205,7 @@
         <%!-- Data Retention Card --%>
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">
-            <h2 class="card-title text-2xl mb-4">
+            <h2 class="card-title text-xl mb-6">
               <.icon name="hero-archive-box" class="w-6 h-6" /> {gettext("Data Retention")}
             </h2>
 
@@ -294,20 +323,15 @@
 
             <%!-- S3 Archival Toggle --%>
             <div class="form-control mb-4">
-              <label class="label cursor-pointer">
-                <span class="label-text text-lg">
-                  <span class="font-semibold">{gettext("Enable S3 Archival")}</span>
-                  <div class="text-sm text-base-content/70 mt-1">
-                    {gettext("Move old email data to AWS S3 for long-term cold storage")}
-                  </div>
-                </span>
-                <input
-                  type="checkbox"
-                  class="toggle toggle-warning"
-                  checked={@email_archive_to_s3}
-                  phx-click="toggle_s3_archival"
-                />
-              </label>
+              <.checkbox
+                checked={@email_archive_to_s3}
+                phx-click="toggle_s3_archival"
+                label={gettext("Enable S3 Archival")}
+              >
+                <:description>
+                  {gettext("Move old email data to AWS S3 for long-term cold storage")}
+                </:description>
+              </.checkbox>
             </div>
 
             <%= if @email_archive_to_s3 do %>
@@ -355,10 +379,13 @@
           </div>
         </div>
 
-        <%!-- AWS Configuration Card --%>
+        <%!-- AWS Configuration Card (only relevant when Amazon SES is the
+             detected/default mailer adapter — see Mailer Configuration
+             banner above for other providers) --%>
+        <%= if @current_provider in ["aws_ses", "unknown"] do %>
         <div class="card bg-base-100 shadow-xl">
           <div class="card-body">
-            <h2 class="card-title text-2xl mb-4">
+            <h2 class="card-title text-xl mb-6">
               <.icon name="hero-cog-6-tooth" class="w-6 h-6" /> {gettext("AWS Configuration")}
             </h2>
 
@@ -439,19 +466,11 @@
                       )}
                     </li>
                     <li>{gettext("Enter Secret Access Key")}</li>
-                    <li>{gettext("Enter AWS Region manually (e.g., eu-north-1)")}</li>
+                    <li>{gettext("Pick your AWS Region from the dropdown")}</li>
                     <li>
                       {Phoenix.HTML.raw(
                         gettext("Click <strong>\"%{button}\"</strong> to test connectivity",
                           button: gettext("Verify Credentials")
-                        )
-                      )}
-                    </li>
-                    <li>
-                      <em>{gettext("Optional:")}</em>
-                      {Phoenix.HTML.raw(
-                        gettext("Click <strong>\"%{button}\"</strong> to see all available regions",
-                          button: gettext("Load regions")
                         )
                       )}
                     </li>
@@ -607,49 +626,27 @@
 
                 <%!-- AWS Region --%>
                 <div class="form-control md:col-span-2">
-                  <div class="flex gap-2">
-                    <.aws_region_select
-                      id="aws-region-select"
-                      name="aws_settings[region]"
-                      value={@aws_settings.region}
-                      regions={@available_regions}
-                      regions_loaded={@regions_loaded}
-                      selected_region={@selected_region}
-                      verifying={@verifying_credentials}
-                      verified={@credential_verification_status}
-                      phx_change="select_region"
-                      class="flex-1"
-                    />
-
-                    <%!-- Button to load/refresh regions --%>
-                    <button
-                      type="button"
-                      phx-click="fetch_available_regions"
-                      disabled={
-                        @verifying_credentials or String.trim(@aws_settings.access_key_id) == "" or
-                          String.trim(@aws_settings.secret_access_key) == ""
-                      }
-                      class="btn btn-outline btn-sm h-fit"
-                      title={
-                        if @regions_loaded,
-                          do: gettext("Refresh regions list"),
-                          else: gettext("Load available regions")
-                      }
-                    >
-                      <%= if @verifying_credentials do %>
-                        <span class="loading loading-spinner loading-xs"></span>
-                      <% else %>
-                        <.icon name="hero-arrow-path" class="w-4 h-4" />
-                      <% end %>
-                    </button>
-                  </div>
-
-                  <%!-- Helper text is now in the component itself --%>
+                  <.live_component
+                    module={SearchableSelect}
+                    id="aws-region-select"
+                    name="aws_settings[region]"
+                    value={@aws_settings.region}
+                    label={gettext("AWS Region")}
+                    placeholder={gettext("Search regions...")}
+                    grouped_options={
+                      Enum.map(AwsRegions.group_by_continent(), fn {continent, regions} ->
+                        {continent,
+                         Enum.map(regions, fn r -> {"#{r.name} — #{r.code}", r.code} end)}
+                      end)
+                    }
+                  />
                 </div>
               </div>
 
-              <%= if @email_ses_events do %>
-                <%!-- Advanced AWS Settings (collapse) --%>
+                <%!-- Advanced AWS Settings (collapse) — visible whenever AWS
+                     Configuration renders, not just when "AWS SES Events
+                     Options" is on, since "Setup AWS Infrastructure" (below)
+                     can populate these regardless of that toggle. --%>
                 <div class="collapse collapse-arrow bg-base-200 mt-4">
                   <input type="checkbox" />
                   <div class="collapse-title text-sm font-medium">
@@ -782,22 +779,17 @@
                   <div class="collapse-content text-sm space-y-4">
                     <%!-- Enable SQS Polling --%>
                     <div class="form-control">
-                      <label class="label cursor-pointer">
-                        <span class="label-text text-lg">
-                          <span class="font-semibold">{gettext("Enable SQS Polling")}</span>
-                          <div class="text-sm text-base-content/70 mt-1">
-                            {gettext(
-                              "Automatically poll SQS queue for email events in background"
-                            )}
-                          </div>
-                        </span>
-                        <input
-                          type="checkbox"
-                          class="toggle toggle-info"
-                          checked={@sqs_polling_enabled}
-                          phx-click="toggle_sqs_polling"
-                        />
-                      </label>
+                      <.checkbox
+                        checked={@sqs_polling_enabled}
+                        phx-click="toggle_sqs_polling"
+                        label={gettext("Enable SQS Polling")}
+                      >
+                        <:description>
+                          {gettext(
+                            "Automatically poll SQS queue for email events in background"
+                          )}
+                        </:description>
+                      </.checkbox>
                     </div>
 
                     <%!-- SQS Polling Interval --%>
@@ -908,7 +900,6 @@
                     </div>
                   </div>
                 </div>
-              <% end %>
 
               <%!-- Warning for credentials changes --%>
               <%= if String.trim(@aws_settings.access_key_id) != "" or String.trim(@aws_settings.secret_access_key) != "" do %>
@@ -971,6 +962,7 @@
             </form>
           </div>
         </div>
+        <% end %>
 
         <%!-- Current Configuration Summary --%>
         <div class="alert alert-info">

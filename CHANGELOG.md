@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.11 - 2026-07-12
+
+### Security
+- **`ex_aws_sqs` replaced with [`beamlab_ex_aws_sqs`](https://hex.pm/packages/beamlab_ex_aws_sqs), matching the switch already made in core (`phoenix_kit` 1.7.188/189).** `ex_aws_sqs` (last released Jan 2023, since archived upstream) pins `hackney ~> 1.9`, which was blocking the `hackney ~> 4.0` upgrade needed to clear a batch of hackney CVEs and made `mix hex.audit` fail on every `precommit`/release. The fork is a maintained drop-in with the same public API (`ExAws.SQS`) and no hackney dependency, but switches SQS from the legacy Query/XML protocol to AWS's JSON protocol, which changes response shapes (`%{"Messages" => [...]}` with string keys like `"ReceiptHandle"`, instead of `%{body: %{messages: [...]}}` with atom keys). `SQSPollingJob` already matched both shapes defensively; `Emails.poll_sqs_for_message/5` and `poll_dlq_for_message/5` (used by the email-details "find delivery events" lookup) only matched the old shape and were updated to match both. `mix hex.audit` now reports zero advisories. Pulls in `phoenix_kit` ~> 1.7.189 and `ex_aws` 2.7.x as part of the same hackney 4.x resolution.
+
+## 0.1.10 - 2026-07-12
+
+### Changed
+- Emails admin UI: Settings/Dashboard now share phoenix_kit's core `<.input>`/`<.checkbox>` components instead of hand-rolled markup, section headers sized to match core's other Settings pages, and the breadcrumb reads "Settings / Emails" instead of "Emails Settings".
+- AWS Region is now a static searchable dropdown (backed by the `aws_regions` package, now a direct dependency) instead of manual entry plus a "Load regions" AWS API call.
+
+### Fixed
+- SES Configuration Set, SNS Topic ARN, and SQS Queue URL/ARN/DLQ settings were only visible in the AWS Configuration card after enabling "AWS SES Events Options", even though "Setup AWS Infrastructure" could already populate them without that toggle — they're now always visible/editable alongside the rest of AWS Configuration.
+- The Dashboard's "System Status" card showed a hardcoded "Active" badge regardless of whether email delivery was actually configured.
+
+### Added
+- Mailer adapter transparency: `Utils.mailer_adapter_status/0` detects the real Swoosh adapter using the same built-in/delegated-mailer resolution logic as `PhoenixKit.Mailer` itself, and both Settings and the Dashboard now show what's actually configured — plus a copy-pasteable `config.exs` snippet when it's missing or isn't Amazon SES — instead of silently assuming AWS SES everywhere.
+
 ## 0.1.9 - 2026-07-08
 
 ### Fixed

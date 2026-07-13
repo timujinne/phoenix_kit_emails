@@ -40,6 +40,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
   import PhoenixKitWeb.Components.Core.TableDefault
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Number, as: UtilsNumber
   alias PhoenixKit.Utils.Routes
@@ -70,6 +71,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
           engagement: %{labels: [], datasets: []}
         })
         |> assign(:last_updated, UtilsDate.utc_now())
+        |> assign(:mailer_status, Utils.mailer_adapter_status())
+        |> assign(:aws_configured, Emails.aws_configured?())
         |> load_metrics_data()
 
       {:ok, socket}

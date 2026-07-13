@@ -58,15 +58,51 @@ defmodule PhoenixKit.Modules.Emails.Utils do
   """
   @spec detect_provider_from_config() :: String.t()
   def detect_provider_from_config do
-    case PhoenixKit.Config.get(:mailer) do
-      {:ok, mailer} when not is_nil(mailer) ->
-        # Try to determine provider from mailer configuration
-        config = Config.get(mailer, [])
-        adapter = Keyword.get(config, :adapter)
-        adapter_to_provider_name(adapter, "unknown")
+    mailer_adapter_status().provider
+  end
 
-      _ ->
-        "unknown"
-    end
+  @doc """
+  Reports exactly what mailer adapter is configured and where, for display
+  in the admin UI.
+
+  Mirrors `PhoenixKit.Mailer.deliver_email/2`'s own resolution logic (built-in
+  vs. delegated mailer, config read from the right `otp_app`) so what this
+  reports can never diverge from what actually sends mail — including the
+  delegation-mode case where the host app supplies its own mailer module
+  under its own `otp_app`.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.Utils.mailer_adapter_status()
+      %{mailer: PhoenixKit.Mailer, adapter: Swoosh.Adapters.AmazonSES,
+        provider: "aws_ses", config_app: :phoenix_kit, config_module: PhoenixKit.Mailer}
+  """
+  @spec mailer_adapter_status() :: %{
+          mailer: module(),
+          adapter: module() | nil,
+          provider: String.t(),
+          config_app: atom(),
+          config_module: module()
+        }
+  def mailer_adapter_status do
+    mailer = PhoenixKit.Config.get_mailer()
+
+    {config, config_app} =
+      if mailer == PhoenixKit.Mailer do
+        {Config.get(mailer, []), :phoenix_kit}
+      else
+        app = PhoenixKit.Config.get_parent_app()
+        {Application.get_env(app, mailer, []), app}
+      end
+
+    adapter = Keyword.get(config, :adapter)
+
+    %{
+      mailer: mailer,
+      adapter: adapter,
+      provider: adapter_to_provider_name(adapter, "unknown"),
+      config_app: config_app,
+      config_module: mailer
+    }
   end
 end

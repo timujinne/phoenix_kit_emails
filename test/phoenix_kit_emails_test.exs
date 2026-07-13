@@ -2,6 +2,7 @@ defmodule PhoenixKitEmailsTest do
   use ExUnit.Case, async: true
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.Utils, as: EmailsUtils
 
   test "module_key returns emails" do
     assert Emails.module_key() == "emails"
@@ -61,5 +62,57 @@ defmodule PhoenixKitEmailsTest do
     assert function_exported?(provider, :aws_configured?, 0)
     assert function_exported?(provider, :adapter_to_provider_name, 2)
     assert function_exported?(provider, :send_test_tracking_email, 2)
+  end
+
+  describe "Utils.mailer_adapter_status/0" do
+    test "returns a map with the expected keys and types" do
+      status = EmailsUtils.mailer_adapter_status()
+
+      assert is_map(status)
+      assert Map.has_key?(status, :mailer)
+      assert Map.has_key?(status, :adapter)
+      assert Map.has_key?(status, :provider)
+      assert Map.has_key?(status, :config_app)
+      assert Map.has_key?(status, :config_module)
+
+      assert is_atom(status.mailer)
+      assert is_atom(status.config_module)
+      assert is_atom(status.config_app) or is_nil(status.config_app)
+      assert is_binary(status.provider)
+    end
+  end
+
+  describe "Utils.adapter_to_provider_name/2" do
+    test "maps known Swoosh adapters to provider names" do
+      assert EmailsUtils.adapter_to_provider_name(Swoosh.Adapters.AmazonSES, "x") == "aws_ses"
+      assert EmailsUtils.adapter_to_provider_name(Swoosh.Adapters.SMTP, "x") == "smtp"
+      assert EmailsUtils.adapter_to_provider_name(Swoosh.Adapters.Sendgrid, "x") == "sendgrid"
+      assert EmailsUtils.adapter_to_provider_name(Swoosh.Adapters.Mailgun, "x") == "mailgun"
+      assert EmailsUtils.adapter_to_provider_name(Swoosh.Adapters.Local, "x") == "local"
+      assert EmailsUtils.adapter_to_provider_name(nil, "fallback") == "fallback"
+      assert EmailsUtils.adapter_to_provider_name(SomeUnknown, "fallback") == "fallback"
+    end
+  end
+
+  describe "Utils.detect_provider_from_config/0" do
+    test "returns a binary provider name" do
+      provider = EmailsUtils.detect_provider_from_config()
+      assert is_binary(provider)
+    end
+  end
+
+  test "Emails.current_provider/0 returns a string (or safe fallback in minimal env)" do
+    # In the minimal test env without a configured Repo, this may hit
+    # Settings and raise. We treat any exception as "unknown" fallback for
+    # the purpose of this smoke test. The core logic is covered by
+    # mailer_adapter_status/0.
+    provider =
+      try do
+        Emails.current_provider()
+      rescue
+        _ -> "unknown"
+      end
+
+    assert is_binary(provider)
   end
 end

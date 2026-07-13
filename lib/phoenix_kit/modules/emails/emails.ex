@@ -98,7 +98,7 @@ defmodule PhoenixKit.Modules.Emails do
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Dashboard.Tab
   alias PhoenixKit.Integrations
-  alias PhoenixKit.Modules.Emails.{Event, Log, SQSProcessor}
+  alias PhoenixKit.Modules.Emails.{Event, Log, SQSProcessor, Utils}
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
@@ -515,10 +515,22 @@ defmodule PhoenixKit.Modules.Emails do
         )
         |> ExAws.request(aws_config)
         |> case do
-          {:ok, %{body: %{messages: messages}}} ->
+          {:ok, %{"Messages" => messages}} when is_list(messages) ->
             messages
 
-          {:ok, %{body: %{}}} ->
+          {:ok, %{"messages" => messages}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{messages: messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{"Messages" => messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{"messages" => messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, _response} ->
             []
 
           {:error, {:http_error, status_code, %{code: error_code, message: error_message}}} ->
@@ -636,10 +648,22 @@ defmodule PhoenixKit.Modules.Emails do
         )
         |> ExAws.request(get_aws_config())
         |> case do
-          {:ok, %{body: %{messages: messages}}} ->
+          {:ok, %{"Messages" => messages}} when is_list(messages) ->
             messages
 
-          {:ok, %{body: %{}}} ->
+          {:ok, %{"messages" => messages}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{messages: messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{"Messages" => messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, %{body: %{"messages" => messages}}} when is_list(messages) ->
+            messages
+
+          {:ok, _response} ->
             []
 
           error ->
@@ -2188,6 +2212,28 @@ defmodule PhoenixKit.Modules.Emails do
     secret_key = get_aws_secret_key()
 
     access_key != "" && secret_key != ""
+  end
+
+  @doc """
+  Returns the email provider actually in effect, detected from the host
+  app's mailer configuration (see `PhoenixKit.Modules.Emails.Utils.mailer_adapter_status/0`).
+
+  Falls back to `"aws_ses"` when the adapter can't be statically detected
+  (e.g. a delegated mailer configured at runtime) but AWS credentials are
+  present — the same heuristic `Interceptor.detect_provider/2` already uses
+  for delegation-mode hosts — otherwise `"unknown"`.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.current_provider()
+      "aws_ses"
+  """
+  @spec current_provider() :: String.t()
+  def current_provider do
+    case Utils.mailer_adapter_status().provider do
+      "unknown" -> if aws_configured?(), do: "aws_ses", else: "unknown"
+      provider -> provider
+    end
   end
 
   # Get AWS configuration for ExAws

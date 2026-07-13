@@ -36,7 +36,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
   import PhoenixKitWeb.Components.Core.Icon
   import PhoenixKitWeb.Components.Core.AWSCredentialsVerify
-  import PhoenixKitWeb.Components.Core.AWSRegionSelect
+  import PhoenixKitWeb.Components.Core.Checkbox
+  import PhoenixKitWeb.Components.Core.Input
 
   alias PhoenixKit.AWS.CredentialsVerifier
   alias PhoenixKit.AWS.InfrastructureSetup
@@ -44,8 +45,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
   alias PhoenixKit.Integrations
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.SQSPollingManager
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
   alias PhoenixKit.Utils.Routes
+  alias PhoenixKitWeb.Live.Components.SearchableSelect
 
   @dialyzer {:nowarn_function, handle_event: 3}
 
@@ -57,6 +60,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
 
     # Load email configuration
     email_config = Emails.get_config()
+
+    # Detect what mailer adapter is actually configured, for the transparency
+    # banner and to decide whether the AWS Configuration card applies
+    mailer_status = Utils.mailer_adapter_status()
+    current_provider = Emails.current_provider()
 
     # Load AWS settings
     aws_settings = %{
@@ -74,8 +82,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
     socket =
       socket
       |> assign(:current_path, current_path)
-      |> assign(:page_title, gettext("Emails Settings"))
+      |> assign(:page_title, gettext("Settings") <> " / " <> gettext("Emails"))
       |> assign(:page_subtitle, gettext("Configure emails behavior and data retention"))
+      |> assign(:mailer_status, mailer_status)
+      |> assign(:current_provider, current_provider)
+      |> assign(:aws_configured, Emails.aws_configured?())
       |> assign(:email_enabled, email_config.enabled)
       |> assign(:email_save_body, email_config.save_body)
       |> assign(:email_save_headers, Emails.save_headers_enabled?())
@@ -115,9 +126,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
       # :pending, :verifying, :success, :error
       |> assign(:credential_verification_status, :pending)
       |> assign(:credential_verification_message, "")
-      |> assign(:available_regions, [])
-      |> assign(:regions_loaded, false)
-      |> assign(:selected_region, "")
       |> assign(:aws_permissions, %{})
 
     {:ok, socket}
@@ -197,9 +205,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
               else: gettext("AWS SES events tracking disabled")
             )
           )
-
-        # Auto-load regions when enabling SES events
-        socket = maybe_auto_load_regions(socket, new_ses_events)
 
         {:noreply, socket}
 
@@ -728,67 +733,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
     end
   end
 
-  # Handle region selection from direct call (e.g., JS pushEvent)
-  def handle_event("select_region", %{"region" => region}, socket) do
-    socket =
-      socket
-      |> assign(:selected_region, region)
-      |> assign(:aws_settings, %{socket.assigns.aws_settings | region: region})
-
-    {:noreply, socket}
-  end
-
-  # Handle region selection from form input (nested parameter structure)
-  def handle_event("select_region", %{"aws_settings" => %{"region" => region}}, socket) do
-    socket =
-      socket
-      |> assign(:selected_region, region)
-      |> assign(:aws_settings, %{socket.assigns.aws_settings | region: region})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("fetch_available_regions", _params, socket) do
-    aws_settings = socket.assigns.aws_settings
-
-    # Get regions in a task
-    task =
-      Task.async(fn ->
-        CredentialsVerifier.get_available_regions(
-          aws_settings.access_key_id,
-          aws_settings.secret_access_key,
-          aws_settings.region
-        )
-      end)
-
-    case Task.yield(task, 10_000) || Task.shutdown(task) do
-      {:ok, {:ok, regions}} ->
-        socket =
-          socket
-          |> assign(:available_regions, regions)
-          |> assign(:regions_loaded, true)
-          |> assign(:selected_region, aws_settings.region)
-
-        {:noreply, socket}
-
-      {:ok, {:error, reason}} ->
-        socket =
-          socket
-          |> assign(:regions_loaded, false)
-          |> put_flash(:error, gettext("Failed to load regions: %{reason}", reason: reason))
-
-        {:noreply, socket}
-
-      nil ->
-        socket =
-          socket
-          |> assign(:regions_loaded, false)
-          |> put_flash(:error, gettext("Region loading timed out."))
-
-        {:noreply, socket}
-    end
-  end
-
   def handle_event("run_cleanup_now", _params, socket) do
     # Run cleanup operation for emails older than retention period
     socket = assign(socket, :running_cleanup, true)
@@ -1086,45 +1030,20 @@ defmodule PhoenixKit.Modules.Emails.Web.Settings do
     assign_verification_error(socket, "❌ Verification failed: #{reason}")
   end
 
-  # Auto-load AWS regions when SES events are enabled
-  defp maybe_auto_load_regions(socket, false), do: socket
-
-  defp maybe_auto_load_regions(socket, true) do
-    aws_settings = socket.assigns.aws_settings
-
-    # Only load if credentials are present
-    if aws_settings.access_key_id != "" and aws_settings.secret_access_key != "" do
-      load_regions_async(socket, aws_settings)
-    else
-      socket
-    end
-  end
-
-  defp load_regions_async(socket, aws_settings) do
-    task =
-      Task.async(fn ->
-        CredentialsVerifier.get_available_regions(
-          aws_settings.access_key_id,
-          aws_settings.secret_access_key,
-          aws_settings.region
-        )
-      end)
-
-    case Task.yield(task, 10_000) || Task.shutdown(task) do
-      {:ok, {:ok, regions}} ->
-        socket
-        |> assign(:available_regions, regions)
-        |> assign(:regions_loaded, true)
-
-      _ ->
-        # Silently fail - user can manually refresh regions
-        socket
-    end
-  end
-
   defp get_current_path(_socket, _session) do
     # For Email settings page
     Routes.path("/admin/settings/emails")
+  end
+
+  # Paste-able config.exs snippet to configure (or switch to) the Amazon SES
+  # adapter, using the actually-detected mailer module/app so it's always
+  # copy-pasteable as-is.
+  defp mailer_config_snippet(%{config_app: app, config_module: mod}) do
+    """
+    config :#{app}, #{inspect(mod)},
+      adapter: Swoosh.Adapters.AmazonSES,
+      region: "eu-north-1"
+    """
   end
 
   # Build AWS settings map from params

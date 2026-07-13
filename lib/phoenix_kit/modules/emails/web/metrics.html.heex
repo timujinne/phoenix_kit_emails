@@ -1,4 +1,41 @@
 <div class="container flex-col mx-auto px-4 py-6">
+    <%!-- Mailer / Provider status --%>
+    <div class={[
+      "alert mb-6",
+      case {@mailer_status.adapter, @aws_configured} do
+        {Swoosh.Adapters.AmazonSES, true} -> "alert-success"
+        {Swoosh.Adapters.AmazonSES, false} -> "alert-warning"
+        {nil, _} -> "alert-warning"
+        _ -> "alert-info"
+      end
+    ]}>
+      <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
+      <div class="flex-1">
+        <%= case {@mailer_status.adapter, @aws_configured} do %>
+          <% {Swoosh.Adapters.AmazonSES, true} -> %>
+            <span class="font-semibold">{gettext("Amazon SES")}</span>
+            <span class="badge badge-success ml-2">{gettext("Configured")}</span>
+          <% {Swoosh.Adapters.AmazonSES, false} -> %>
+            <span class="font-semibold">{gettext("Amazon SES is not configured yet.")}</span>
+            <.link navigate={Routes.path("/admin/settings/emails")} class="link link-primary ml-1">
+              {gettext("Go to Settings to finish setup")}
+            </.link>
+          <% {nil, _} -> %>
+            <span class="font-semibold">{gettext("No mailer adapter configured yet.")}</span>
+            <.link navigate={Routes.path("/admin/settings/emails")} class="link link-primary ml-1">
+              {gettext("Go to Settings to configure one")}
+            </.link>
+          <% {other, _} -> %>
+            <span class="font-semibold">
+              {gettext("Mailer Adapter: %{adapter}", adapter: inspect(other))}
+            </span>
+            <.link navigate={Routes.path("/admin/settings/emails")} class="link link-primary ml-1">
+              {gettext("View in Settings")}
+            </.link>
+        <% end %>
+      </div>
+    </div>
+
     <%!-- Controls Section --%>
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
       <%!-- Period Selection --%>
@@ -299,6 +336,29 @@
               <div class="flex items-center justify-between">
                 <span class="text-sm">{gettext("Email")}</span>
                 <span class="badge badge-success">{gettext("Active")}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-sm">{gettext("Provider")}</span>
+                <span class={[
+                  "badge",
+                  case {@mailer_status.adapter, @aws_configured} do
+                    {Swoosh.Adapters.AmazonSES, true} -> "badge-success"
+                    {nil, _} -> "badge-warning"
+                    {Swoosh.Adapters.AmazonSES, false} -> "badge-warning"
+                    _ -> "badge-info"
+                  end
+                ]}>
+                  <%= case @mailer_status.adapter do %>
+                    <% nil -> %>
+                      {gettext("Not Configured")}
+                    <% Swoosh.Adapters.AmazonSES -> %>
+                      {if @aws_configured,
+                        do: gettext("Amazon SES"),
+                        else: gettext("Amazon SES (incomplete)")}
+                    <% other -> %>
+                      {inspect(other)}
+                  <% end %>
+                </span>
               </div>
               <div class="flex items-center justify-between">
                 <span class="text-sm">{gettext("Last Updated")}</span>

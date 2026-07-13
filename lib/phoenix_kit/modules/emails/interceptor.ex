@@ -56,6 +56,7 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   alias PhoenixKit.Modules.Emails.EmailLogData
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Modules.Emails.Log
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias Swoosh.Email
 
@@ -144,19 +145,15 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
       has_smtp_headers?(email) ->
         "smtp"
 
-      # A configured SES configuration set means AWS SES is the provider, even
-      # when the host app uses its own Swoosh mailer (Option 1: config lives
-      # under the app's own otp_app, which detect_provider_from_config cannot
-      # read, so it would otherwise fall back to "unknown"). Checked after the
-      # SMTP branch so a relayed message carrying a stray global config set is
-      # not misclassified. At log-creation time the X-SES-CONFIGURATION-SET
-      # header is not on the email yet, so has_ses_headers?/1 misses it — rely
-      # on the configured set instead.
+      # A configured SES configuration set is a strong indicator for AWS SES
+      # (checked via settings), even when using a delegated mailer. We evaluate
+      # it before the config fallback because at log-creation time the
+      # X-SES-CONFIGURATION-SET header may not yet be present on the email.
       not is_nil(get_configuration_set(opts)) ->
         "aws_ses"
 
       true ->
-        detect_provider_from_config()
+        Utils.detect_provider_from_config()
     end
   end
 
@@ -704,29 +701,6 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
   end
 
   defp has_smtp_headers?(_), do: false
-
-  # Detect provider from configuration
-  defp detect_provider_from_config do
-    # Try to detect from application configuration
-    case PhoenixKit.Config.get(:mailer) do
-      {:ok, mailer} when not is_nil(mailer) ->
-        # Try to determine provider from mailer configuration
-        config = PhoenixKit.Config.get_list(mailer, [])
-        adapter = Keyword.get(config, :adapter)
-
-        case adapter do
-          Swoosh.Adapters.AmazonSES -> "aws_ses"
-          Swoosh.Adapters.SMTP -> "smtp"
-          Swoosh.Adapters.Sendgrid -> "sendgrid"
-          Swoosh.Adapters.Mailgun -> "mailgun"
-          Swoosh.Adapters.Local -> "local"
-          _ -> "unknown"
-        end
-
-      _ ->
-        "unknown"
-    end
-  end
 
   # Extract data from provider response
   defp extract_provider_data(%{} = response, log_uuid) do
