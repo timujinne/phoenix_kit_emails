@@ -67,12 +67,11 @@ defmodule PhoenixKitEmails.MixProject do
       # not the old `%{body: %{messages: [...]}}` with atom keys. Matches
       # the switch already made in core (phoenix_kit).
       {:beamlab_ex_aws_sqs, "~> 4.0"},
-      {:ex_aws_sns, "~> 2.3"},
-      {:ex_aws_sts, "~> 2.3"},
       {:ex_aws_s3, "~> 2.4"},
+      # Transitive requirement of ex_aws_s3 (parses S3's XML responses) — not
+      # called directly here, declared explicitly since we do call
+      # ExAws.S3.put_object (archiver.ex).
       {:sweet_xml, "~> 0.7"},
-      {:finch, "~> 0.18"},
-      {:saxy, "~> 1.5"},
 
       # Utils
       {:jason, "~> 1.4"},
