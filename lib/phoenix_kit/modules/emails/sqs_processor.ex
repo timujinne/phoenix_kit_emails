@@ -491,7 +491,10 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp determine_bounce_status(bounce_type) do
     case String.downcase(bounce_type || "") do
       "permanent" -> "hard_bounced"
-      "temporary" -> "soft_bounced"
+      # AWS SES sends "Transient" for soft bounces (not "Temporary") — the old
+      # "temporary" match never fired, so every soft bounce fell through to the
+      # generic "bounced" status. Both are accepted now.
+      t when t in ["transient", "temporary"] -> "soft_bounced"
       _ -> "bounced"
     end
   end
