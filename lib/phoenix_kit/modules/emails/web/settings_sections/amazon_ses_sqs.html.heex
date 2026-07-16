@@ -59,18 +59,13 @@
       </span>
     </label>
     <form id="aws-integration-picker-form" phx-change="select_aws_integration" phx-target={@myself}>
-      <label class="select w-full focus:select-primary">
-        <select name="uuid">
-          <option value="" selected={@selected_aws_integration_uuid in [nil, ""]}>
-            {gettext("Legacy (manual settings below)")}
-          </option>
-          <%= for conn <- @aws_ses_connections do %>
-            <option value={conn.uuid} selected={conn.uuid == @selected_aws_integration_uuid}>
-              {conn.name}
-            </option>
-          <% end %>
-        </select>
-      </label>
+      <.select
+        name="uuid"
+        value={@selected_aws_integration_uuid}
+        prompt={gettext("Legacy (manual settings below)")}
+        options={Enum.map(@aws_ses_connections, &{&1.name, &1.uuid})}
+        class="focus:select-primary"
+      />
     </form>
     <%= if @aws_ses_connections == [] do %>
       <label class="label">
@@ -516,16 +511,17 @@
         <% end %>
 
         <%!-- Performance Optimization Tips --%>
-        <div class="p-4 bg-blue-50 border border-blue-200 rounded-md">
-          <h4 class="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-            <.icon name="hero-light-bulb" class="w-4 h-4" /> {gettext("Performance Tips")}
-          </h4>
-          <ul class="text-sm text-blue-800 space-y-1">
-            <li>• {gettext("Use longer polling intervals (5-10 seconds) to reduce API calls")}</li>
-            <li>• {gettext("Set visibility timeout to match processing time")}</li>
-            <li>• {gettext("Monitor queue depth and adjust max messages accordingly")}</li>
-            <li>• {gettext("Enable compression to reduce storage requirements")}</li>
-          </ul>
+        <div class="alert alert-info">
+          <.icon name="hero-light-bulb" class="w-4 h-4 shrink-0" />
+          <div>
+            <h4 class="font-semibold mb-2">{gettext("Performance Tips")}</h4>
+            <ul class="text-sm space-y-1">
+              <li>• {gettext("Use longer polling intervals (5-10 seconds) to reduce API calls")}</li>
+              <li>• {gettext("Set visibility timeout to match processing time")}</li>
+              <li>• {gettext("Monitor queue depth and adjust max messages accordingly")}</li>
+              <li>• {gettext("Enable compression to reduce storage requirements")}</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
