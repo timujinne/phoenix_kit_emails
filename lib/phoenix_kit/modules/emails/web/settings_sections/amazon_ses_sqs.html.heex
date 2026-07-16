@@ -84,6 +84,7 @@
   <%!-- AWS SES Events --%>
   <div class="form-control">
     <.checkbox
+      name="amazon_ses[ses_events]"
       checked={@email_ses_events}
       phx-click="toggle_email_ses_events"
       phx-target={@myself}
@@ -422,6 +423,7 @@
         <%!-- Enable SQS Polling --%>
         <div class="form-control">
           <.checkbox
+            name="amazon_ses[sqs_polling_enabled]"
             checked={@sqs_polling_enabled}
             phx-click="toggle_sqs_polling"
             phx-target={@myself}
