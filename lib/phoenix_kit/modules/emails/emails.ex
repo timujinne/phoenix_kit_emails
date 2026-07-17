@@ -94,6 +94,7 @@ defmodule PhoenixKit.Modules.Emails do
   """
 
   use PhoenixKit.Module
+  use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   alias PhoenixKit.Config.AWS
   alias PhoenixKit.Dashboard.Tab
@@ -926,13 +927,13 @@ defmodule PhoenixKit.Modules.Emails do
     [
       %{
         id: :emails_tracking,
-        title: "Email Tracking",
+        title: gettext("Email Tracking"),
         permission: "emails",
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
       },
       %{
         id: :emails_aws_ses_sqs,
-        title: "Amazon SES & SQS",
+        title: gettext("Amazon SES & SQS"),
         permission: "emails",
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
       }
