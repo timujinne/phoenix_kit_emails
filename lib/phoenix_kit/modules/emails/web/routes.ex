@@ -16,8 +16,20 @@ defmodule PhoenixKit.Modules.Emails.Web.Routes do
       # doesn't assume anything about what else the host app's :browser
       # pipeline includes (mirrors the newsletters one-click unsubscribe
       # pipeline).
+      #
+      # "Public" here means without a session — not without authentication.
+      # WebhookController itself is the auth boundary: SNS message
+      # signature verification (WebhookController.handle/2, gated by
+      # webhook_verify_sns_signature, default on), an AWS-IP allowlist
+      # (webhook_check_aws_ip, default on), and a 5-minute replay window
+      # (verify_request_age/1) all run before any event is processed.
       pipeline :phoenix_kit_emails_webhook do
-        plug(:accepts, ["html"])
+        # SNS posts "application/json" (Notification/SubscriptionConfirmation
+        # payloads) — ["json"] describes what this endpoint actually accepts,
+        # unlike ["html"] which was never true for a JSON-only webhook.
+        # Behaviorally inert either way: :accepts only negotiates response
+        # format/Accept-header handling, it doesn't gate the request body.
+        plug(:accepts, ["json"])
       end
 
       scope unquote(url_prefix) do
