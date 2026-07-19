@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.13 - 2026-07-19
+
+### Fixed
+- The `/webhooks/ses` route was piped through the host app's `:browser` pipeline, which (per the documented default) includes `protect_from_forgery`. AWS SNS delivers webhook notifications as a cold, session-less POST with no CSRF token, so every notification 403'd with `Plug.CSRFProtection.InvalidCSRFTokenError` before ever reaching `WebhookController`. The route now runs through its own minimal `:phoenix_kit_emails_webhook` pipeline (just `plug :accepts, ["html"]`, no session/CSRF plugs), mirroring the equivalent fix in `phoenix_kit_newsletters`'s one-click-unsubscribe route. (#17)
+
 ## 0.1.12 - 2026-07-19
 
 ### Changed
