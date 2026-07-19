@@ -1,5 +1,15 @@
 defmodule PhoenixKit.Modules.Emails.Provider do
-  @moduledoc "Unified email provider for PhoenixKit."
+  @moduledoc """
+  Unified email provider for PhoenixKit.
+
+  Implements the `PhoenixKit.Email.Provider` behaviour, which core's
+  `PhoenixKit.Mailer` calls through `Provider.current()`. The `@behaviour`
+  declaration is load-bearing: without it the compiler cannot verify that this
+  module actually satisfies the contract, so a callback added (or changed) in
+  core would compile clean here and only blow up at runtime, in the send path.
+  """
+
+  @behaviour PhoenixKit.Email.Provider
 
   require Logger
 
@@ -11,8 +21,10 @@ defmodule PhoenixKit.Modules.Emails.Provider do
 
   # Interception — delegates to Interceptor
 
+  @impl PhoenixKit.Email.Provider
   def intercept_before_send(email, opts), do: Interceptor.intercept_before_send(email, opts)
 
+  @impl PhoenixKit.Email.Provider
   def handle_after_send(email, result) do
     case get_in(email.headers, ["X-PhoenixKit-Log-Id"]) do
       nil ->
@@ -39,35 +51,46 @@ defmodule PhoenixKit.Modules.Emails.Provider do
 
   # Templates — delegates to Templates context
 
+  @impl PhoenixKit.Email.Provider
   def get_active_template_by_name(name), do: Templates.get_active_template_by_name(name)
 
+  @impl PhoenixKit.Email.Provider
   def render_template(template, variables), do: Templates.render_template(template, variables)
 
+  @impl PhoenixKit.Email.Provider
   def render_template(template, variables, locale),
     do: Templates.render_template(template, variables, locale)
 
+  @impl PhoenixKit.Email.Provider
   def track_usage(template), do: Templates.track_usage(template)
 
+  @impl PhoenixKit.Email.Provider
   def get_source_module(template), do: Template.get_source_module(template)
 
   # AWS config — delegates to main Emails module
 
+  @impl PhoenixKit.Email.Provider
   def get_aws_region, do: Emails.get_aws_region()
 
+  @impl PhoenixKit.Email.Provider
   def get_aws_access_key, do: Emails.get_aws_access_key()
 
+  @impl PhoenixKit.Email.Provider
   def get_aws_secret_key, do: Emails.get_aws_secret_key()
 
+  @impl PhoenixKit.Email.Provider
   def aws_configured?, do: Emails.aws_configured?()
 
   # Provider detection — delegates to Emails.Utils
 
+  @impl PhoenixKit.Email.Provider
   def adapter_to_provider_name(adapter, default) do
     Utils.adapter_to_provider_name(adapter, default)
   end
 
   # Test tracking email — sends a test email with tracking enabled
 
+  @impl PhoenixKit.Email.Provider
   def send_test_tracking_email(recipient_email, user_uuid) do
     from_email = PhoenixKit.Settings.get_setting("from_email", "noreply@example.com")
     from_name = PhoenixKit.Settings.get_setting("from_name", "PhoenixKit")

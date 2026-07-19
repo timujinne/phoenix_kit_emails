@@ -1,0 +1,581 @@
+<div class="space-y-6">
+  <%!-- Mailer Configuration status --%>
+  <div class={[
+    "alert",
+    case @mailer_status.adapter do
+      Swoosh.Adapters.AmazonSES -> if @aws_configured, do: "alert-success", else: "alert-warning"
+      nil -> "alert-warning"
+      _ -> "alert-info"
+    end
+  ]}>
+    <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
+    <div class="w-full">
+      <%= case @mailer_status.adapter do %>
+        <% Swoosh.Adapters.AmazonSES -> %>
+          <h3 class="font-bold flex items-center gap-2">
+            {gettext("Mailer Adapter: Amazon SES")}
+            <span class={["badge", if(@aws_configured, do: "badge-success", else: "badge-warning")]}>
+              {if @aws_configured, do: gettext("Configured"), else: gettext("Not Configured")}
+            </span>
+          </h3>
+          <p class="text-sm mt-1">
+            {gettext("Configured via")}
+            <code>config :{@mailer_status.config_app}, {inspect(@mailer_status.config_module)}</code>.
+            <%= unless @aws_configured do %>
+              {gettext(
+                "Enter your AWS Access Key ID / Secret Access Key in AWS Configuration below, or set them via config :phoenix_kit, aws: [access_key_id: ..., secret_access_key: ...]."
+              )}
+            <% end %>
+          </p>
+
+        <% nil -> %>
+          <h3 class="font-bold">{gettext("No Mailer Adapter Configured Yet")}</h3>
+          <p class="text-sm mt-1">
+            {gettext("Add this to your config/config.exs to start sending via Amazon SES:")}
+          </p>
+          <pre class="bg-base-300 rounded p-3 mt-2 text-xs overflow-x-auto"><code>{mailer_config_snippet(@mailer_status)}</code></pre>
+
+        <% other -> %>
+          <h3 class="font-bold">
+            {gettext("Mailer Adapter: %{adapter}", adapter: inspect(other))}
+          </h3>
+          <p class="text-sm mt-1">
+            {gettext(
+              "Configured via your application's config — this admin panel manages Amazon SES only. To switch to Amazon SES, update your config to:"
+            )}
+          </p>
+          <pre class="bg-base-300 rounded p-3 mt-2 text-xs overflow-x-auto"><code>{mailer_config_snippet(@mailer_status)}</code></pre>
+      <% end %>
+    </div>
+  </div>
+
+  <%!-- SES credentials source: pick an Integrations connection, or fall
+       back to the legacy manual fields below --%>
+  <div class="form-control w-full">
+    <label class="label">
+      <span class="label-text font-medium">{gettext("SES credentials source")}</span>
+      <span class="label-text-alt text-sm text-base-content/60">
+        {gettext("Choose which Integrations connection provides SES credentials")}
+      </span>
+    </label>
+    <form id="aws-integration-picker-form" phx-change="select_aws_integration" phx-target={@myself}>
+      <.select
+        name="uuid"
+        value={@selected_aws_integration_uuid}
+        prompt={gettext("Legacy (manual settings below)")}
+        options={Enum.map(@aws_ses_connections, &{&1.name, &1.uuid})}
+        class="focus:select-primary"
+      />
+    </form>
+    <%= if @aws_ses_connections == [] do %>
+      <label class="label">
+        <span class="label-text-alt text-sm text-base-content/60">
+          {gettext("No aws_ses Integrations connections yet — add one under Settings → Integrations, or use the legacy fields below.")}
+        </span>
+      </label>
+    <% end %>
+  </div>
+
+  <%!-- AWS SES Events --%>
+  <div class="form-control">
+    <.checkbox
+      name="amazon_ses[ses_events]"
+      checked={@email_ses_events}
+      phx-click="toggle_email_ses_events"
+      phx-target={@myself}
+      label={gettext("AWS SES Events Options")}
+    >
+      <:description>
+        {gettext("Track delivery, bounce, and complaint events from Amazon SES")}
+      </:description>
+    </.checkbox>
+  </div>
+
+  <%!-- AWS Setup Guide (daisyUI collapse) --%>
+  <div class="collapse collapse-arrow bg-base-200">
+    <input type="checkbox" class="peer" />
+    <div class="collapse-title text-sm font-medium">
+      <span class="flex items-center gap-2">
+        <.icon name="hero-book-open" class="w-5 h-5" /> {gettext("AWS Setup Guide")}
+      </span>
+    </div>
+    <div class="collapse-content text-sm space-y-4">
+      <%!-- Step 1: Create IAM User --%>
+      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+        <h4 class="font-semibold mb-2 text-base-content">{gettext("1. Create IAM User")}</h4>
+        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+          <li>
+            {gettext("Visit")}
+            <a href="https://console.aws.amazon.com/iam/" target="_blank" class="link link-primary">
+              {gettext("AWS IAM Console")}
+            </a>
+          </li>
+          <li>{gettext("Create new user with programmatic access")}</li>
+          <li>
+            {gettext("Attach policies:")}
+            <strong>SES</strong>, <strong>SQS</strong>, <strong>SNS</strong>,
+            <strong>STS:GetCallerIdentity</strong>
+          </li>
+          <li>{gettext("Save Access Key ID and Secret Access Key")}</li>
+        </ol>
+      </div>
+
+      <%!-- Step 2: Configure Credentials --%>
+      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+        <h4 class="font-semibold mb-2 text-base-content">{gettext("2. Configure Credentials")}</h4>
+        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+          <li>
+            {Phoenix.HTML.raw(
+              gettext("Enter Access Key ID (20 characters, e.g., <code>%{example}</code>)",
+                example: "AKIAIOSFODNN7EXAMPLE"
+              )
+            )}
+          </li>
+          <li>{gettext("Enter Secret Access Key")}</li>
+          <li>{gettext("Pick your AWS Region from the dropdown")}</li>
+          <li>
+            {Phoenix.HTML.raw(
+              gettext("Click <strong>\"%{button}\"</strong> to test connectivity",
+                button: gettext("Verify Credentials")
+              )
+            )}
+          </li>
+        </ol>
+      </div>
+
+      <%!-- Step 3: Setup Infrastructure --%>
+      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+        <h4 class="font-semibold mb-2 text-base-content">{gettext("3. Setup Infrastructure")}</h4>
+        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+          <li>
+            {Phoenix.HTML.raw(
+              gettext("Click <strong>\"%{button}\"</strong> to create SNS/SQS resources",
+                button: gettext("Setup AWS Infrastructure")
+              )
+            )}
+          </li>
+          <li>{gettext("Wait for setup completion (typically 30-60 seconds)")}</li>
+          <li>
+            {gettext("All created resources will be automatically filled in the form below")}
+          </li>
+          <li>
+            {Phoenix.HTML.raw(
+              gettext("Click <strong>\"%{button}\"</strong> one more time to persist everything",
+                button: gettext("Save AWS Settings")
+              )
+            )}
+          </li>
+        </ol>
+      </div>
+
+      <%!-- Step 4: Verify Email --%>
+      <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+        <h4 class="font-semibold mb-2 text-base-content">
+          {gettext("4. Verify Email/Domain in SES")}
+        </h4>
+        <ol class="list-decimal list-inside space-y-2 text-base-content/80">
+          <li>
+            {gettext("Go to")}
+            <a href="https://console.aws.amazon.com/ses/" target="_blank" class="link link-primary">
+              {gettext("AWS SES Console")}
+            </a>
+          </li>
+          <li>{gettext("Verify your sender email address or domain")}</li>
+          <li>{gettext("Request production access (if needed to exit sandbox mode)")}</li>
+        </ol>
+      </div>
+
+      <%!-- Required Permissions --%>
+      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+        <div class="flex items-start gap-2">
+          <.icon name="hero-information-circle" class="h-4 w-4 text-info shrink-0 mt-0.5" />
+          <div class="text-base-content/80">
+            <strong class="text-base-content">{gettext("Required IAM Permissions:")}</strong>
+            <ul class="list-disc list-inside mt-1 space-y-1">
+              <li><code>sqs:*</code> - {gettext("Simple Queue Service")}</li>
+              <li><code>sns:*</code> - {gettext("Simple Notification Service")}</li>
+              <li><code>ses:*</code> - {gettext("Simple Email Service")}</li>
+              <li><code>sts:GetCallerIdentity</code> - {gettext("Credential verification")}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <%!-- Full Documentation Link --%>
+      <div class="bg-base-200 border border-base-300 rounded-lg p-3 text-xs">
+        <div class="flex items-start gap-2">
+          <.icon name="hero-book-open" class="h-4 w-4 text-success shrink-0 mt-0.5" />
+          <div class="text-base-content/80">
+            <strong class="text-base-content">{gettext("Need more help?")}</strong>
+            <p class="mt-1">
+              {Phoenix.HTML.raw(
+                gettext("See <code>guides/aws_email_setup.md</code> for comprehensive documentation including security best practices, cost optimization, and troubleshooting.")
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%!-- Credentials Verification Section --%>
+  <.aws_credentials_verify
+    access_key_id={@aws_settings.access_key_id}
+    secret_access_key={@aws_settings.secret_access_key}
+    region={@aws_settings.region}
+    verifying={@verifying_credentials}
+    verified={@credential_verification_status}
+    message={@credential_verification_message}
+    permissions={@aws_permissions}
+    phx_click="verify_aws_credentials"
+    phx_target={@myself}
+    disabled={@saving or @setting_up_aws}
+  />
+
+  <div class="flex items-center gap-2">
+    <span class="badge badge-warning badge-sm">{gettext("Legacy")}</span>
+    <span class="text-sm text-base-content/60">
+      {gettext("Manual credentials below — migrate to an Integrations connection above")}
+    </span>
+  </div>
+
+  <form id="aws-settings-form" phx-submit="save_aws_settings" phx-target={@myself}>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <%!-- AWS Access Key ID --%>
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text font-medium">{gettext("AWS Access Key ID")}</span>
+        </label>
+        <input
+          name="aws_settings[access_key_id]"
+          type="text"
+          placeholder="AKIAIOSFODNN7EXAMPLE"
+          value={@aws_settings.access_key_id}
+          class="input input-bordered focus:input-primary"
+        />
+        <label class="label">
+          <span class="label-text-alt text-sm text-base-content/70">
+            {gettext("Example: AKIAIOSFODNN7EXAMPLE (20 characters)")}
+          </span>
+        </label>
+      </div>
+
+      <%!-- AWS Secret Access Key --%>
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text font-medium">{gettext("AWS Secret Access Key")}</span>
+        </label>
+        <input
+          name="aws_settings[secret_access_key]"
+          type="password"
+          placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+          value={@aws_settings.secret_access_key}
+          class="input input-bordered focus:input-primary"
+        />
+        <label class="label">
+          <span class="label-text-alt text-sm text-base-content/70">
+            {gettext("Example: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")}
+          </span>
+        </label>
+      </div>
+
+      <%!-- AWS Region --%>
+      <div class="form-control md:col-span-2">
+        <.live_component
+          module={SearchableSelect}
+          id="aws-region-select"
+          name="aws_settings[region]"
+          value={@aws_settings.region}
+          label={gettext("AWS Region")}
+          placeholder={gettext("Search regions...")}
+          grouped_options={
+            Enum.map(AwsRegions.group_by_continent(), fn {continent, regions} ->
+              {continent, Enum.map(regions, fn r -> {"#{r.name} — #{r.code}", r.code} end)}
+            end)
+          }
+        />
+      </div>
+    </div>
+
+    <%!-- Advanced AWS Settings (collapse) — visible whenever AWS
+         Configuration renders, not just when "AWS SES Events Options" is
+         on, since "Setup AWS Infrastructure" (below) can populate these
+         regardless of that toggle. --%>
+    <div class="collapse collapse-arrow bg-base-200 mt-4">
+      <input type="checkbox" />
+      <div class="collapse-title text-sm font-medium">
+        <span class="flex items-center gap-2">
+          <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("Advanced AWS Settings")}
+        </span>
+      </div>
+      <div class="collapse-content text-sm space-y-4">
+        <p class="text-base-content/70 mb-4">
+          {gettext(
+            "These settings are automatically configured when you run \"Setup AWS Infrastructure\". Manual changes may break the integration."
+          )}
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <%!-- SES Configuration Set --%>
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-medium">{gettext("SES Configuration Set")}</span>
+            </label>
+            <input
+              name="aws_settings[ses_configuration_set]"
+              type="text"
+              placeholder="phoenixkit-emails"
+              value={@aws_settings.ses_configuration_set}
+              class="input input-bordered focus:input-primary"
+            />
+            <label class="label">
+              <span class="label-text-alt">{gettext("SES configuration set name")}</span>
+            </label>
+          </div>
+
+          <%!-- SNS Topic ARN --%>
+          <div class="form-control md:col-span-2">
+            <label class="label">
+              <span class="label-text font-medium">{gettext("SNS Topic ARN")}</span>
+            </label>
+            <input
+              name="aws_settings[sns_topic_arn]"
+              type="text"
+              placeholder="arn:aws:sns:eu-north-1:123456789012:email-events"
+              value={@aws_settings.sns_topic_arn}
+              class="input input-bordered focus:input-primary"
+            />
+            <label class="label">
+              <span class="label-text-alt">{gettext("SNS topic for email events")}</span>
+            </label>
+          </div>
+
+          <%!-- SQS Queue URL --%>
+          <div class="form-control md:col-span-2">
+            <label class="label">
+              <span class="label-text font-medium">{gettext("SQS Queue URL")}</span>
+            </label>
+            <input
+              name="aws_settings[sqs_queue_url]"
+              type="url"
+              placeholder="https://sqs.eu-north-1.amazonaws.com/123456789012/email-events"
+              value={@aws_settings.sqs_queue_url}
+              class="input input-bordered focus:input-primary"
+            />
+            <label class="label">
+              <span class="label-text-alt">{gettext("Main queue for email events")}</span>
+            </label>
+          </div>
+
+          <%!-- SQS Queue ARN --%>
+          <div class="form-control md:col-span-1">
+            <label class="label">
+              <span class="label-text font-medium">{gettext("SQS Queue ARN")}</span>
+            </label>
+            <input
+              name="aws_settings[sqs_queue_arn]"
+              type="text"
+              placeholder="arn:aws:sqs:eu-north-1:123456789012:email-events"
+              value={@aws_settings.sqs_queue_arn}
+              class="input input-bordered focus:input-primary"
+            />
+            <label class="label">
+              <span class="label-text-alt">{gettext("SQS queue ARN for permissions")}</span>
+            </label>
+          </div>
+
+          <%!-- SQS DLQ URL --%>
+          <div class="form-control md:col-span-1">
+            <label class="label">
+              <span class="label-text font-medium">
+                {gettext("SQS Dead Letter Queue URL")}
+              </span>
+            </label>
+            <input
+              name="aws_settings[sqs_dlq_url]"
+              type="url"
+              placeholder="https://sqs.eu-north-1.amazonaws.com/123456789012/email-events-dlq"
+              value={@aws_settings.sqs_dlq_url}
+              class="input input-bordered focus:input-primary"
+            />
+            <label class="label">
+              <span class="label-text-alt">{gettext("Dead letter queue for failed messages")}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%!-- SQS Worker Settings (collapse) --%>
+    <div class="collapse collapse-arrow bg-base-200 mt-4">
+      <input type="checkbox" />
+      <div class="collapse-title text-sm font-medium">
+        <span class="flex items-center gap-2">
+          <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("SQS Worker Settings")}
+        </span>
+      </div>
+      <div class="collapse-content text-sm space-y-4">
+        <%!-- Enable SQS Polling --%>
+        <div class="form-control">
+          <.checkbox
+            name="amazon_ses[sqs_polling_enabled]"
+            checked={@sqs_polling_enabled}
+            phx-click="toggle_sqs_polling"
+            phx-target={@myself}
+            label={gettext("Enable SQS Polling")}
+          >
+            <:description>
+              {gettext("Automatically poll SQS queue for email events in background")}
+            </:description>
+          </.checkbox>
+        </div>
+
+        <%!-- SQS Polling Interval --%>
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-medium">{gettext("SQS Polling Interval")}</span>
+          </label>
+          <div class="input-group">
+            <input
+              name="aws_settings[sqs_polling_interval_ms]"
+              type="number"
+              placeholder="5000"
+              value={@aws_settings.sqs_polling_interval_ms}
+              class="input input-bordered focus:input-primary w-full max-w-xs"
+              min="1000"
+              max="60000"
+            />
+            <span class="bg-base-200 px-4 py-3 text-sm">ms</span>
+          </div>
+          <label class="label">
+            <span class="label-text-alt">
+              {gettext("How often to check for SQS messages (1-60 seconds)")}
+            </span>
+          </label>
+        </div>
+
+        <%= if @sqs_polling_enabled do %>
+          <%!-- SQS Max Messages Per Poll --%>
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-medium">{gettext("Max Messages Per Poll")}</span>
+            </label>
+            <div class="input-group">
+              <input
+                name="max_messages"
+                type="number"
+                placeholder={gettext("Enter max messages")}
+                class="input input-bordered w-full max-w-xs"
+                value={@sqs_max_messages_per_poll}
+                min="1"
+                max="10"
+                phx-blur="update_max_messages"
+                phx-target={@myself}
+              />
+              <span class="bg-base-200 px-4 py-3 text-sm">{gettext("messages")}</span>
+            </div>
+            <label class="label">
+              <span class="label-text-alt text-base-content/70">
+                {gettext("Maximum number of messages to process in each polling cycle (1-10)")}
+              </span>
+            </label>
+          </div>
+
+          <%!-- SQS Visibility Timeout --%>
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-medium">{gettext("Visibility Timeout")}</span>
+            </label>
+            <div class="input-group">
+              <input
+                name="timeout"
+                type="number"
+                placeholder={gettext("Enter timeout")}
+                class="input input-bordered w-full max-w-xs"
+                value={@sqs_visibility_timeout}
+                min="30"
+                max="43200"
+                phx-blur="update_visibility_timeout"
+                phx-target={@myself}
+              />
+              <span class="bg-base-200 px-4 py-3 text-sm">{gettext("seconds")}</span>
+            </div>
+            <label class="label">
+              <span class="label-text-alt text-base-content/70">
+                {gettext(
+                  "How long messages remain invisible after being received (30-43200 seconds)"
+                )}
+              </span>
+            </label>
+          </div>
+        <% end %>
+
+        <%!-- Performance Optimization Tips --%>
+        <div class="alert alert-info">
+          <.icon name="hero-light-bulb" class="w-4 h-4 shrink-0" />
+          <div>
+            <h4 class="font-semibold mb-2">{gettext("Performance Tips")}</h4>
+            <ul class="text-sm space-y-1">
+              <li>• {gettext("Use longer polling intervals (5-10 seconds) to reduce API calls")}</li>
+              <li>• {gettext("Set visibility timeout to match processing time")}</li>
+              <li>• {gettext("Monitor queue depth and adjust max messages accordingly")}</li>
+              <li>• {gettext("Enable compression to reduce storage requirements")}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%!-- Warning for credentials changes --%>
+    <%= if String.trim(@aws_settings.access_key_id) != "" or String.trim(@aws_settings.secret_access_key) != "" do %>
+      <div class="alert alert-warning mt-4">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+        <div>
+          <h3 class="font-bold">{gettext("Configuration Changes Detected")}</h3>
+          <p class="text-sm mt-1">
+            {gettext(
+              "You've modified your AWS credentials. Click \"Save AWS Settings\" first, then use \"Setup AWS Infrastructure\" to create the required resources."
+            )}
+          </p>
+        </div>
+      </div>
+    <% end %>
+
+    <%!-- Action Buttons --%>
+    <div class="flex flex-col sm:flex-row gap-4 mt-6">
+      <div class="flex-1">
+        <button
+          type="submit"
+          class={["btn btn-primary w-full sm:w-auto", if(@saving, do: "loading", else: "")]}
+          disabled={@saving or @verifying_credentials}
+        >
+          <%= if @saving do %>
+            {gettext("Saving...")}
+          <% else %>
+            <.icon name="hero-check" class="w-4 h-4 mr-2" /> {gettext("Save AWS Settings")}
+          <% end %>
+        </button>
+      </div>
+
+      <div class="flex-1">
+        <button
+          type="button"
+          phx-click="setup_aws_infrastructure"
+          phx-target={@myself}
+          class={["btn btn-accent w-full sm:w-auto", if(@setting_up_aws, do: "loading", else: "")]}
+          disabled={
+            @setting_up_aws or @saving or String.trim(@aws_settings.access_key_id) == "" or
+              String.trim(@aws_settings.secret_access_key) == ""
+          }
+        >
+          <%= if @setting_up_aws do %>
+            {gettext("Setting up...")}
+          <% else %>
+            <.icon name="hero-cog-6-tooth" class="w-4 h-4 mr-2" />
+            {gettext("Setup AWS Infrastructure")}
+          <% end %>
+        </button>
+      </div>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,220 @@
+<div class="space-y-6">
+  <%!-- Save Email Bodies --%>
+  <div class="form-control">
+    <.checkbox
+      name="email_tracking[save_body]"
+      checked={@email_save_body}
+      phx-click="toggle_email_save_body"
+      phx-target={@myself}
+      label={gettext("Save Email Bodies")}
+    >
+      <:description>
+        {gettext("Store the full content of sent emails for debugging and analysis")}
+      </:description>
+    </.checkbox>
+  </div>
+
+  <div class="divider"></div>
+
+  <%!-- Save Email Headers --%>
+  <div class="form-control">
+    <.checkbox
+      name="email_tracking[save_headers]"
+      checked={@email_save_headers}
+      phx-click="toggle_email_save_headers"
+      phx-target={@myself}
+      label={gettext("Save Email Headers")}
+    >
+      <:description>
+        {gettext("Store email headers for debugging and analysis (increases storage usage)")}
+      </:description>
+    </.checkbox>
+  </div>
+
+  <div class="divider"></div>
+
+  <%!-- Sampling Rate --%>
+  <div class="form-control">
+    <label class="label">
+      <span class="label-text text-lg font-semibold">{gettext("Emails Sampling Rate")}</span>
+    </label>
+    <div class="input-group">
+      <input
+        name="sampling_rate"
+        type="number"
+        placeholder={gettext("Enter sampling rate")}
+        class="input input-bordered w-full max-w-xs"
+        value={@email_sampling_rate}
+        min="0"
+        max="100"
+        phx-blur="update_email_sampling_rate"
+        phx-target={@myself}
+      />
+      <span class="bg-base-200 px-4 py-3 text-sm">%</span>
+    </div>
+    <label class="label">
+      <span class="label-text-alt text-base-content/70">
+        {gettext("Percentage of emails to fully track for analytics (0-100%)")}
+      </span>
+    </label>
+  </div>
+
+  <.section_header icon="hero-archive-box" title={gettext("Data Retention")} />
+
+  <%!-- Retention Period --%>
+  <div class="form-control">
+    <label class="label">
+      <span class="label-text text-lg font-semibold">{gettext("Email Retention Period")}</span>
+    </label>
+    <div class="flex gap-2 items-start">
+      <div class="input-group flex-1">
+        <input
+          name="retention_days"
+          type="number"
+          placeholder={gettext("Enter retention days")}
+          class="input input-bordered w-full max-w-xs"
+          value={@email_retention_days}
+          min="1"
+          max="365"
+          phx-blur="update_email_retention"
+          phx-target={@myself}
+        />
+        <span class="bg-base-200 px-4 py-3 text-sm">{gettext("days")}</span>
+      </div>
+      <button
+        type="button"
+        phx-click="run_cleanup_now"
+        phx-target={@myself}
+        class={["btn btn-warning btn-sm", if(@running_cleanup, do: "loading", else: "")]}
+        disabled={@running_cleanup}
+      >
+        <%= if @running_cleanup do %>
+          {gettext("Running...")}
+        <% else %>
+          <.icon name="hero-trash" class="w-4 h-4 mr-1" /> {gettext("Run Cleanup Now")}
+        <% end %>
+      </button>
+    </div>
+    <label class="label">
+      <span class="label-text-alt text-base-content/70">
+        {gettext("How long to keep emails data before automatic cleanup (1-365 days)")}
+      </span>
+    </label>
+  </div>
+
+  <div class="divider"></div>
+
+  <%= if @email_save_body do %>
+    <%!-- Compress Body After Days --%>
+    <div class="form-control">
+      <label class="label">
+        <span class="label-text text-lg font-semibold">
+          {gettext("Compress Email Bodies After")}
+        </span>
+        <span class="label-text-alt text-base-content/70">
+          {gettext("Auto-saves when you click outside the input field")}
+        </span>
+      </label>
+      <div class="flex gap-2 items-start">
+        <div class="input-group flex-1">
+          <input
+            name="compress_days"
+            type="number"
+            placeholder={gettext("Enter compression days")}
+            class={[
+              "input input-bordered w-full max-w-xs",
+              "transition-colors duration-200",
+              "focus:input-primary",
+              if(@updating_compress_days, do: "input-warning loading", else: "")
+            ]}
+            value={@email_compress_body}
+            min="7"
+            max="365"
+            phx-blur="update_compress_days"
+            phx-target={@myself}
+          />
+          <span class="bg-base-200 px-4 py-3 text-sm">{gettext("days")}</span>
+        </div>
+        <button
+          type="button"
+          phx-click="run_compression_now"
+          phx-target={@myself}
+          class={["btn btn-info btn-sm", if(@running_compression, do: "loading", else: "")]}
+          disabled={@running_compression}
+        >
+          <%= if @running_compression do %>
+            {gettext("Compressing...")}
+          <% else %>
+            <.icon name="hero-archive-box-arrow-down" class="w-4 h-4 mr-1" />
+            {gettext("Compress Now")}
+          <% end %>
+        </button>
+      </div>
+      <label class="label">
+        <span class="label-text-alt text-base-content/70">
+          <span class="flex items-center gap-1">
+            <.icon name="hero-information-circle" class="w-3 h-3" />
+            {gettext(
+              "Compress old email bodies to save storage space (7-365 days). Changes are saved automatically."
+            )}
+          </span>
+        </span>
+      </label>
+    </div>
+
+    <div class="divider"></div>
+  <% end %>
+
+  <%!-- S3 Archival Toggle --%>
+  <div class="form-control">
+    <.checkbox
+      name="email_tracking[archive_to_s3]"
+      checked={@email_archive_to_s3}
+      phx-click="toggle_s3_archival"
+      phx-target={@myself}
+      label={gettext("Enable S3 Archival")}
+    >
+      <:description>
+        {gettext("Move old email data to AWS S3 for long-term cold storage")}
+      </:description>
+    </.checkbox>
+  </div>
+
+  <%= if @email_archive_to_s3 do %>
+    <div class="form-control mt-2">
+      <div class="flex gap-2 items-start">
+        <div class="flex-1">
+          <span class="text-sm text-base-content/70">
+            {gettext("Manually trigger S3 archival for emails older than retention period")}
+          </span>
+        </div>
+        <button
+          type="button"
+          phx-click="run_s3_archival_now"
+          phx-target={@myself}
+          class={["btn btn-warning btn-sm", if(@running_archival, do: "loading", else: "")]}
+          disabled={@running_archival}
+        >
+          <%= if @running_archival do %>
+            {gettext("Archiving...")}
+          <% else %>
+            <.icon name="hero-cloud-arrow-up" class="w-4 h-4 mr-1" />
+            {gettext("Archive to S3 Now")}
+          <% end %>
+        </button>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="alert alert-warning mt-2">
+    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+    <div>
+      <h3 class="font-bold">{gettext("Data Privacy Notice")}</h3>
+      <p class="text-sm mt-1">
+        {gettext(
+          "Email data will be automatically deleted after the retention period expires. This helps maintain privacy compliance and reduces storage requirements."
+        )}
+      </p>
+    </div>
+  </div>
+</div>

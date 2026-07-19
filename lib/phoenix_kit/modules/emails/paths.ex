@@ -12,5 +12,5 @@ defmodule PhoenixKit.Modules.Emails.Paths do
   def template_edit(id), do: Routes.path("#{@base}/templates/#{id}/edit")
   def queue, do: Routes.path("#{@base}/queue")
   def blocklist, do: Routes.path("#{@base}/blocklist")
-  def settings, do: Routes.path("/admin/settings/emails")
+  def settings, do: Routes.path("/admin/settings/email-sending")
 end

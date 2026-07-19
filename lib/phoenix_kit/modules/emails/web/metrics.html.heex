@@ -17,19 +17,19 @@
             <span class="badge badge-success ml-2">{gettext("Configured")}</span>
           <% {Swoosh.Adapters.AmazonSES, false} -> %>
             <span class="font-semibold">{gettext("Amazon SES is not configured yet.")}</span>
-            <.link navigate={Routes.path("/admin/settings/emails")} class="link link-primary ml-1">
+            <.link navigate={Routes.path("/admin/settings/email-sending")} class="link link-primary ml-1">
               {gettext("Go to Settings to finish setup")}
             </.link>
           <% {nil, _} -> %>
             <span class="font-semibold">{gettext("No mailer adapter configured yet.")}</span>
-            <.link navigate={Routes.path("/admin/settings/emails")} class="link link-primary ml-1">
+            <.link navigate={Routes.path("/admin/settings/email-sending")} class="link link-primary ml-1">
               {gettext("Go to Settings to configure one")}
             </.link>
           <% {other, _} -> %>
             <span class="font-semibold">
               {gettext("Mailer Adapter: %{adapter}", adapter: inspect(other))}
             </span>
-            <.link navigate={Routes.path("/admin/settings/emails")} class="link link-primary ml-1">
+            <.link navigate={Routes.path("/admin/settings/email-sending")} class="link link-primary ml-1">
               {gettext("View in Settings")}
             </.link>
         <% end %>

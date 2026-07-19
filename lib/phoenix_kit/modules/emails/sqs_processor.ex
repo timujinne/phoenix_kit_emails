@@ -45,6 +45,7 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Modules.Emails.Log
+  alias PhoenixKit.Modules.Emails.RateLimiter
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
   ## --- Public API ---
@@ -484,16 +485,59 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
       maybe_update_newsletters_delivery(message_id, "Bounce", UtilsDate.utc_now())
     end
 
+    # Hard (Permanent) bounces mean the address is undeliverable -- blocklist it
+    # so future sends are rejected at the source (Mailer enforcement, E2).
+    # Independent of `result`/log lookup above: SES's bounce report is
+    # authoritative even when we have no matching internal log for this send.
+    if status == "hard_bounced" do
+      blocklist_bounced_recipients(bounce_data)
+    end
+
     result
   end
 
   defp determine_bounce_status(bounce_type) do
     case String.downcase(bounce_type || "") do
       "permanent" -> "hard_bounced"
-      "temporary" -> "soft_bounced"
+      # AWS SES sends "Transient" for soft bounces (not "Temporary") — the old
+      # "temporary" match never fired, so every soft bounce fell through to the
+      # generic "bounced" status. Both are accepted now.
+      t when t in ["transient", "temporary"] -> "soft_bounced"
       _ -> "bounced"
     end
   end
+
+  # Adds every bounced recipient to the rate limiter's blocklist. Best-effort:
+  # a failure here (invalid email, DB error, etc.) must never break bounce
+  # event processing, so each recipient is handled independently and errors
+  # are caught and logged rather than propagated.
+  defp blocklist_bounced_recipients(bounce_data) do
+    bounce_data
+    |> get_in(["bouncedRecipients"])
+    |> List.wrap()
+    |> Enum.each(&blocklist_recipient/1)
+  end
+
+  defp blocklist_recipient(%{"emailAddress" => email}) when is_binary(email) do
+    case RateLimiter.add_to_blocklist(email, "hard_bounce") do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error("Failed to add hard-bounced recipient to blocklist", %{
+          email: email,
+          reason: inspect(reason)
+        })
+    end
+  rescue
+    error ->
+      Logger.error("Error adding hard-bounced recipient to blocklist", %{
+        email: email,
+        error: inspect(error)
+      })
+  end
+
+  defp blocklist_recipient(_), do: :ok
 
   # Processes complaint event
   defp process_complaint_event(event_data) do

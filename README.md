@@ -133,7 +133,7 @@ Emails.archive_to_s3(180)
 
 ## Settings
 
-Settings are managed through the PhoenixKit Settings API and can be configured via the admin UI at `/admin/settings/emails`.
+Settings are managed through the PhoenixKit Settings API and can be configured via the admin UI at `/admin/settings/email-sending`.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
