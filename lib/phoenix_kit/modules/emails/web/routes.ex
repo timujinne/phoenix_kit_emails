@@ -9,9 +9,19 @@ defmodule PhoenixKit.Modules.Emails.Web.Routes do
     export_controller = PhoenixKit.Modules.Emails.Web.ExportController
 
     quote do
-      # Webhook is public — AWS SNS sends POST requests without auth
+      # AWS SNS delivers webhook notifications as a cold, session-less POST
+      # — it never carries a CSRF token or session cookie. Routing it
+      # through the host's :browser pipeline (protect_from_forgery) would
+      # 403 every notification. Deliberately minimal/self-contained so it
+      # doesn't assume anything about what else the host app's :browser
+      # pipeline includes (mirrors the newsletters one-click unsubscribe
+      # pipeline).
+      pipeline :phoenix_kit_emails_webhook do
+        plug(:accepts, ["html"])
+      end
+
       scope unquote(url_prefix) do
-        pipe_through([:browser])
+        pipe_through([:phoenix_kit_emails_webhook])
         post("/webhooks/ses", unquote(webhook_controller), :handle)
       end
 
