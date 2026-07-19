@@ -107,6 +107,10 @@ defmodule PhoenixKit.Modules.Emails do
 
   require Logger
 
+  # See aws_ses_credentials/0's comment for why this exists.
+  @aws_credentials_cache_name :emails_aws_credentials
+  @aws_credentials_cache_ttl_ms 60_000
+
   @doc """
   PubSub topic on which email log status changes are broadcast.
 
@@ -949,10 +953,34 @@ defmodule PhoenixKit.Modules.Emails do
   @impl PhoenixKit.Module
   def route_module, do: PhoenixKit.Modules.Emails.Web.Routes
 
+  @migrated_connection_name "Amazon SES (migrated)"
+
   # Moves plaintext `aws_access_key_id`/`aws_secret_access_key`/`aws_region`
   # Settings into a new encrypted `aws_ses` Integrations connection, and
   # selects it via `emails_aws_integration_uuid`. Idempotent: no-ops once
   # an integration is already selected, or when no legacy credentials exist.
+  #
+  # Deliberately does NOT delete/blank the old `aws_access_key_id` /
+  # `aws_secret_access_key` Settings rows once copied — this is a
+  # DOCUMENTED, intentional decision (see PR #16's body, "Operational step
+  # after upgrading"), not an oversight: the operator is expected to blank
+  # them manually once they've confirmed a real send works through the new
+  # Integrations connection. Do not "fix" this by having migrate_legacy/0
+  # delete them automatically — an operator who hasn't yet verified the new
+  # connection works would otherwise lose their only working credentials.
+  #
+  # Deliberately does NOT validate the connection against SES — this used
+  # to call `Integrations.validate_connection/1` (a live `GetSendQuota`
+  # request, up to a 15s timeout) during BOOT migration, blocking startup
+  # and requiring network egress before the app could even come up. The
+  # credentials came from a config that was already sending mail before
+  # this migration ran, so there's nothing to verify here that the send
+  # path itself won't verify on the first real send; the connection lands
+  # at whatever status `save_setup/3` computes from credential presence
+  # (`"configured"`, not `"connected"`) — `get_credentials/1` treats both
+  # as usable, so sending is unaffected. The admin's "Test Connection"
+  # button on the Integrations page remains available for an operator who
+  # wants to confirm it explicitly.
   @impl PhoenixKit.Module
   def migrate_legacy do
     if Settings.get_setting("emails_aws_integration_uuid") in [nil, ""] do
@@ -961,7 +989,17 @@ defmodule PhoenixKit.Modules.Emails do
 
       if is_binary(access_key) and access_key != "" and is_binary(secret_key) and
            secret_key != "" do
-        {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", "Amazon SES (migrated)")
+        uuid = existing_migrated_connection_uuid() || create_migrated_connection!()
+
+        # Persisted immediately once we have a uuid (found or newly
+        # created), before the credential write below — a crash here used
+        # to leave `emails_aws_integration_uuid` blank, so a retry would
+        # call add_connection/2 again and create a second "Amazon SES
+        # (migrated)" connection every time. existing_migrated_connection_uuid/0
+        # is the belt-and-suspenders half of the same fix: even if a prior
+        # crash happened before this very write landed, a connection under
+        # this exact name may already exist from that attempt — reuse it.
+        Settings.update_setting("emails_aws_integration_uuid", uuid)
 
         {:ok, _} =
           Integrations.save_setup(uuid, %{
@@ -970,16 +1008,23 @@ defmodule PhoenixKit.Modules.Emails do
             "aws_region" => Settings.get_setting("aws_region") || "us-east-1"
           })
 
-        # Mirror the admin form's connect flow (validate, then record the
-        # result) so the migrated connection ends up "connected" like a
-        # manually-configured one, not stuck at "configured".
-        Integrations.record_validation(uuid, Integrations.validate_connection(uuid))
-
-        Settings.update_setting("emails_aws_integration_uuid", uuid)
+        invalidate_aws_credentials_cache()
       end
     end
 
     :ok
+  end
+
+  defp existing_migrated_connection_uuid do
+    case Integrations.find_uuid_by_provider_name({"aws_ses", @migrated_connection_name}) do
+      {:ok, uuid} -> uuid
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp create_migrated_connection! do
+    {:ok, %{uuid: uuid}} = Integrations.add_connection("aws_ses", @migrated_connection_name)
+    uuid
   end
 
   @doc """
@@ -2303,7 +2348,37 @@ defmodule PhoenixKit.Modules.Emails do
   # the `emails_aws_integration_uuid` setting, or an empty map when no
   # integration is selected / configured. `get_aws_*` getters merge this
   # over the legacy `aws_*` Settings fallback.
+  #
+  # Cached for @aws_credentials_cache_ttl_ms (60_000ms / 60s) via
+  # `PhoenixKit.Cache` (same mechanism `Settings.get_setting_cached/2`
+  # already uses, under its own `:emails_aws_credentials` instance) — every
+  # `get_aws_*` getter used to call this independently, so building one
+  # send-path config (`get_aws_config/0`) meant 3 separate
+  # `Settings.get_setting/1` reads PLUS 3 separate
+  # `Integrations.get_credentials/1` calls (a DB read + decrypt each) for
+  # the SAME connection, on every single email sent. Now it's one combined
+  # lookup, reused for the cache's TTL.
+  # `invalidate_aws_credentials_cache/0` is called wherever the selected
+  # integration changes, so switching connections doesn't wait out the TTL.
+  # `PhoenixKit.Cache.get/put` gracefully no-op (cache miss / silent) when
+  # the named instance isn't running — e.g. this package's own standalone
+  # test suite, which never boots `PhoenixKit.Supervisor` — so this always
+  # falls back to the real, uncached lookup there.
   defp aws_ses_credentials do
+    cache_miss = :__aws_credentials_cache_miss__
+
+    case PhoenixKit.Cache.get(@aws_credentials_cache_name, :credentials, cache_miss) do
+      ^cache_miss ->
+        creds = fetch_aws_ses_credentials()
+        PhoenixKit.Cache.put(@aws_credentials_cache_name, :credentials, creds)
+        creds
+
+      creds ->
+        creds
+    end
+  end
+
+  defp fetch_aws_ses_credentials do
     case Settings.get_setting("emails_aws_integration_uuid") do
       uuid when is_binary(uuid) and uuid != "" ->
         case Integrations.get_credentials(uuid) do
@@ -2314,6 +2389,21 @@ defmodule PhoenixKit.Modules.Emails do
       _ ->
         %{}
     end
+  end
+
+  @doc """
+  Invalidates the cached AWS SES credential resolution (`aws_ses_credentials/0`).
+
+  Call after anything that changes which credentials `get_aws_access_key/0`,
+  `get_aws_secret_key/0`, or `get_aws_region/0` should resolve to — selecting
+  a different `aws_ses` Integrations connection, clearing the selection back
+  to legacy Settings, or updating the selected connection's own credentials.
+  Without this, a switch would still take effect, just not sooner than the
+  cache's #{@aws_credentials_cache_ttl_ms}ms TTL.
+  """
+  @spec invalidate_aws_credentials_cache() :: :ok
+  def invalidate_aws_credentials_cache do
+    PhoenixKit.Cache.invalidate(@aws_credentials_cache_name, :credentials)
   end
 
   # Validate SQS queue URL format

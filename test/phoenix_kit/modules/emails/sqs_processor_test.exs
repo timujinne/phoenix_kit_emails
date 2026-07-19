@@ -110,12 +110,39 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessorTest do
       assert RateLimiter.is_blocked?("orphan-bounce@example.com")
     end
 
-    test "a blocklist failure (invalid recipient address) does not break bounce event processing" do
+    test "a malformed recipient address is rejected by the blocklist changeset (not blocklisted), and bounce event processing still succeeds" do
+      # `EmailBlocklist.changeset/2` validates :email format, so this hits
+      # `blocklist_recipient/1`'s graceful `{:error, reason} -> Logger.error(...)`
+      # branch, not the `rescue` clause — see the next test for that one.
+      # Previously this test asserted only the unrelated
+      # :email_log_not_found outcome and never checked what actually
+      # happened to the blocklist attempt, so it would have kept "passing"
+      # even if this recipient had silently been blocklisted.
       message_id = unique_message_id()
       recipients = [%{"emailAddress" => "not-an-email", "status" => "5.1.1"}]
 
       assert {:error, :email_log_not_found} =
                SQSProcessor.process_email_event(bounce_event("Permanent", recipients, message_id))
+
+      refute RateLimiter.is_blocked?("not-an-email")
+    end
+
+    test "an exception while blocklisting a recipient does not break bounce event processing" do
+      # Genuinely exercises blocklist_recipient/1's `rescue` clause (as
+      # opposed to the graceful `{:error, reason}` branch the previous test
+      # covers): the email column is VARCHAR(255) with no changeset
+      # validate_length, so a value past that satisfies validate_format but
+      # still overflows the column — Postgrex raises rather than returning
+      # a changeset error, since there's no unique_constraint/check_constraint
+      # mapping for this failure mode.
+      message_id = unique_message_id()
+      oversized_email = String.duplicate("a", 300) <> "@example.com"
+      recipients = [%{"emailAddress" => oversized_email, "status" => "5.1.1"}]
+
+      assert {:error, :email_log_not_found} =
+               SQSProcessor.process_email_event(bounce_event("Permanent", recipients, message_id))
+
+      refute RateLimiter.is_blocked?(oversized_email)
     end
   end
 end

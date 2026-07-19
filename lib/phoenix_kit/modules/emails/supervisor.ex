@@ -88,7 +88,20 @@ defmodule PhoenixKit.Modules.Emails.Supervisor do
 
     # SQS polling runs as Oban jobs (see build_oban_starter/0 + SQSPollingManager),
     # so the supervisor itself has no long-running polling child of its own.
-    children = build_oban_starter()
+    #
+    # Emails.aws_ses_credentials/0's cache — relies on `PhoenixKit.Cache.Registry`
+    # already being started, which core's own `PhoenixKit.Supervisor` starts
+    # before any module's children (see core's build_children/1). Missing in
+    # a standalone context (e.g. this package's own test suite, which never
+    # boots core's supervision tree at all) is fine: `PhoenixKit.Cache.get/put`
+    # already no-op gracefully when their target instance isn't registered.
+    children = [
+      Supervisor.child_spec(
+        {PhoenixKit.Cache, name: :emails_aws_credentials, ttl: 60_000},
+        id: :emails_aws_credentials_cache
+      )
+      | build_oban_starter()
+    ]
 
     # Use :one_for_one strategy - if one process crashes,
     # only that one is restarted

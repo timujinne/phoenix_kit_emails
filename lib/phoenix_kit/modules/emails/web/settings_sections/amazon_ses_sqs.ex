@@ -373,6 +373,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     # An empty uuid means "back to legacy" — clear the setting instead of
     # writing an empty value (the key isn't in Setting's optional-value
     # allowlist, so an empty-string write would fail changeset validation).
+    # That allowlist is a core Setting concern, out of scope for this
+    # package — the delete-vs-empty-string asymmetry with other settings
+    # here is intentional, not an oversight, until core grows a way to add
+    # a key to it from outside core itself.
     result =
       if uuid == "" do
         case Settings.delete_setting("emails_aws_integration_uuid") do
@@ -385,6 +389,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
 
     case result do
       {:ok, _} ->
+        # The next get_aws_*/0 call must see the newly selected connection
+        # (or the legacy fallback) immediately, not after the credentials
+        # cache's TTL — see Emails.invalidate_aws_credentials_cache/0.
+        Emails.invalidate_aws_credentials_cache()
+
         socket =
           socket
           |> assign(:selected_aws_integration_uuid, uuid)
