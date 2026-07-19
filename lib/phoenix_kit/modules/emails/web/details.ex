@@ -43,6 +43,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
   require Logger
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.BrevoOnDemandSync
   alias PhoenixKit.Modules.Emails.Log
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
@@ -90,6 +91,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
      socket
      |> assign(:loading, true)
      |> load_email_data()}
+  end
+
+  @impl true
+  def handle_event(
+        "sync_status",
+        _params,
+        %{assigns: %{email_log: %{provider: "brevo_api"}}} = socket
+      ) do
+    handle_brevo_sync_status(socket)
   end
 
   @impl true
@@ -164,6 +174,31 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
   ## --- Template ---
 
   ## --- Private Helper Functions ---
+
+  defp handle_brevo_sync_status(socket) do
+    socket = assign(socket, :syncing, true)
+
+    case BrevoOnDemandSync.sync(socket.assigns.email_log) do
+      {:ok, %{events_processed: 0}} ->
+        {:noreply,
+         socket
+         |> assign(:syncing, false)
+         |> put_flash(:info, gettext("No new events"))}
+
+      {:ok, %{events_processed: count}} ->
+        {:noreply,
+         socket
+         |> assign(:syncing, false)
+         |> put_flash(:info, gettext("Received %{count} new event(s)", count: count))
+         |> load_email_data()}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> assign(:syncing, false)
+         |> put_flash(:error, reason)}
+    end
+  end
 
   # Load email data and related information
   defp load_email_data(socket) do

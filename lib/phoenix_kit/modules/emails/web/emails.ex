@@ -43,6 +43,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
   require Logger
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.BrevoOnDemandSync
   alias PhoenixKit.Modules.Emails.TableColumns
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Routes
@@ -210,6 +211,9 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
     case Emails.get_log(uuid) do
       nil ->
         {:noreply, put_flash(socket, :error, gettext("Email not found"))}
+
+      %{provider: "brevo_api"} = log ->
+        sync_brevo_log(socket, log)
 
       log ->
         message_id = log.aws_message_id || log.message_id
@@ -564,6 +568,23 @@ defmodule PhoenixKit.Modules.Emails.Web.Emails do
       })
 
       {:noreply, put_flash(socket, :error, gettext("Failed to update email status"))}
+  end
+
+  # Brevo branch of "sync_log" — see BrevoOnDemandSync's moduledoc.
+  defp sync_brevo_log(socket, log) do
+    case BrevoOnDemandSync.sync(log) do
+      {:ok, %{events_processed: 0}} ->
+        {:noreply, put_flash(socket, :info, gettext("No new events"))}
+
+      {:ok, %{events_processed: count}} ->
+        {:noreply,
+         socket
+         |> update_log_row(log.uuid)
+         |> put_flash(:info, gettext("Received %{count} new event(s)", count: count))}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, reason)}
+    end
   end
 
   # Persist the working column set, refresh the live selection, and close. Drops

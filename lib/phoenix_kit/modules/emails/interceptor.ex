@@ -401,6 +401,33 @@ defmodule PhoenixKit.Modules.Emails.Interceptor do
     end
   end
 
+  # Brevo (Swoosh.Adapters.Brevo) returns its own message id the same way
+  # SES does, just under a different key set — extract_provider_data/2
+  # already handles all the shapes Swoosh adapters use (:id, "id",
+  # "messageId", ...). Stored in the same `aws_message_id` field AWS SES
+  # uses: despite the name, that field's actual purpose is "the id the
+  # provider's own event/webhook API will report back", which is exactly
+  # what BrevoPollingJob needs to correlate a polled event to this log —
+  # find_email_log_by_message_id/1 already falls back to it generically.
+  # No new column, no reclassification risk (unlike the "unknown" clause
+  # above): provider is already definitively "brevo_api" here, set by
+  # `deliver_via_integration/3`'s explicit :provider override.
+  defp maybe_extract_provider_data(
+         %Log{provider: "brevo_api"} = log,
+         provider_response,
+         update_attrs
+       ) do
+    case extract_provider_data(provider_response, log.uuid) do
+      %{message_id: brevo_message_id} when is_binary(brevo_message_id) ->
+        log_extraction_metric(true, log.uuid, brevo_message_id)
+        store_aws_message_id(log, brevo_message_id, provider_response, update_attrs)
+
+      _ ->
+        log_extraction_metric(false, log.uuid, nil)
+        update_attrs
+    end
+  end
+
   defp maybe_extract_provider_data(_log, _provider_response, update_attrs), do: update_attrs
 
   # AWS SES MessageIds are opaque tokens without RFC Message-ID punctuation. An id

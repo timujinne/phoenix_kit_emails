@@ -173,7 +173,7 @@
                     <%= if @email_log.aws_message_id do %>
                       <div>
                         <label class="text-sm font-medium text-base-content/70">
-                          {gettext("AWS Message ID")}
+                          {gettext("Provider Message ID")}
                         </label>
                         <p class="text-xs font-mono text-base-content/90 break-all">
                           {@email_log.aws_message_id}
@@ -358,7 +358,7 @@
 
                     <%= if @email_log.aws_message_id do %>
                       <div class="stat px-0 py-2">
-                        <div class="stat-title text-xs">{gettext("AWS Message ID")}</div>
+                        <div class="stat-title text-xs">{gettext("Provider Message ID")}</div>
                         <div class="stat-value text-xs font-mono break-all">
                           {@email_log.aws_message_id}
                         </div>

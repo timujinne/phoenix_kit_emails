@@ -940,6 +940,12 @@ defmodule PhoenixKit.Modules.Emails do
         title: gettext("Amazon SES & SQS"),
         permission: "emails",
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs
+      },
+      %{
+        id: :emails_brevo_events,
+        title: gettext("Brevo Events"),
+        permission: "emails",
+        component: PhoenixKit.Modules.Emails.Web.SettingsSections.BrevoEvents
       }
     ]
   end
@@ -1565,6 +1571,135 @@ defmodule PhoenixKit.Modules.Emails do
       max_messages_per_poll: get_sqs_max_messages(),
       visibility_timeout: get_sqs_visibility_timeout()
     }
+  end
+
+  ## --- Brevo Event Polling Configuration ---
+
+  @doc """
+  Checks if Brevo event polling is enabled.
+
+  Unlike SQS (which separates "event tracking" from "polling mechanism"
+  into two flags), Brevo has only the one mechanism — this single flag
+  gates both.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.brevo_events_enabled?()
+      false
+  """
+  def brevo_events_enabled? do
+    Settings.get_boolean_setting("brevo_events_enabled", false)
+  end
+
+  @doc """
+  Enables or disables Brevo event polling.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.set_brevo_events_enabled(true)
+      {:ok, %Setting{}}
+  """
+  def set_brevo_events_enabled(enabled) when is_boolean(enabled) do
+    Settings.update_setting_with_module(
+      "brevo_events_enabled",
+      to_string(enabled),
+      "email_system"
+    )
+  end
+
+  @doc """
+  Gets the Brevo polling interval in milliseconds.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.get_brevo_polling_interval()
+      120_000
+  """
+  def get_brevo_polling_interval do
+    Settings.get_integer_setting("brevo_polling_interval_ms", 120_000)
+  end
+
+  @doc """
+  Sets the Brevo polling interval in milliseconds (minimum 30 000 — Brevo's
+  rate limits are looser than SQS's long-poll cadence, so this floor is
+  higher than SQS's 1 000ms).
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.set_brevo_polling_interval(60_000)
+      {:ok, %Setting{}}
+  """
+  def set_brevo_polling_interval(interval_ms)
+      when is_integer(interval_ms) and interval_ms >= 30_000 do
+    Settings.update_setting_with_module(
+      "brevo_polling_interval_ms",
+      to_string(interval_ms),
+      "email_system"
+    )
+  end
+
+  @doc """
+  Gets the timestamp of the last completed Brevo polling cycle, if any.
+  Observability only — dedup/idempotency is enforced at the DB level by
+  `Event`'s unique indexes, this is not used as a fetch cursor.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.get_brevo_last_polled_at()
+      "2026-07-19T12:00:00Z"
+  """
+  def get_brevo_last_polled_at do
+    Settings.get_setting("brevo_last_polled_at", nil)
+  end
+
+  @doc """
+  Records the timestamp of the last completed Brevo polling cycle.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.set_brevo_last_polled_at(DateTime.utc_now())
+      {:ok, %Setting{}}
+  """
+  def set_brevo_last_polled_at(%DateTime{} = timestamp) do
+    Settings.update_setting_with_module(
+      "brevo_last_polled_at",
+      DateTime.to_iso8601(timestamp),
+      "email_system"
+    )
+  end
+
+  @doc """
+  Integration uuids the operator has explicitly opted OUT of Brevo event
+  polling — an empty list (the default) means every active Brevo
+  integration gets polled. `BrevoPollingJob` reads this fresh every
+  cycle (no cache invalidation needed).
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.get_brevo_polling_excluded_integrations()
+      []
+  """
+  def get_brevo_polling_excluded_integrations do
+    Settings.get_setting("brevo_polling_excluded_integrations", "")
+    |> String.split([",", " "], trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @doc """
+  Sets the list of Brevo integration uuids excluded from polling.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.set_brevo_polling_excluded_integrations(["uuid-1"])
+      {:ok, %Setting{}}
+  """
+  def set_brevo_polling_excluded_integrations(uuids) when is_list(uuids) do
+    Settings.update_setting_with_module(
+      "brevo_polling_excluded_integrations",
+      Enum.join(uuids, ","),
+      "email_system"
+    )
   end
 
   @impl PhoenixKit.Module

@@ -38,6 +38,17 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
       # Process event
       {:ok, result} = SQSProcessor.process_email_event(event_data)
 
+  ## `process_email_event/1`'s normalized event-data contract
+
+  `process_email_event/1` itself is provider-agnostic: it only cares that
+  `event_data` matches AWS SES's own notification shape,
+  `%{"eventType" => type, "mail" => %{"messageId" => id}, "<type>" => %{...}}`.
+  This is a stable, public contract — any provider's events can be routed
+  through it once translated into this shape, without touching this
+  module. `BrevoPollingJob`/`BrevoEventNormalizer` do exactly that for
+  Brevo's `GET /v3/smtp/statistics/events` events; `parse_sns_message/1`
+  and `extract_ses_event/1` above remain AWS SES/SNS-specific and are not
+  part of this contract.
   """
 
   require Logger
@@ -134,11 +145,15 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
   defp type_of(_), do: :unknown
 
   @doc """
-  Processes email event and updates corresponding database records.
+  Processes a normalized email event and updates corresponding database
+  records. Provider-agnostic — see this module's `@moduledoc` for the
+  exact `event_data` contract every caller (SES via SNS, Brevo via
+  `BrevoEventNormalizer`, ...) must produce.
 
   ## Parameters
 
-  - `event_data` - event data from SNS
+  - `event_data` - normalized event data, `%{"eventType" => type, "mail" =>
+    %{"messageId" => id}, "<type>" => %{...}}`
 
   ## Returns
 
@@ -1396,7 +1411,11 @@ defmodule PhoenixKit.Modules.Emails.SQSProcessor do
         "x-created-from-event" => event_data["eventType"] || "unknown"
       },
       body_preview: "(email body not available - created from event)",
-      provider: "aws_ses",
+      # A normalized event carries its own provider hint under
+      # mail.provider (BrevoEventNormalizer sets it; SES/SNS events never
+      # have this key at all) — defaults to "aws_ses" for backward
+      # compatibility with every existing SES-sourced placeholder.
+      provider: Map.get(mail_data, "provider", "aws_ses"),
       template_name: "placeholder",
       campaign_id: "recovered_from_event"
     }

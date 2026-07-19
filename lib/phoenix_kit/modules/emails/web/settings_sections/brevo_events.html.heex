@@ -1,0 +1,111 @@
+<div class="space-y-4">
+  <p class="text-sm text-base-content/70">
+    {gettext(
+      "Brevo has no push/webhook path — this polls Brevo's events API for delivery, bounce, open, click, and other engagement events on the same schedule other providers get via SQS."
+    )}
+  </p>
+
+  <div class="form-control">
+    <.checkbox
+      name="brevo_events[enabled]"
+      checked={@brevo_events_enabled}
+      phx-click="toggle_brevo_events"
+      phx-target={@myself}
+      label={gettext("Enable Brevo event polling")}
+    >
+      <:description>
+        {gettext("Automatically poll Brevo for email events in the background")}
+      </:description>
+    </.checkbox>
+  </div>
+
+  <div class="form-control">
+    <label class="label">
+      <span class="label-text font-medium">{gettext("Brevo Polling Interval")}</span>
+    </label>
+    <div class="input-group">
+      <input
+        name="brevo_events[interval]"
+        type="number"
+        value={@brevo_polling_interval_ms}
+        class="input input-bordered focus:input-primary w-full max-w-xs"
+        min="30000"
+        step="1000"
+        phx-blur="update_brevo_polling_interval"
+        phx-target={@myself}
+      />
+      <span class="bg-base-200 px-4 py-3 text-sm">ms</span>
+    </div>
+    <label class="label">
+      <span class="label-text-alt">
+        {gettext("How often to check Brevo for new events (minimum 30000ms)")}
+      </span>
+    </label>
+  </div>
+
+  <div class={[
+    "alert",
+    if(@brevo_status.active_brevo_profiles > 0, do: "alert-info", else: "alert-warning")
+  ]}>
+    <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
+    <div>
+      <p class="text-sm">
+        <%= cond do %>
+          <% @brevo_status.active_brevo_profiles == 0 -> %>
+            {gettext("idle — no enabled Brevo send profiles")}
+          <% @brevo_status.polling_brevo_accounts == 0 -> %>
+            {gettext("idle — all accounts excluded from polling below")}
+          <% true -> %>
+            {gettext("active — polling %{n} of %{m} account(s)",
+              n: @brevo_status.polling_brevo_accounts,
+              m: @brevo_status.total_brevo_accounts
+            )}
+        <% end %>
+      </p>
+      <p class="text-xs text-base-content/70 mt-1">
+        <%= if @brevo_status.last_polled_at do %>
+          {gettext("Last polled: %{time}", time: @brevo_status.last_polled_at)}
+        <% else %>
+          {gettext("Never polled yet")}
+        <% end %>
+      </p>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    class="btn btn-sm btn-outline"
+    phx-click="poll_brevo_now"
+    phx-target={@myself}
+    disabled={@polling_now}
+  >
+    <%= if @polling_now do %>
+      <span class="loading loading-spinner loading-xs"></span> {gettext("Polling...")}
+    <% else %>
+      <.icon name="hero-arrow-path" class="w-4 h-4" /> {gettext("Poll now")}
+    <% end %>
+  </button>
+
+  <%= if @brevo_accounts != [] do %>
+    <div class="form-control">
+      <label class="label">
+        <span class="label-text font-medium">{gettext("Accounts")}</span>
+      </label>
+      <p class="text-xs text-base-content/70 mb-2">
+        {gettext("Uncheck an account to stop polling it without disabling its send profile.")}
+      </p>
+      <div class="space-y-1">
+        <%= for {uuid, name, polled?} <- @brevo_accounts do %>
+          <.checkbox
+            name={"brevo_events[account][#{uuid}]"}
+            checked={polled?}
+            phx-click="toggle_brevo_account_polling"
+            phx-value-uuid={uuid}
+            phx-target={@myself}
+            label={name}
+          />
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+</div>
