@@ -63,3 +63,35 @@ credential and SQS paths could not otherwise be tested at all.
 Live on the Hydra Force dev app, against a real SES account: credentials resolve
 from Integrations, a real send goes out through them, and a legacy install without
 a connection still sends from the old settings.
+
+## Post-merge verification pass — 2026-07-19
+
+Independent re-review after merge, ahead of cutting a Hex release. Read
+`provider.ex`, `sqs_processor.ex`, `supervisor.ex`, `emails.ex`'s credential
+resolution, and both `web/settings_sections/*` LiveComponents against
+`elixir:phoenix-thinking`.
+
+- Confirmed all three bugs above are genuinely fixed in the merged code: the
+  `"transient"`/`"temporary"` bounce match, `blocklist_bounced_recipients/1`
+  wired into the Permanent-bounce branch, and `@behaviour`/`@impl` on all 14
+  `Provider` callbacks.
+- Confirmed `invalidate_aws_credentials_cache/0` is actually called at both
+  places that change the selected connection (`migrate_legacy/0` and the
+  Amazon SES & SQS settings section) — not just referenced in a comment.
+- The `Phoenix.HTML.raw/1` calls in `amazon_ses_sqs.html.heex` only wrap
+  static gettext strings with hardcoded example values (`AKIAIOSFODNN7EXAMPLE`,
+  button labels) — no user input reaches them, not an XSS risk.
+- Both settings LiveComponents load their data in `update/2` guarded by
+  `Map.has_key?/2` (load once, not on every re-render) — consistent with the
+  Iron Law's intent for `live_component`, since `update/2` is `mount/3`'s
+  duplicate-call equivalent here.
+- `mix.exs`'s dependency comment claiming `phoenix_kit ~> 1.7.190` was "not yet
+  published to Hex" was stale — 1.7.203 has been on Hex for a while (`mix.lock`
+  already resolves it). Cleaned up the comment; no functional change.
+- `mix precommit` (compile --warnings-as-errors, deps.unlock --check-unused,
+  hex.audit, format, credo --strict, dialyzer) and `mix test` both pass clean.
+  22 of 41 tests are excluded in this environment (no local Postgres) — the
+  DB-backed suite this PR added was not re-run here; the "Full suite green"
+  claim above and the Hydra Force live test are the coverage for that.
+
+No new issues found. Proceeding to bump 0.1.11 → 0.1.12 and publish.

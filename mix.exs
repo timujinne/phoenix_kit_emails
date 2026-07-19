@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.1.11"
+  @version "0.1.12"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do
@@ -49,11 +49,7 @@ defmodule PhoenixKitEmails.MixProject do
     [
       # Core
       {:hackney, "~> 4.0", override: true},
-      # Implements email_settings_sections/0 (Stage-1 A5) — requires a core
-      # release with the A4 seam, not yet published to Hex. For local
-      # verification during Stage-1, temporarily override with
-      # `{:phoenix_kit, path: "/app", override: true}` against core branch
-      # feature/email-send-profiles-core; revert before committing.
+      # ~> 1.7.190 is the floor for email_settings_sections/0 (Stage-1 A5).
       {:phoenix_kit, "~> 1.7.190"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.12 - 2026-07-19
+
+### Changed
+- AWS SES credentials now resolve through `PhoenixKit.Integrations` (an encrypted `aws_ses` connection) instead of being stored as plaintext Settings rows. `get_aws_access_key/0`, `get_aws_secret_key/0`, and `get_aws_region/0` prefer the selected Integrations connection and fall back to the legacy Settings/env-var path, so an unmigrated install keeps sending. `migrate_legacy/0` moves an existing key/secret into a new connection once, idempotently, without deleting the legacy Settings rows (an operator confirms the new connection works before blanking them manually).
+- The combined credential lookup is cached for 60s (`PhoenixKit.Cache`) so building a send-path AWS config no longer costs 3 Settings reads plus 3 decrypt round-trips per email; `invalidate_aws_credentials_cache/0` is called wherever the selected connection changes.
+- Settings moved off this module's own `/admin/settings/emails` tab and now contributes two sections ("Email Tracking", "Amazon SES & SQS") to core's unified `/admin/settings/email-sending` page via `email_settings_sections/0`. `settings.ex`/`settings.html.heex` are gone, replaced by `web/settings_sections/`.
+- Requires `phoenix_kit ~> 1.7.190` (the release that carries the `email_settings_sections/0` seam).
+
+### Fixed
+- SES bounce classification matched `"Temporary"` for soft bounces, but SES actually sends `"Transient"` — every soft bounce was silently recorded as a hard one. Both strings are now accepted.
+- Hard (permanent) bounces are now added to the rate limiter's blocklist, so a bounced address stops receiving future sends instead of bouncing again on the next campaign.
+- `PhoenixKit.Modules.Emails.Provider` implements `PhoenixKit.Email.Provider` but never declared `@behaviour`/`@impl` — a renamed or dropped callback in core would have compiled clean here and only failed at runtime. Declared, with `@impl` on all 14 callbacks.
+- Boot-time `migrate_legacy/0` no longer makes a live SES API call (`GetSendQuota`, up to 15s) to validate the migrated connection — the credentials were already sending mail before the migration ran, so there was nothing to verify that the first real send wouldn't; this was blocking app startup on network egress.
+
+### Added
+- First real test infrastructure for this package (`test/support/data_case.ex`, `test_repo.ex`, `config/test.exs`) — the credential-resolution and SQS bounce/blocklist paths now have DB-backed integration tests instead of being untestable.
+
 ## 0.1.11 - 2026-07-12
 
 ### Security
