@@ -1668,6 +1668,40 @@ defmodule PhoenixKit.Modules.Emails do
     )
   end
 
+  @doc """
+  Integration uuids the operator has explicitly opted OUT of Brevo event
+  polling — an empty list (the default) means every active Brevo
+  integration gets polled. `BrevoPollingJob` reads this fresh every
+  cycle (no cache invalidation needed).
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.get_brevo_polling_excluded_integrations()
+      []
+  """
+  def get_brevo_polling_excluded_integrations do
+    Settings.get_setting("brevo_polling_excluded_integrations", "")
+    |> String.split([",", " "], trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @doc """
+  Sets the list of Brevo integration uuids excluded from polling.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.set_brevo_polling_excluded_integrations(["uuid-1"])
+      {:ok, %Setting{}}
+  """
+  def set_brevo_polling_excluded_integrations(uuids) when is_list(uuids) do
+    Settings.update_setting_with_module(
+      "brevo_polling_excluded_integrations",
+      Enum.join(uuids, ","),
+      "email_system"
+    )
+  end
+
   @impl PhoenixKit.Module
   @doc """
   Gets the current email system configuration.

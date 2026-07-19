@@ -14,6 +14,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.BrevoEvents do
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.BrevoIntegrations
   alias PhoenixKit.Modules.Emails.BrevoPollingManager
 
   @dialyzer {:nowarn_function, handle_event: 3}
@@ -30,6 +31,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.BrevoEvents do
         |> assign(:brevo_events_enabled, Emails.brevo_events_enabled?())
         |> assign(:brevo_polling_interval_ms, Emails.get_brevo_polling_interval())
         |> assign(:brevo_status, BrevoPollingManager.status())
+        |> assign(:brevo_accounts, load_brevo_accounts())
         |> assign(:polling_now, false)
       end
 
@@ -121,5 +123,34 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.BrevoEvents do
 
         {:noreply, socket}
     end
+  end
+
+  def handle_event("toggle_brevo_account_polling", %{"uuid" => uuid}, socket) do
+    excluded = Emails.get_brevo_polling_excluded_integrations()
+
+    new_excluded =
+      if uuid in excluded, do: List.delete(excluded, uuid), else: [uuid | excluded]
+
+    case Emails.set_brevo_polling_excluded_integrations(new_excluded) do
+      {:ok, _setting} ->
+        socket =
+          socket
+          |> assign(:brevo_status, BrevoPollingManager.status())
+          |> assign(:brevo_accounts, load_brevo_accounts())
+
+        {:noreply, socket}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update account polling"))}
+    end
+  end
+
+  # `{uuid, name, polled?}` for every currently-active Brevo account, for
+  # the per-account opt-out checkbox list.
+  defp load_brevo_accounts do
+    excluded = MapSet.new(Emails.get_brevo_polling_excluded_integrations())
+
+    BrevoIntegrations.active_integrations_with_names()
+    |> Enum.map(fn {uuid, name} -> {uuid, name, not MapSet.member?(excluded, uuid)} end)
   end
 end

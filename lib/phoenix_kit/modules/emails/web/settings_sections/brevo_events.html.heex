@@ -50,12 +50,16 @@
     <.icon name="hero-information-circle" class="w-5 h-5 shrink-0" />
     <div>
       <p class="text-sm">
-        <%= if @brevo_status.active_brevo_profiles > 0 do %>
-          {gettext("active — %{count} enabled Brevo send profile(s)",
-            count: @brevo_status.active_brevo_profiles
-          )}
-        <% else %>
-          {gettext("idle — no enabled Brevo send profiles")}
+        <%= cond do %>
+          <% @brevo_status.active_brevo_profiles == 0 -> %>
+            {gettext("idle — no enabled Brevo send profiles")}
+          <% @brevo_status.polling_brevo_accounts == 0 -> %>
+            {gettext("idle — all accounts excluded from polling below")}
+          <% true -> %>
+            {gettext("active — polling %{n} of %{m} account(s)",
+              n: @brevo_status.polling_brevo_accounts,
+              m: @brevo_status.total_brevo_accounts
+            )}
         <% end %>
       </p>
       <p class="text-xs text-base-content/70 mt-1">
@@ -81,4 +85,27 @@
       <.icon name="hero-arrow-path" class="w-4 h-4" /> {gettext("Poll now")}
     <% end %>
   </button>
+
+  <%= if @brevo_accounts != [] do %>
+    <div class="form-control">
+      <label class="label">
+        <span class="label-text font-medium">{gettext("Accounts")}</span>
+      </label>
+      <p class="text-xs text-base-content/70 mb-2">
+        {gettext("Uncheck an account to stop polling it without disabling its send profile.")}
+      </p>
+      <div class="space-y-1">
+        <%= for {uuid, name, polled?} <- @brevo_accounts do %>
+          <.checkbox
+            name={"brevo_events[account][#{uuid}]"}
+            checked={polled?}
+            phx-click="toggle_brevo_account_polling"
+            phx-value-uuid={uuid}
+            phx-target={@myself}
+            label={name}
+          />
+        <% end %>
+      </div>
+    </div>
+  <% end %>
 </div>
