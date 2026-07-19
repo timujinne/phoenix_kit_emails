@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.15 - 2026-07-19
+
+### Changed
+- Bumped `beamlab_ex_aws_sqs` to `~> 5.0`, declared as `{:ex_aws_sqs, "~> 5.0", hex:
+  :beamlab_ex_aws_sqs}`, matching the same bump in `phoenix_kit` (>= 1.7.205). v5.0.0
+  renamed the compiled OTP app back to `:ex_aws_sqs` (only the Hex package name is
+  `beamlab_ex_aws_sqs`). No code changes — `ExAws.SQS`'s public API is unchanged.
+
 ## 0.1.14 - 2026-07-19
 
 ### Fixed

@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.1.14"
+  @version "0.1.15"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do
@@ -68,7 +68,11 @@ defmodule PhoenixKitEmails.MixProject do
       # `%{"Messages" => [...]}` with string keys (e.g. "ReceiptHandle"),
       # not the old `%{body: %{messages: [...]}}` with atom keys. Matches
       # the switch already made in core (phoenix_kit).
-      {:beamlab_ex_aws_sqs, "~> 4.0"},
+      # v5.0.0 renamed the compiled OTP app back to `:ex_aws_sqs` (only the
+      # Hex package name is `beamlab_ex_aws_sqs`) — depend on it via the
+      # `hex:` override so it stays a drop-in for anything expecting
+      # `:ex_aws_sqs` directly.
+      {:ex_aws_sqs, "~> 5.0", hex: :beamlab_ex_aws_sqs},
       {:ex_aws_s3, "~> 2.4"},
       # Transitive requirement of ex_aws_s3 (parses S3's XML responses) — not
       # called directly here, declared explicitly since we do call
