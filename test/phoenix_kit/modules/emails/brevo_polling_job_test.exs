@@ -331,6 +331,32 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJobTest do
       assert_received {:fetch, ^today_str, "0"}
       refute_received {:fetch, ^yesterday_str, "0"}
     end
+
+    test "a huge yesterday only spends the re-check's own small budget, leaving the rest for today's forward walk" do
+      profile = create_brevo_profile()
+      Application.put_env(:phoenix_kit_emails, :brevo_page_limit, 1)
+      on_exit(fn -> Application.delete_env(:phoenix_kit_emails, :brevo_page_limit) end)
+
+      today = Date.utc_today()
+      {:ok, _} = Emails.set_brevo_watermark(profile.integration_uuid, today, 0)
+
+      # Every page (both yesterday's and today's) comes back "full"
+      # (limit 1) — yesterday never looks exhausted, so if the re-check
+      # drew from the same 10-page cap as the forward walk, it alone
+      # would consume the entire cap re-reading yesterday and leave
+      # nothing for today to advance with.
+      Req.Test.stub(@stub, fn conn ->
+        Req.Test.json(conn, %{"events" => [brevo_event(%{})]})
+      end)
+
+      assert :ok = BrevoPollingJob.perform(%Oban.Job{})
+
+      # The re-check spent its own fixed budget (2 pages) on yesterday
+      # without persisting anything (it has no cursor), and today's
+      # forward walk got the rest of the cap (10 - 2 = 8 pages) to
+      # itself, ending at offset 8 rather than stuck at 0.
+      assert Emails.get_brevo_watermark(profile.integration_uuid) == %{date: today, offset: 8}
+    end
   end
 
   describe "resilience to a mid-cycle failure" do

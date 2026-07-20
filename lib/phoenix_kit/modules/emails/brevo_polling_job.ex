@@ -96,6 +96,28 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
        re-checked window rather than guess at a specific timezone
        (nothing in Brevo's docs settles it either way).
 
+  A one-day lookback is a margin against both risks above as observed —
+  sub-minute indexing lag, and at most a one-day timezone offset — not a
+  general guarantee against arbitrarily late indexing. An event indexed
+  more than 24h after it occurred would land on a day this re-check no
+  longer reaches (that day has since closed too, and closed days are
+  never revisited by design — see above). This is an accepted trade-off
+  given the lag actually observed, not a gap this job tries to close.
+
+  The re-check itself is capped at its own fixed
+  `@trailing_recheck_page_budget` (2 pages), independent of the forward
+  walk's budget — see "Per-cycle event cap" for why, and for the
+  resulting trade-off: on a day whose total event count exceeds what
+  that budget can page through (starting over at offset 0 every cycle —
+  it keeps no cursor of its own), a late-indexed event sorted past that
+  point won't be reached by the re-check either, on this or any later
+  cycle. Widening this budget (or giving the re-check a remembered
+  starting offset instead of always restarting at 0) would close that
+  gap at the cost of the "own small budget" property this section
+  exists to have — not done here; see the "Per-cycle event cap" section
+  for the reasoning that led to a small fixed budget over an unbounded
+  one.
+
   The `watermark.date == today` gate isn't a cost-cutting shortcut —
   skipping it in every other state is required for correctness of a
   different kind: cold start's forward walk *also* begins at
@@ -106,10 +128,11 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   true, and gets re-checked, every cycle for as long as the forward
   walk sits on today (i.e. once a day, renewed daily as "today" itself
   advances) — not a one-time check right after the boundary, so there's
-  no grace-window length to tune. It shares the same per-cycle page
-  budget as the forward watermark walk (see "Per-cycle event cap") and
-  runs first when it runs at all, so the safety net isn't starved by a
-  large forward backlog.
+  no grace-window length to tune. It runs first when it runs at all,
+  ahead of the forward watermark walk (see "Per-cycle event cap") — but
+  on its own small fixed budget, not a share of the forward walk's, so
+  it can never starve the forward walk regardless of how large
+  yesterday turned out to be.
 
   ### Stale watermark cleanup
 
@@ -143,15 +166,27 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
   Each integration is capped at `@max_pages_per_integration` (10) pages
   of `@default_page_limit` (2500, overridable — see `page_limit/0`)
-  events per cycle — at most 25,000 events per integration per poll,
-  shared between the trailing safety re-check and the forward watermark
-  walk (the re-check runs first). A sender busy enough to exceed that in
-  one `polling_interval_ms` window will lag (the cap logs a warning and
-  picks up the remainder next cycle, from the correct watermark position
-  rather than from the start) rather than the poll cycle growing
-  unbounded. A backlog spanning several low-volume days can close out
-  more than one of them in a single cycle — the cap is on total pages
-  fetched, not on how many distinct days get walked.
+  events per cycle — at most 25,000 events per integration per poll. A
+  sender busy enough to exceed that in one `polling_interval_ms` window
+  will lag (the cap logs a warning and picks up the remainder next
+  cycle, from the correct watermark position rather than from the
+  start) rather than the poll cycle growing unbounded. A backlog
+  spanning several low-volume days can close out more than one of them
+  in a single cycle — the cap is on total pages fetched, not on how
+  many distinct days get walked.
+
+  This budget is **not** shared with the trailing safety re-check —
+  that has its own separate, much smaller
+  `@trailing_recheck_page_budget` (2 pages). It used to draw from this
+  same cap, which meant a single very high-volume yesterday could
+  exhaust the entire cap on the re-check alone (it restarts from
+  offset 0 every cycle, re-reading pages it already re-confirmed last
+  cycle) and leave nothing for the forward walk to advance today with
+  — stale `today` data every cycle for as long as that backlog lasted,
+  not just a one-off. Giving the re-check its own small budget instead
+  means it can only ever cost a couple of pages, at the trade-off
+  described in "Trailing safety re-check" above (it may not reach the
+  tail of an unusually large day).
 
   ## Oban queue configuration
 
@@ -184,6 +219,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
   @default_page_limit 2500
   @max_pages_per_integration 10
+  @trailing_recheck_page_budget 2
   @misconfig_backoff_ms 30_000
 
   @impl Oban.Worker
@@ -308,12 +344,22 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     # forward walk still mid-backlog at or before yesterday) means the
     # walk below is about to fetch that same day itself; re-scanning it
     # here first would just be the exact same request twice in one cycle.
+    #
+    # Capped at its own fixed @trailing_recheck_page_budget rather than
+    # sharing the full @max_pages_per_integration cap — it restarts from
+    # offset 0 every cycle (see moduledoc), so on a day with more events
+    # than that budget covers, an unbounded trailing re-check would spend
+    # its entire allowance re-reading pages it already re-confirmed on
+    # the *previous* cycle, starving the forward walk of every page for
+    # that whole cycle (stale `today` data, not lost data — see
+    # moduledoc's "Per-cycle event cap").
     trailing_pages =
       if watermark && Date.compare(watermark.date, today) == :eq do
         trailing_date = Date.add(today, -1)
+        trailing_budget = min(@trailing_recheck_page_budget, @max_pages_per_integration)
 
         {_status, _offset, pages} =
-          drain_day(api_key, integration_uuid, trailing_date, 0, 0, @max_pages_per_integration)
+          drain_day(api_key, integration_uuid, trailing_date, 0, 0, trailing_budget)
 
         pages
       else
@@ -340,6 +386,33 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     end
   end
 
+  # Fetches one page for `date`/`offset` and processes every event in it.
+  # Shared by `drain_day/6` and `advance_watermark/7` — fetching and
+  # processing a single page is identical between them; only what happens
+  # *after* (recurse-and-discard vs. recurse-and-persist-the-watermark)
+  # differs, which stays in each caller.
+  defp fetch_and_process_page(api_key, integration_uuid, date, offset) do
+    limit = page_limit()
+    date_str = Date.to_iso8601(date)
+    params = [startDate: date_str, endDate: date_str, sort: "asc", limit: limit, offset: offset]
+
+    case BrevoClient.fetch_events(api_key, params, req_options()) do
+      {:ok, events} ->
+        Enum.each(events, &process_event/1)
+        {:ok, events, limit}
+
+      {:error, reason} ->
+        Logger.error("Brevo Polling Job: failed to fetch events", %{
+          integration_uuid: integration_uuid,
+          date: date_str,
+          offset: offset,
+          reason: inspect(reason)
+        })
+
+        {:error, reason}
+    end
+  end
+
   # Fetches and processes pages of a single day starting at `offset`
   # until either a short page is seen (`:exhausted` — no more results
   # for this day as of now) or `budget` pages have been spent
@@ -353,13 +426,8 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   end
 
   defp drain_day(api_key, integration_uuid, date, offset, pages_used, budget) do
-    limit = page_limit()
-    date_str = Date.to_iso8601(date)
-    params = [startDate: date_str, endDate: date_str, sort: "asc", limit: limit, offset: offset]
-
-    case BrevoClient.fetch_events(api_key, params, req_options()) do
-      {:ok, events} ->
-        Enum.each(events, &process_event/1)
+    case fetch_and_process_page(api_key, integration_uuid, date, offset) do
+      {:ok, events, limit} ->
         pages_used = pages_used + 1
 
         if length(events) == limit do
@@ -368,14 +436,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
           {:exhausted, offset + length(events), pages_used}
         end
 
-      {:error, reason} ->
-        Logger.error("Brevo Polling Job: failed to fetch events", %{
-          integration_uuid: integration_uuid,
-          date: date_str,
-          offset: offset,
-          reason: inspect(reason)
-        })
-
+      {:error, _reason} ->
         {:error, offset, pages_used}
     end
   end
@@ -390,18 +451,13 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   end
 
   defp advance_watermark(api_key, integration_uuid, date, offset, today, budget, pages_used) do
-    limit = page_limit()
-    date_str = Date.to_iso8601(date)
-    params = [startDate: date_str, endDate: date_str, sort: "asc", limit: limit, offset: offset]
-
-    case BrevoClient.fetch_events(api_key, params, req_options()) do
-      {:ok, events} ->
-        Enum.each(events, &process_event/1)
+    case fetch_and_process_page(api_key, integration_uuid, date, offset) do
+      {:ok, events, limit} ->
         pages_used = pages_used + 1
 
         if length(events) == limit do
           new_offset = offset + limit
-          Emails.set_brevo_watermark(integration_uuid, date, new_offset)
+          persist_watermark(integration_uuid, date, new_offset)
 
           advance_watermark(
             api_key,
@@ -424,13 +480,8 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
           )
         end
 
-      {:error, reason} ->
-        Logger.error("Brevo Polling Job: failed to fetch events", %{
-          integration_uuid: integration_uuid,
-          date: date_str,
-          offset: offset,
-          reason: inspect(reason)
-        })
+      {:error, _reason} ->
+        :ok
     end
   end
 
@@ -442,13 +493,35 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   defp advance_past_short_page(api_key, integration_uuid, date, offset, today, budget, pages_used) do
     if Date.compare(date, today) == :lt do
       next_date = Date.add(date, 1)
-      Emails.set_brevo_watermark(integration_uuid, next_date, 0)
+      persist_watermark(integration_uuid, next_date, 0)
 
       if pages_used < budget do
         advance_watermark(api_key, integration_uuid, next_date, 0, today, budget, pages_used)
       end
     else
-      Emails.set_brevo_watermark(integration_uuid, date, offset)
+      persist_watermark(integration_uuid, date, offset)
+    end
+  end
+
+  # Every watermark write goes through here so a failed persist is never
+  # silent. Nothing else observes or retries this specific write — a
+  # failure here leaves the cursor at its last-successfully-persisted
+  # position (this page's events were already processed and are
+  # dedup-safe to re-process — see moduledoc — so nothing is lost) but
+  # an operator watching for a stuck integration otherwise has no signal
+  # that this happened at all.
+  defp persist_watermark(integration_uuid, date, offset) do
+    case Emails.set_brevo_watermark(integration_uuid, date, offset) do
+      {:ok, _setting} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Brevo Polling Job: failed to persist watermark for integration " <>
+            "#{integration_uuid} at #{Date.to_iso8601(date)}, offset #{offset}: " <>
+            "#{inspect(reason)} — this page will be re-fetched (safely — see moduledoc " <>
+            "on dedup) next cycle"
+        )
     end
   end
 
