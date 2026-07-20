@@ -19,10 +19,109 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     up.
   - **No message ack step**: SQS deletes each message after processing to
     avoid redelivery. Brevo's events endpoint is a plain paginated report
-    with no consumption side-effect — the SAME date window (yesterday +
-    today) is re-fetched every cycle. Re-processing an already-seen event
-    is safe and cheap: `Event.create_event/1`'s partial unique indexes
-    (see `Event.changeset/2`) make it a no-op, not a duplicate row.
+    with no consumption side-effect — this job tracks its own read
+    position instead (see "Watermark cursor" below). Re-processing an
+    already-seen event is still safe and cheap regardless:
+    `Event.create_event/1`'s partial unique indexes (see
+    `Event.changeset/2`) make it a no-op, not a duplicate row — the
+    watermark exists for *performance and completeness* on top of that
+    existing guarantee, not to provide it.
+
+  ## Watermark cursor
+
+  Brevo's `startDate`/`endDate` query params only accept whole calendar
+  dates (`YYYY-MM-DD`) — there is no "give me events after this exact
+  timestamp/offset" primitive. An early version of this job re-fetched
+  the fixed `[yesterday, today]` window from `offset: 0` every cycle,
+  which has two problems at volume: every already-processed event pays
+  the full re-fetch + dedup-lookup cost again, and a sender producing
+  more than `@max_pages_per_integration * page_limit()` events in that
+  window (25,000 by default) can never reach its newest events — the
+  page cap is always hit before the tail of an ever-re-fetched window is
+  reached.
+
+  Each integration's progress is now tracked as a persisted
+  `%{date: Date.t(), offset: integer}` watermark
+  (`Emails.get_brevo_watermark/1` / `set_brevo_watermark/3`, stored via
+  `PhoenixKit.Settings`' JSON-by-prefix helpers — no dedicated table).
+  Every request queries **a single day** (`startDate == endDate ==
+  watermark.date`), never a growing window — this is the key property
+  that makes `offset` mean the same thing across cycles. (A naive
+  "just remember the offset" fix without this breaks at every day
+  boundary: if `startDate` is recomputed as `yesterday()` each cycle the
+  way the old code did, the window silently slides forward by one day
+  every day, and a stale offset from window `[D-1, D]` gets replayed
+  against the unrelated window `[D, D+1]` the next cycle — same
+  numeric offset, different result set entirely.)
+
+  A day only advances (offset resets to 0, `date` moves to the next
+  day) once a short page (fewer than `page_limit()` events) is seen for
+  it **and** it's strictly before today. Today's date never auto-closes
+  from a short page alone — more events (opens/clicks/bounces on
+  earlier sends) can land on it any time before midnight, and closing
+  it early would permanently skip them (nothing ever re-visits a closed
+  day by design — see the trailing re-check below for the one
+  exception). The watermark is persisted after *every* page (not once
+  at the end of a cycle), so a crash mid-cycle replays at most one page
+  of already-processed (dedup-absorbed) events, not the whole cycle.
+
+  ### Trailing safety re-check
+
+  Whenever the watermark's `date` equals today — meaning the forward
+  walk has already closed yesterday and moved on, and (unlike a still-
+  lagging backlog) will never fetch yesterday again on its own — this
+  job additionally re-scans **yesterday relative to right now**
+  (`Date.add(today, -1)`) from `offset: 0` before advancing the
+  watermark: a fixed one-day lookback with no cursor of its own (it
+  never persists a position; there's nothing to remember, it always
+  starts over at 0). This guards two distinct risks that both surface
+  as "an event that belongs to a day the watermark has already closed
+  and will never revisit":
+
+    1. **Indexing lag.** Brevo's event log has been observed to lag
+       real time by roughly 30–60 seconds. An event that occurs at
+       23:59:50 can be indexed on Brevo's side a moment after midnight
+       — by which point the watermark may have already closed
+       yesterday with a short page that didn't yet include it.
+    2. **`startDate`/`endDate` timezone ambiguity.** Brevo's API
+       documentation states the returned `date` field is UTC, but does
+       **not** document which timezone `startDate`/`endDate` are
+       interpreted in — plausibly the receiving Brevo account's
+       configured timezone rather than UTC. If so, this job's
+       UTC-computed `today()` and Brevo's own day boundary can disagree
+       by up to (but never more than) one calendar day — at any given
+       instant, at most two calendar dates are "current" anywhere on
+       Earth, so a one-day lookback is a sufficient, not merely
+       heuristic, margin here. Chosen deliberately: extend the
+       re-checked window rather than guess at a specific timezone
+       (nothing in Brevo's docs settles it either way).
+
+  The `watermark.date == today` gate isn't a cost-cutting shortcut —
+  skipping it in every other state is required for correctness of a
+  different kind: cold start's forward walk *also* begins at
+  `{Date.add(today, -1), 0}` (see below), and a still-lagging backlog's
+  forward walk will reach yesterday itself in due course either way —
+  re-scanning it here too would be the exact same request twice in one
+  cycle, not extra safety. Once the gate condition is true it stays
+  true, and gets re-checked, every cycle for as long as the forward
+  walk sits on today (i.e. once a day, renewed daily as "today" itself
+  advances) — not a one-time check right after the boundary, so there's
+  no grace-window length to tune. It shares the same per-cycle page
+  budget as the forward watermark walk (see "Per-cycle event cap") and
+  runs first when it runs at all, so the safety net isn't starved by a
+  large forward backlog.
+
+  ### Stale watermark cleanup
+
+  A watermark is keyed by integration uuid and outlives the integration
+  itself unless cleaned up — `perform/1` prunes any stored watermark
+  whose integration uuid is no longer in the current cycle's active set
+  (`active_brevo_integrations/0` — deleted, or explicitly excluded via
+  `Emails.brevo_polling_excluded_integrations/0`) before running the
+  cycle. Excluding an integration and later re-including it starts it
+  over from cold-start rather than resuming a possibly very stale
+  position — the same trade-off a first-time poll already makes, not a
+  new one.
 
   ## Multi-integration
 
@@ -44,11 +143,15 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
 
   Each integration is capped at `@max_pages_per_integration` (10) pages
   of `@default_page_limit` (2500, overridable — see `page_limit/0`)
-  events per cycle — at most 25,000 events per integration per poll. A
-  sender busy enough to exceed that in one `polling_interval_ms` window
-  will lag (the cap logs a warning and picks up the remainder next
-  cycle) rather than the poll cycle growing unbounded. Not expected to
-  matter at typical volumes; flagged here because it's silent otherwise.
+  events per cycle — at most 25,000 events per integration per poll,
+  shared between the trailing safety re-check and the forward watermark
+  walk (the re-check runs first). A sender busy enough to exceed that in
+  one `polling_interval_ms` window will lag (the cap logs a warning and
+  picks up the remainder next cycle, from the correct watermark position
+  rather than from the start) rather than the poll cycle growing
+  unbounded. A backlog spanning several low-volume days can close out
+  more than one of them in a single cycle — the cap is on total pages
+  fetched, not on how many distinct days get walked.
 
   ## Oban queue configuration
 
@@ -101,7 +204,9 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
         :ok
 
       forced? or Emails.brevo_events_enabled?() ->
-        next_interval = run_cycle(active_brevo_integrations())
+        integration_uuids = active_brevo_integrations()
+        prune_stale_watermarks(integration_uuids)
+        next_interval = run_cycle(integration_uuids)
         schedule_next_poll(next_interval)
         :ok
 
@@ -176,7 +281,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
   defp poll_integration(integration_uuid) do
     case BrevoIntegrations.resolve_api_key(integration_uuid) do
       {:ok, api_key} ->
-        fetch_page(api_key, integration_uuid, 0, 0)
+        run_watermark_cycle(api_key, integration_uuid)
         :ok
 
       {:error, reason} ->
@@ -189,41 +294,180 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     end
   end
 
-  defp fetch_page(_api_key, integration_uuid, offset, page_count)
-       when page_count >= @max_pages_per_integration do
-    Logger.warning(
-      "Brevo Polling Job: hit the #{@max_pages_per_integration}-page cap for integration " <>
-        "#{integration_uuid} at offset #{offset} — remaining events will be picked up next cycle"
-    )
+  # See moduledoc "Watermark cursor" for the full rationale. Order: the
+  # trailing safety re-check (when it runs at all — see below) goes
+  # first, so it isn't starved by a large forward backlog; whatever page
+  # budget remains goes to advancing the real watermark.
+  defp run_watermark_cycle(api_key, integration_uuid) do
+    today = today_date()
+    watermark = Emails.get_brevo_watermark(integration_uuid)
+
+    # The trailing re-check only earns its cost when the forward walk has
+    # actually moved PAST yesterday and won't naturally revisit it — i.e.
+    # watermark.date == today. Any other state (cold start, or the
+    # forward walk still mid-backlog at or before yesterday) means the
+    # walk below is about to fetch that same day itself; re-scanning it
+    # here first would just be the exact same request twice in one cycle.
+    trailing_pages =
+      if watermark && Date.compare(watermark.date, today) == :eq do
+        trailing_date = Date.add(today, -1)
+
+        {_status, _offset, pages} =
+          drain_day(api_key, integration_uuid, trailing_date, 0, 0, @max_pages_per_integration)
+
+        pages
+      else
+        0
+      end
+
+    remaining_budget = @max_pages_per_integration - trailing_pages
+
+    if remaining_budget > 0 do
+      {date, offset} =
+        case watermark do
+          %{date: date, offset: offset} ->
+            {date, offset}
+
+          # Cold start: same floor the old unconditional [yesterday, today]
+          # window already guaranteed. No backfill needed — every
+          # integration just takes one more legacy-shaped pass before
+          # falling into watermark tracking from here on.
+          nil ->
+            {Date.add(today, -1), 0}
+        end
+
+      advance_watermark(api_key, integration_uuid, date, offset, today, remaining_budget, 0)
+    end
   end
 
-  defp fetch_page(api_key, integration_uuid, offset, page_count) do
-    limit = page_limit()
+  # Fetches and processes pages of a single day starting at `offset`
+  # until either a short page is seen (`:exhausted` — no more results
+  # for this day as of now) or `budget` pages have been spent
+  # (`:budget_exhausted`), or the request fails (`:error`). Shared by
+  # the trailing re-check (which discards the result — it never
+  # advances or persists) and `advance_watermark/7` (which uses it to
+  # decide whether to close the day out).
+  defp drain_day(_api_key, _integration_uuid, _date, offset, pages_used, budget)
+       when pages_used >= budget do
+    {:budget_exhausted, offset, pages_used}
+  end
 
-    params = [
-      startDate: yesterday(),
-      endDate: today(),
-      sort: "asc",
-      limit: limit,
-      offset: offset
-    ]
+  defp drain_day(api_key, integration_uuid, date, offset, pages_used, budget) do
+    limit = page_limit()
+    date_str = Date.to_iso8601(date)
+    params = [startDate: date_str, endDate: date_str, sort: "asc", limit: limit, offset: offset]
 
     case BrevoClient.fetch_events(api_key, params, req_options()) do
       {:ok, events} ->
         Enum.each(events, &process_event/1)
+        pages_used = pages_used + 1
 
         if length(events) == limit do
-          fetch_page(api_key, integration_uuid, offset + limit, page_count + 1)
+          drain_day(api_key, integration_uuid, date, offset + limit, pages_used, budget)
         else
-          :ok
+          {:exhausted, offset + length(events), pages_used}
         end
 
       {:error, reason} ->
         Logger.error("Brevo Polling Job: failed to fetch events", %{
           integration_uuid: integration_uuid,
+          date: date_str,
+          offset: offset,
+          reason: inspect(reason)
+        })
+
+        {:error, offset, pages_used}
+    end
+  end
+
+  defp advance_watermark(_api_key, integration_uuid, date, offset, _today, budget, pages_used)
+       when pages_used >= budget do
+    Logger.warning(
+      "Brevo Polling Job: hit the #{@max_pages_per_integration}-page cap for integration " <>
+        "#{integration_uuid} at #{Date.to_iso8601(date)}, offset #{offset} — remaining " <>
+        "events will be picked up next cycle"
+    )
+  end
+
+  defp advance_watermark(api_key, integration_uuid, date, offset, today, budget, pages_used) do
+    limit = page_limit()
+    date_str = Date.to_iso8601(date)
+    params = [startDate: date_str, endDate: date_str, sort: "asc", limit: limit, offset: offset]
+
+    case BrevoClient.fetch_events(api_key, params, req_options()) do
+      {:ok, events} ->
+        Enum.each(events, &process_event/1)
+        pages_used = pages_used + 1
+
+        if length(events) == limit do
+          new_offset = offset + limit
+          Emails.set_brevo_watermark(integration_uuid, date, new_offset)
+
+          advance_watermark(
+            api_key,
+            integration_uuid,
+            date,
+            new_offset,
+            today,
+            budget,
+            pages_used
+          )
+        else
+          advance_past_short_page(
+            api_key,
+            integration_uuid,
+            date,
+            offset,
+            today,
+            budget,
+            pages_used
+          )
+        end
+
+      {:error, reason} ->
+        Logger.error("Brevo Polling Job: failed to fetch events", %{
+          integration_uuid: integration_uuid,
+          date: date_str,
+          offset: offset,
           reason: inspect(reason)
         })
     end
+  end
+
+  # A short page came back for `date`. Only a day strictly before today
+  # is safe to close (advance past) — today's date never auto-closes
+  # from a short page alone, since more events can still land on it
+  # before midnight (see moduledoc). Either way the watermark is
+  # persisted, keeping "touched after every successful page" uniform.
+  defp advance_past_short_page(api_key, integration_uuid, date, offset, today, budget, pages_used) do
+    if Date.compare(date, today) == :lt do
+      next_date = Date.add(date, 1)
+      Emails.set_brevo_watermark(integration_uuid, next_date, 0)
+
+      if pages_used < budget do
+        advance_watermark(api_key, integration_uuid, next_date, 0, today, budget, pages_used)
+      end
+    else
+      Emails.set_brevo_watermark(integration_uuid, date, offset)
+    end
+  end
+
+  # Deletes any stored watermark whose integration uuid isn't in this
+  # cycle's active set — the integration was deleted, or explicitly
+  # excluded from polling. See moduledoc "Stale watermark cleanup".
+  defp prune_stale_watermarks(active_integration_uuids) do
+    active = MapSet.new(active_integration_uuids)
+
+    Emails.list_brevo_watermark_integration_uuids()
+    |> Enum.reject(&MapSet.member?(active, &1))
+    |> Enum.each(fn stale_uuid ->
+      Emails.delete_brevo_watermark(stale_uuid)
+
+      Logger.info(
+        "Brevo Polling Job: pruned stale watermark for integration #{stale_uuid} " <>
+          "(deleted, or excluded from polling)"
+      )
+    end)
   end
 
   defp process_event(brevo_event) do
@@ -251,10 +495,7 @@ defmodule PhoenixKit.Modules.Emails.BrevoPollingJob do
     end
   end
 
-  defp yesterday,
-    do: UtilsDate.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_date() |> Date.to_iso8601()
-
-  defp today, do: UtilsDate.utc_now() |> DateTime.to_date() |> Date.to_iso8601()
+  defp today_date, do: UtilsDate.utc_now() |> DateTime.to_date()
 
   # Test seam: tests set `config :phoenix_kit_emails, :brevo_client_req_options,
   # plug: {Req.Test, SomeStubName}` to intercept BrevoClient's HTTP call

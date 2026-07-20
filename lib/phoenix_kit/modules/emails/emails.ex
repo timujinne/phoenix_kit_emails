@@ -1702,6 +1702,81 @@ defmodule PhoenixKit.Modules.Emails do
     )
   end
 
+  @brevo_watermark_prefix "brevo_watermark:"
+
+  @doc """
+  The stored Brevo poll watermark for one integration — how far
+  `BrevoPollingJob` has progressed through that integration's event
+  stream, as `%{date: Date.t(), offset: non_neg_integer()}`. `nil` if
+  this integration has never been polled under the watermark scheme yet
+  (cold start).
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.get_brevo_watermark("some-uuid")
+      %{date: ~D[2026-07-19], offset: 2500}
+  """
+  def get_brevo_watermark(integration_uuid) when is_binary(integration_uuid) do
+    case Settings.get_json_setting(@brevo_watermark_prefix <> integration_uuid, nil) do
+      %{"date" => date_str, "offset" => offset}
+      when is_binary(date_str) and is_integer(offset) and offset >= 0 ->
+        case Date.from_iso8601(date_str) do
+          {:ok, date} -> %{date: date, offset: offset}
+          {:error, _reason} -> nil
+        end
+
+      _other ->
+        nil
+    end
+  end
+
+  @doc """
+  Persists one integration's Brevo poll watermark.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.set_brevo_watermark("some-uuid", ~D[2026-07-19], 2500)
+      {:ok, %Setting{}}
+  """
+  def set_brevo_watermark(integration_uuid, %Date{} = date, offset)
+      when is_binary(integration_uuid) and is_integer(offset) and offset >= 0 do
+    Settings.update_json_setting_with_module(
+      @brevo_watermark_prefix <> integration_uuid,
+      %{"date" => Date.to_iso8601(date), "offset" => offset},
+      "email_system"
+    )
+  end
+
+  @doc """
+  Every integration uuid that currently has a stored Brevo watermark —
+  used by `BrevoPollingJob` to prune watermarks for integrations that
+  are no longer active (deleted, or opted out of polling), so those
+  settings rows don't accumulate forever.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.list_brevo_watermark_integration_uuids()
+      ["some-uuid"]
+  """
+  def list_brevo_watermark_integration_uuids do
+    @brevo_watermark_prefix
+    |> Settings.get_json_settings_by_prefix()
+    |> Enum.map(fn {key, _json} -> String.replace_prefix(key, @brevo_watermark_prefix, "") end)
+  end
+
+  @doc """
+  Deletes one integration's stored Brevo watermark, if any. A no-op
+  (still `{:ok, ...}`-shaped via the underlying delete) if none exists.
+
+  ## Examples
+
+      iex> PhoenixKit.Modules.Emails.delete_brevo_watermark("some-uuid")
+      {:ok, %Setting{}}
+  """
+  def delete_brevo_watermark(integration_uuid) when is_binary(integration_uuid) do
+    Settings.delete_setting(@brevo_watermark_prefix <> integration_uuid)
+  end
+
   @impl PhoenixKit.Module
   @doc """
   Gets the current email system configuration.
