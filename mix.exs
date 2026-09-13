@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.4.2"
+  @version "0.5.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do
@@ -77,7 +77,17 @@ defmodule PhoenixKitEmails.MixProject do
       # stranding every host on old core until this module cuts a coordinated
       # release. That is the same failure the old `~> 1.7.231` pin had against
       # core 2.0.0, which is what PR #29 was opened to fix.
-      {:phoenix_kit, "~> 2.0"},
+      # Floor raised to 2.21.3: that release renamed the website-wide
+      # Integrations page from `/admin/settings/integrations/website` to
+      # `/admin/settings/integrations`, which the Amazon SES section links to.
+      # Below it the link is wrong rather than merely missing — 2.19.0 moved
+      # the PERSONAL integrations page off `/admin/settings/integrations` to
+      # `/profile/settings/integrations`, so on core < 2.19.0 that path opens
+      # the per-user page instead, and on 2.19.0–2.21.2 it is unrouted.
+      # Spelled as an explicit range, not `~> 2.21.3`: a three-segment `~>`
+      # expands to `< 2.22.0` and would strand hosts the moment core ships
+      # 2.22, which is the upper-bound trap the note above warns about.
+      {:phoenix_kit, ">= 2.21.3 and < 3.0.0"},
       {:gettext, "~> 1.0"},
       {:phoenix_live_view, "~> 1.1"},
       {:oban, "~> 2.20"},

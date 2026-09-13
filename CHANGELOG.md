@@ -1,5 +1,70 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The two **Settings → Integrations** links in the Amazon SES / SQS settings
+  section pointed at `/admin/settings/integrations/website`, the path core
+  renamed to `/admin/settings/integrations` in 2.21.3. The old path does not
+  404: it still matches core's `/admin/settings/integrations/:uuid` edit route
+  with `uuid = "website"`, so `Repo.get/2` raises `Ecto.Query.CastError` and
+  LiveView turns it into a 400 reload response that loops.
+
+### Changed
+
+- The `phoenix_kit` floor is now `>= 2.21.3`, the release that renamed the
+  Integrations page those links point at. Below it the link resolves to the
+  personal integrations page (core < 2.19.0) or to nothing (2.19.0–2.21.2).
+
+## 0.5.0 - 2026-09-06
+
+### Added
+
+- **`mix phoenix_kit_emails.templates.export` — the upgrade path off the
+  templates table.** Message templates are moving out of
+  `phoenix_kit_email_templates` and into files a host owns in its own
+  repository, where they are version-controlled and reviewable rather than
+  edited through an admin UI. This task carries operator edits across:
+
+      mix phoenix_kit_emails.templates.export
+
+  Run it, review the diff, commit the files. Nothing is deleted and no row is
+  touched, so an export that turns out wrong costs nothing but the files.
+
+  It exports **only what an operator actually edited**. A system template still
+  byte-identical to what this package ships is skipped — core supplies those
+  itself now, translated into every shipped locale — so the diff you review
+  contains your changes and nothing else. On an install that never opened the
+  template editor, the task writes zero files.
+
+  Operator-authored templates (`is_system: false` — newsletter layouts, picked
+  per broadcast) are **not** exported. Those are authored at runtime by people
+  who cannot open a pull request, so they keep a table and an editor; they move
+  to `phoenix_kit_newsletters` rather than becoming files.
+
+  Options: `--dry-run` to preview, `--out DIR` to retarget, `--force` to
+  overwrite. Existing files are refused by default, so a re-run can never
+  silently replace an override a human wrote.
+
+- `Templates.default_system_templates/0` returns the shipped templates without
+  writing them, which is how the export tells an untouched seed from an edit.
+
+- `PhoenixKit.Modules.Emails.TemplateExport` — the classification and file
+  layout as data, so the decisions are testable independently of Mix.
+
+### Deprecated
+
+- **The email templates table is on its way out.** Nothing changes yet: the
+  database layer still wins at send time, and every customized template keeps
+  working exactly as it does today. But a later release drops
+  `phoenix_kit_email_templates`, and **edits that have not been exported to
+  files will be lost at that point.** If you have customized any email
+  template, run the export task and commit the result before upgrading past
+  this release.
+
+  Hosts that never customized a template need do nothing.
+
 ## 0.4.2 - 2026-08-18
 
 ### Fixed

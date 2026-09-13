@@ -21,6 +21,49 @@ Email tracking, analytics, and AWS SES integration for [PhoenixKit](https://gith
 - **Admin dashboard** — LiveView pages for logs, metrics, templates, queue, blocklist, and settings
 - **Auto-discovery** — implements `PhoenixKit.Module` behaviour; PhoenixKit finds it at startup with zero config
 
+## ⚠️ Email templates are moving to files
+
+Message templates are moving out of `phoenix_kit_email_templates` and into
+files a host owns in its own repository — version-controlled and reviewable,
+rather than edited through an admin UI and invisible to code review. Core reads
+them through `phoenix_kit_templates`.
+
+**Nothing has changed yet.** The database layer still wins at send time and
+every customized template works exactly as it does today. But a later release
+drops the table, and **edits that have not been exported will be lost then**.
+
+If you have customized any email template:
+
+```bash
+mix phoenix_kit_emails.templates.export   # --dry-run to preview first
+```
+
+Review the diff and commit the files. Nothing is deleted and no row is touched,
+so an export that turns out wrong costs nothing but the files.
+
+The task exports **only what you actually edited**. A template still identical
+to what this package ships is skipped, because core supplies those itself now,
+translated into every shipped locale. On an install that never opened the
+template editor it writes nothing at all, and you can stop reading here.
+
+Newsletter layouts (`is_system: false`, picked per broadcast) are not affected
+— those are authored at runtime by people who cannot open a pull request, so
+they keep a table and an editor.
+
+### What the files look like
+
+The template name becomes a directory; each part is a file, and any locale that
+is not the fallback carries its code:
+
+```
+priv/phoenix_kit_templates/
+└── register/
+    ├── subject.txt        # the fallback locale — what everyone falls through to
+    ├── subject.uk.txt
+    ├── text.txt
+    └── html.html
+```
+
 ## Installation
 
 Add `phoenix_kit_emails` to your dependencies in `mix.exs`:
