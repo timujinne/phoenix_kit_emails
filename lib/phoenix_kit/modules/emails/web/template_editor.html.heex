@@ -197,12 +197,14 @@
                 <fieldset class="fieldset">
                   <legend class="fieldset-legend">{gettext("Status")}</legend>
                   <% status_err = @changeset.action && Keyword.get(@changeset.errors, :status) %>
+                  <% status_locked = (@mode == :edit and @template) && @template.is_system %>
                   <label class="select w-full">
                     <select
                       aria-label={gettext("Status")}
                       aria-invalid={status_err && "true"}
                       aria-describedby={status_err && "template-status-error"}
                       name="email_template[status]"
+                      disabled={status_locked}
                     >
                       <option
                         value="draft"
@@ -227,6 +229,13 @@
                   <%= if status_err do %>
                     <p id="template-status-error" class="text-sm text-error mt-1">
                       {elem(status_err, 0)}
+                    </p>
+                  <% end %>
+                  <%= if status_locked do %>
+                    <p class="fieldset-label">
+                      {gettext(
+                        "Use Archive/Activate on the Templates list to change a system template's status — it shows what changes first."
+                      )}
                     </p>
                   <% end %>
                 </fieldset>

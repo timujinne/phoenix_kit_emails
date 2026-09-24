@@ -155,29 +155,32 @@
                 >
                   <.icon name="hero-document-duplicate" class="w-3 h-3" />
                 </button>
-                <%!-- Archive / Activate (non-system only) --%>
-                <%= unless template.is_system do %>
-                  <%= if template.status == "active" do %>
-                    <button
-                      phx-click="archive_template"
-                      phx-value-uuid={template.uuid}
-                      class="btn btn-xs btn-outline tooltip tooltip-bottom"
-                      data-tip={gettext("Archive Template")}
-                    >
-                      <.icon name="hero-archive-box" class="w-3 h-3" />
-                    </button>
-                  <% else %>
-                    <button
-                      phx-click="activate_template"
-                      phx-value-uuid={template.uuid}
-                      class="btn btn-xs btn-outline btn-success tooltip tooltip-bottom"
-                      data-tip={gettext("Activate Template")}
-                    >
-                      <.icon name="hero-check-circle" class="w-3 h-3" />
-                    </button>
-                  <% end %>
-                  <%!-- Delete --%>
+                <%!-- Archive / Activate (all templates; system rows get a confirm step) --%>
+                <%= if template.status == "active" do %>
                   <button
+                    id={"archive-template-card-#{template.uuid}"}
+                    phx-click="request_archive"
+                    phx-value-uuid={template.uuid}
+                    class="btn btn-xs btn-outline tooltip tooltip-bottom"
+                    data-tip={gettext("Archive Template")}
+                  >
+                    <.icon name="hero-archive-box" class="w-3 h-3" />
+                  </button>
+                <% else %>
+                  <button
+                    id={"activate-template-card-#{template.uuid}"}
+                    phx-click="request_activate"
+                    phx-value-uuid={template.uuid}
+                    class="btn btn-xs btn-outline btn-success tooltip tooltip-bottom"
+                    data-tip={gettext("Activate Template")}
+                  >
+                    <.icon name="hero-check-circle" class="w-3 h-3" />
+                  </button>
+                <% end %>
+                <%!-- Delete (non-system only) --%>
+                <%= unless template.is_system do %>
+                  <button
+                    id={"delete-template-card-#{template.uuid}"}
                     phx-click="request_delete"
                     phx-value-uuid={template.uuid}
                     phx-value-name={template.name}
@@ -486,32 +489,35 @@
                         <span class="sm:hidden whitespace-nowrap">{gettext("Clone")}</span>
                       </button>
 
-                      <%!-- Archive/Activate Button (not for system templates) --%>
-                      <%= unless template.is_system do %>
-                        <%= if template.status == "active" do %>
-                          <button
-                            phx-click="archive_template"
-                            phx-value-uuid={template.uuid}
-                            class="btn btn-xs btn-outline tooltip tooltip-bottom"
-                            data-tip={gettext("Archive Template")}
-                          >
-                            <.icon name="hero-archive-box" class="w-3 h-3 hidden sm:inline" />
-                            <span class="sm:hidden whitespace-nowrap">{gettext("Archive")}</span>
-                          </button>
-                        <% else %>
-                          <button
-                            phx-click="activate_template"
-                            phx-value-uuid={template.uuid}
-                            class="btn btn-xs btn-outline btn-success tooltip tooltip-bottom"
-                            data-tip={gettext("Activate Template")}
-                          >
-                            <.icon name="hero-check-circle" class="w-3 h-3 hidden sm:inline" />
-                            <span class="sm:hidden whitespace-nowrap">{gettext("Activate")}</span>
-                          </button>
-                        <% end %>
-
-                        <%!-- Delete Button --%>
+                      <%!-- Archive/Activate Button (all templates; system rows get a confirm step) --%>
+                      <%= if template.status == "active" do %>
                         <button
+                          id={"archive-template-#{template.uuid}"}
+                          phx-click="request_archive"
+                          phx-value-uuid={template.uuid}
+                          class="btn btn-xs btn-outline tooltip tooltip-bottom"
+                          data-tip={gettext("Archive Template")}
+                        >
+                          <.icon name="hero-archive-box" class="w-3 h-3 hidden sm:inline" />
+                          <span class="sm:hidden whitespace-nowrap">{gettext("Archive")}</span>
+                        </button>
+                      <% else %>
+                        <button
+                          id={"activate-template-#{template.uuid}"}
+                          phx-click="request_activate"
+                          phx-value-uuid={template.uuid}
+                          class="btn btn-xs btn-outline btn-success tooltip tooltip-bottom"
+                          data-tip={gettext("Activate Template")}
+                        >
+                          <.icon name="hero-check-circle" class="w-3 h-3 hidden sm:inline" />
+                          <span class="sm:hidden whitespace-nowrap">{gettext("Activate")}</span>
+                        </button>
+                      <% end %>
+
+                      <%!-- Delete Button (non-system only) --%>
+                      <%= unless template.is_system do %>
+                        <button
+                          id={"delete-template-#{template.uuid}"}
                           phx-click="request_delete"
                           phx-value-uuid={template.uuid}
                           phx-value-name={template.name}
@@ -639,16 +645,22 @@
 
     <%!-- Confirmation Modal --%>
     <%= if assigns[:confirmation_modal] && @confirmation_modal.show do %>
-      <div class="modal modal-open">
+      <div id="template-confirm-modal" class="modal modal-open">
         <div class="modal-box">
           <h3 class="font-bold text-lg">{@confirmation_modal.title}</h3>
-          <p class="py-4">{@confirmation_modal.message}</p>
+          <p id="template-confirm-modal-message" class="py-4">{@confirmation_modal.message}</p>
           <div class="modal-action">
             <button class="btn btn-ghost" phx-click="cancel_confirmation">
               {gettext("Cancel")}
             </button>
             <button
-              class="btn btn-error"
+              class={[
+                "btn",
+                if(@confirmation_modal.action == "activate_template",
+                  do: "btn-primary",
+                  else: "btn-error"
+                )
+              ]}
               phx-click="confirm_action"
               phx-value-action={@confirmation_modal.action}
               phx-value-uuid={@confirmation_modal.uuid}

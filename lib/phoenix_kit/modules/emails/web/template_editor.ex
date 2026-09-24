@@ -221,7 +221,10 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
           create_template(socket, template_params_final)
 
         :edit ->
-          update_template(socket, template_params_final)
+          update_template(
+            socket,
+            protect_system_status(socket.assigns.template, template_params_final)
+          )
       end
     rescue
       e ->
@@ -425,6 +428,18 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
   end
 
   ## --- Private Helper Functions ---
+
+  # A system template's status changes only through the Templates list
+  # page's Archive/Activate confirmation flow, which warns what archiving
+  # does — this editor's Status select has no such warning, so for a system
+  # row it must not be able to change status at all. Enforced server-side,
+  # not just by disabling the select in the template: a crafted "save" event
+  # could otherwise still submit it.
+  defp protect_system_status(%Template{is_system: true}, template_params) do
+    Map.delete(template_params, "status")
+  end
+
+  defp protect_system_status(_template, template_params), do: template_params
 
   defp create_template(socket, template_params) do
     case Templates.create_template(template_params) do

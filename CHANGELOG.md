@@ -1,8 +1,43 @@
 # Changelog
 
-## Unreleased
+## 0.5.1 - 2026-09-24
+
+### Added
+
+- **System templates can be archived and reactivated from the Templates
+  list** (PR #40). Both go through a confirmation modal that says what the
+  email falls back to (a file override or the sending module's built-in
+  text; for `test_email`, the built-in HTML template). Delete stays blocked
+  for system rows. The template editor locks a system row's Status select,
+  enforced server-side too.
+- Archive, activate and clone failures now flash the actual changeset reason
+  instead of a generic message.
+
+### Changed
+
+- **Reserved template names.** `Template.reserved_names/0` lists the 13 names
+  core and `phoenix_kit_billing` resolve by exact string. A non-system
+  template can no longer be created, cloned or renamed into one of them — such
+  a row silently overrode the real email while being deletable and unmarked.
+  For the four names this package does not seed (`organization_invitation`,
+  `magic_link_registration`, `new_login_alert`, `failed_login_alert`) this
+  means no database override at all; customise them with a host override file
+  under `priv/phoenix_kit_templates/<name>/` instead. Existing rows under a
+  reserved name are left alone and can still be edited, archived or renamed.
+- `Template.changeset/2` no longer casts `:is_system` from attrs — a crafted
+  LiveView event could otherwise create or promote a protected system row.
+  Only `seed_system_templates/0` sets it, via the new `Template.changeset/3`.
+- The clone modal flags a reserved name inline while typing.
+- The `phoenix_kit` floor is now `>= 2.21.3`, the release that renamed the
+  Integrations page the SES / SQS settings links point at. Below it the link
+  resolves to the personal integrations page (core < 2.19.0) or to nothing
+  (2.19.0–2.21.2).
 
 ### Fixed
+
+- Cloning a template from the admin UI always failed: the display name typed
+  into the modal was merged back over its own i18n map, failing the `:map`
+  cast.
 
 - The two **Settings → Integrations** links in the Amazon SES / SQS settings
   section pointed at `/admin/settings/integrations/website`, the path core
@@ -10,12 +45,6 @@
   404: it still matches core's `/admin/settings/integrations/:uuid` edit route
   with `uuid = "website"`, so `Repo.get/2` raises `Ecto.Query.CastError` and
   LiveView turns it into a 400 reload response that loops.
-
-### Changed
-
-- The `phoenix_kit` floor is now `>= 2.21.3`, the release that renamed the
-  Integrations page those links point at. Below it the link resolves to the
-  personal integrations page (core < 2.19.0) or to nothing (2.19.0–2.21.2).
 
 ## 0.5.0 - 2026-09-06
 

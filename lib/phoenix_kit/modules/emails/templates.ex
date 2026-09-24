@@ -182,6 +182,11 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   @doc """
   Creates a new email template.
 
+  Always creates a non-system (`is_system: false`) row — `attrs` is treated as
+  untrusted (it flows here directly from the admin UI), and
+  `Template.changeset/2` never casts `:is_system` from it for exactly that
+  reason. To create a protected system row, see `seed_system_templates/0`.
+
   ## Examples
 
       iex> Templates.create_template(%{name: "welcome", subject: "Welcome!", ...})
@@ -194,6 +199,21 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   def create_template(attrs \\ %{}) do
     %Template{}
     |> Template.changeset(attrs)
+    |> insert_template()
+  end
+
+  # Only call with attrs this module itself controls (currently just
+  # `default_system_templates/0` via `seed_system_templates/0`) — `is_system:
+  # true` here is a literal passed by this function, never read out of
+  # `attrs`, so it can't be forged through create_template/1's untrusted path.
+  defp create_system_template(attrs) do
+    %Template{}
+    |> Template.changeset(attrs, true)
+    |> insert_template()
+  end
+
+  defp insert_template(changeset) do
+    changeset
     |> repo().insert()
     |> case do
       {:ok, template} ->
@@ -340,11 +360,15 @@ defmodule PhoenixKit.Modules.Emails.Templates do
       status: "draft",
       variables: template.variables,
       metadata: Map.merge(template.metadata, %{"cloned_from" => template.uuid}),
-      is_system: false,
       created_by_user_uuid: attrs[:created_by_user_uuid]
     }
 
-    final_attrs = Map.merge(base_attrs, attrs)
+    # create_template/1 never sets is_system regardless of what attrs
+    # contains (see Template.changeset/2) — a clone is always non-system.
+    # :display_name is dropped from the merge: base_attrs already wrapped the
+    # caller's plain string into an i18n map, and merging the raw string back
+    # over it fails the :map cast (which broke every clone from the UI).
+    final_attrs = Map.merge(base_attrs, Map.delete(attrs, :display_name))
     create_template(final_attrs)
   end
 
@@ -798,7 +822,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
       Enum.map(default_system_templates(), fn template_attrs ->
         case get_template_by_name(template_attrs.name) do
           nil ->
-            create_template(template_attrs)
+            create_system_template(template_attrs)
 
           existing_template ->
             {:ok, existing_template}

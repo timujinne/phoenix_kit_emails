@@ -111,6 +111,32 @@ defmodule PhoenixKit.Modules.Emails.Template do
     "company_name"
   ]
 
+  # Template names that `PhoenixKit.Email.Content.resolve/5` looks up by exact
+  # string at its layer 1 (an active DB row wins over the file override and the
+  # gettext-embedded default). Source of truth is core's `user_notifier.ex` /
+  # `mailer.ex` and `phoenix_kit_billing`'s call sites — not this package's own
+  # seed list — since that's how the un-seeded four below were found.
+  @reserved_names [
+    # Seeded by this package's default_system_templates/0 — already have a
+    # unique-constrained DB row on every install that ran the seed.
+    "magic_link",
+    "register",
+    "reset_password",
+    "update_email",
+    "test_email",
+    "billing_invoice",
+    "billing_receipt",
+    "billing_credit_note",
+    "billing_payment_confirmation",
+    # Called by core's user_notifier.ex but NOT seeded by this package — no DB
+    # row exists on a fresh install, so a non-system template created through
+    # the ordinary "New Template" form can hijack one of these today.
+    "organization_invitation",
+    "magic_link_registration",
+    "new_login_alert",
+    "failed_login_alert"
+  ]
+
   @primary_key {:uuid, UUIDv7, autogenerate: true}
 
   schema "phoenix_kit_email_templates" do
@@ -149,6 +175,18 @@ defmodule PhoenixKit.Modules.Emails.Template do
   Returns the list of common template variables.
   """
   def common_variables, do: @common_variables
+
+  @doc """
+  Returns the list of template names reserved for system emails.
+
+  A non-system row (`is_system: false`) claiming one of these names would win
+  at `PhoenixKit.Email.Content.resolve/5`'s layer 1 with none of the
+  protections a seeded `is_system: true` row gets: it is not delete-protected
+  and not flagged as a system template in the UI, yet it silently overrides
+  the real email's content. The changeset rejects creating or renaming a
+  non-system template into one of these names.
+  """
+  def reserved_names, do: @reserved_names
 
   @doc """
   Extracts a translated string from a JSON language map field.
@@ -245,6 +283,15 @@ defmodule PhoenixKit.Modules.Emails.Template do
 
   - `template` - The email template struct (new or existing)
   - `attrs` - Map of attributes to change
+  - `is_system` - Whether to (re)declare the row as a protected system
+    template. **Not** read from `attrs` — `:is_system` is never cast from
+    caller-supplied params, since `attrs` on the create/update paths used by
+    the admin UI is untrusted client input (a crafted LiveView event can
+    contain any key, not just what the rendered form submits). Pass `true`
+    only from a call site that itself decides a row is a system template
+    (currently only `Templates.seed_system_templates/0`); leave the default
+    `nil` everywhere else, which keeps the existing/new struct's current
+    value unchanged.
 
   ## Required Fields
 
@@ -264,7 +311,7 @@ defmodule PhoenixKit.Modules.Emails.Template do
   - Subject and body fields cannot be empty
   - Variables must be a valid map
   """
-  def changeset(template, attrs) do
+  def changeset(template, attrs, is_system \\ nil) do
     template
     |> cast(attrs, [
       :name,
@@ -278,10 +325,10 @@ defmodule PhoenixKit.Modules.Emails.Template do
       :status,
       :variables,
       :metadata,
-      :is_system,
       :created_by_user_uuid,
       :updated_by_user_uuid
     ])
+    |> put_is_system(is_system)
     |> auto_generate_slug()
     |> validate_required([
       :name,
@@ -311,6 +358,7 @@ defmodule PhoenixKit.Modules.Emails.Template do
     |> unique_constraint(:name)
     |> unique_constraint(:slug)
     |> validate_template_variables()
+    |> validate_reserved_name()
   end
 
   @doc """
@@ -509,6 +557,45 @@ defmodule PhoenixKit.Modules.Emails.Template do
       _ ->
         add_error(changeset, :variables, "must be a valid map")
     end
+  end
+
+  # Blocks a non-system row from claiming a reserved name — creation via the
+  # "New Template" form (never sends is_system, defaults false),
+  # Templates.clone_template/3 (forces is_system: false), and renaming an
+  # existing non-system template into a reserved name. Gating on
+  # `is_system != true` (rather than "name already exists") still allows
+  # Templates.seed_system_templates/0 to create/reseed these rows and allows
+  # editing an existing system row, since its persisted is_system: true
+  # carries through get_field/2 even when attrs omits the key.
+  #
+  # Only fires when :name or :is_system is actually part of this change.
+  # Without that guard, a row that already exists with a reserved name (e.g.
+  # a hijack created before this validation shipped) could never be archived,
+  # edited or otherwise remediated again — every unrelated update (status,
+  # subject, ...) would also re-run this check against the untouched name and
+  # fail, since it wasn't gated on what changed.
+  defp validate_reserved_name(changeset) do
+    if changed?(changeset, :name) or changed?(changeset, :is_system) do
+      name = get_field(changeset, :name)
+      is_system = get_field(changeset, :is_system)
+
+      if name in @reserved_names and is_system != true do
+        add_error(changeset, :name, "is reserved for a system email")
+      else
+        changeset
+      end
+    else
+      changeset
+    end
+  end
+
+  # `is_system` is never cast from `attrs` (see `changeset/2` doc) — this is
+  # the only way it can change, and only a call site that passes a literal
+  # boolean can invoke it.
+  defp put_is_system(changeset, nil), do: changeset
+
+  defp put_is_system(changeset, is_system) when is_boolean(is_system) do
+    put_change(changeset, :is_system, is_system)
   end
 
   # Substitute variables in a string
