@@ -12,14 +12,17 @@ defmodule PhoenixKitEmails.CorePinConformanceTest do
   outright, with no degraded mode. Nothing else in this repo's own test run
   would notice, which is why the check is a test rather than a convention.
 
-  Core 1.7 is deliberately excluded: core 2.0.0 squashed the migration chain to
-  a V135 floor and this module is verified only against that baseline.
+  The lower bound is a deliberate floor (core 2.21.3 renamed the Integrations
+  page this module links to), so "every core 2.x" means every 2.x from that
+  floor up. Raising the floor again means updating `@floor` below in the same
+  commit; what this guards is that the upper end stays open across minors.
   """
 
-  @must_admit ["2.0.0", "2.0.7", "2.1.0", "2.9.4"]
-  @must_reject ["1.7.189", "1.7.236", "1.9.4", "3.0.0"]
+  @floor "2.21.3"
+  @must_admit [@floor, "2.21.9", "2.22.0", "2.42.1", "2.99.0"]
+  @must_reject ["1.7.189", "1.9.4", "2.0.0", "2.21.2", "3.0.0"]
 
-  test "the :phoenix_kit requirement admits every core 2.x and nothing else" do
+  test "the :phoenix_kit requirement admits every core 2.x from the floor and nothing else" do
     requirement = core_requirement()
 
     assert match?({:ok, _parsed}, Version.parse_requirement(requirement)),
@@ -29,7 +32,7 @@ defmodule PhoenixKitEmails.CorePinConformanceTest do
       assert Version.match?(version, requirement),
              "`:phoenix_kit` requirement #{inspect(requirement)} rejects core #{version}. " <>
                "A pin that excludes a core minor breaks `mix deps.get` for every host " <>
-               "running this module alongside that core. Keep it a two-segment `~> 2.0`."
+               "running this module alongside that core. Keep the upper end open across minors (no `~> 2.N.x`)."
     end
 
     for version <- @must_reject do

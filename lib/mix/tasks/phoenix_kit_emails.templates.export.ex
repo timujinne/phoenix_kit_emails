@@ -27,6 +27,19 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
   `PhoenixKit.Modules.Emails.TemplateExport` decides all of this and documents
   why, including the locale rule that governs the filenames.
 
+  ## Raw-HTML variables
+
+  A variable whose value is already-rendered HTML — so far only
+  `line_items_html`, billing's ready-rendered line-items table — needs
+  different handling than plain text. From `phoenix_kit_templates` 0.2.0
+  onward the `html` part escapes `{{var}}` values, so a variable like that
+  must be written as `{{{var}}}` (triple braces) instead. This task rewrites
+  such names automatically when the loaded `phoenix_kit_templates` is 0.2.0
+  or newer, and prints which files it touched. On an older
+  `phoenix_kit_templates`, the file is written unchanged and a warning
+  explains it needs that manual edit once core is upgraded to `>= 2.40` (see
+  `PhoenixKit.Modules.Emails.TemplateExport`).
+
   ## Options
 
     * `--dry-run` — report what would be written, write nothing.
@@ -121,6 +134,22 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
       end
     end
 
+    outcome_by_path = Map.new(written)
+
+    for notice <- plan.notices do
+      outcome = Map.get(outcome_by_path, notice.path)
+      reconciled = reconcile(notice, outcome, plan.raw_html_supported)
+
+      if reconciled do
+        {level, message} = TemplateExport.notice_message(reconciled, outcome)
+
+        case level do
+          :warning -> shell.info([:yellow, "  warn   ", :reset, message])
+          :info -> shell.info([:cyan, "  note   ", :reset, message])
+        end
+      end
+    end
+
     note(shell, plan.untouched, "untouched system template(s)", [
       "core supplies these itself now, translated into every shipped locale"
     ])
@@ -130,6 +159,18 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
       "they move to phoenix_kit_newsletters"
     ])
   end
+
+  # A skipped file was left untouched this run, so the notice `plan/3` built
+  # from the *database* content describes what this run would have written,
+  # not the file it actually left alone. Reconciling against the real file
+  # is what keeps a second run without `--force` from repeating a warning
+  # about something a previous run — or an operator's own edit — already
+  # fixed.
+  defp reconcile(notice, :skipped, raw_html_supported?) do
+    TemplateExport.reconcile_skipped_notice(notice, raw_html_supported?)
+  end
+
+  defp reconcile(notice, _outcome, _raw_html_supported?), do: notice
 
   defp note(_shell, [], _label, _why), do: :ok
 

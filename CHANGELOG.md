@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.2 - 2026-10-01
+
+### Added
+
+- **Template export writes raw-HTML variables as `{{{var}}}`** (PR #41).
+  `phoenix_kit_templates` 0.2.0 escapes `{{var}}` in the `html` part, so
+  billing's pre-rendered `line_items_html` would render as visible markup in an
+  exported override file. `mix phoenix_kit_emails.templates.export` now
+  rewrites the names on the new `Template.raw_html_variables/0` list to triple
+  braces when the loaded `phoenix_kit_templates` is >= 0.2.0, and reports each
+  file it touched. On an older `phoenix_kit_templates` the file is written
+  unchanged with a warning to make the edit once core is upgraded to >= 2.40.
+  Skipped (already existing) files are re-checked against what is on disk, so a
+  re-run does not repeat a warning that no longer applies. Unrecognised
+  `{{..._html}}` placeholders are flagged rather than silently passed.
+
+### Fixed
+
+- `core_pin_conformance_test` required the `:phoenix_kit` pin to admit core
+  2.0.x/2.1, contradicting the deliberate `>= 2.21.3` floor; it now guards the
+  floor and an open upper end.
+
 ## 0.5.1 - 2026-09-24
 
 ### Added

@@ -63,6 +63,12 @@ defmodule PhoenixKit.Modules.Emails.TemplateTest do
     end
   end
 
+  describe "raw_html_variables/0" do
+    test "lists line_items_html and nothing else" do
+      assert Template.raw_html_variables() == ["line_items_html"]
+    end
+  end
+
   describe "changeset/2 reserved name validation" do
     test "rejects each unseeded reserved name when is_system is absent" do
       for name <- @unseeded_reserved_names do
