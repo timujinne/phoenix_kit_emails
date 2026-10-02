@@ -33,6 +33,17 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   drop the operator's customization for every non-English recipient — the exact
   opposite of the point of exporting it.
 
+  ## The `html` part: document or body
+
+  A seeded row's `html_body` is a whole document with its own header and
+  footer. Core wraps every email built from a file in a shared layout
+  (`PhoenixKit.Email.Layout`) and never wraps a document, so a document exported verbatim keeps the
+  old chrome for good. `plan/3` takes `html: :body` to write just the body
+  fragment instead — `PhoenixKit.Modules.Emails.TemplateExport.Body` does the
+  cutting, and explains what of the header and footer survives and why. The
+  mix task defaults to `:body` where core has the layout, `:document` where it
+  does not (`default_html_mode/0`).
+
   ## Raw-HTML variables in the `html` part
 
   `phoenix_kit_templates` from 0.2.0 onward escapes `{{var}}` values in an
@@ -53,6 +64,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   """
 
   alias PhoenixKit.Modules.Emails.Template
+  alias PhoenixKit.Modules.Emails.TemplateExport.Body
 
   @default_out "priv/phoenix_kit_templates"
   @raw_html_min_version "0.2.0"
@@ -88,8 +100,16 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
           authored: [Template.t()],
           files: [{Path.t(), String.t()}],
           notices: [notice()],
-          raw_html_supported: boolean()
+          raw_html_supported: boolean(),
+          html: html_mode()
         }
+
+  @typedoc """
+  What an `html` part is written as: `:document` keeps the stored full HTML
+  document as it is, `:body` writes only its body fragment (see
+  `PhoenixKit.Modules.Emails.TemplateExport.Body`).
+  """
+  @type html_mode :: :document | :body
 
   @typedoc """
   One file's worth of raw-HTML-variable news, still missing the file's actual
@@ -108,7 +128,16 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   """
   @type notice :: %{
           path: Path.t(),
-          kind: :rewritten | :needs_manual_rewrite | :unknown_placeholder | :could_not_verify,
+          kind:
+            :rewritten
+            | :needs_manual_rewrite
+            | :unknown_placeholder
+            | :could_not_verify
+            | :body_fallback
+            | :chrome_dropped
+            | :injected_styles
+            | :style_placeholder
+            | :document_on_disk,
           names: [String.t()],
           raw_html_supported: boolean()
         }
@@ -120,6 +149,9 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   Options:
 
     * `:out` — the target directory (default `#{@default_out}`).
+    * `:html` — `:document` (default) writes each `html` part as stored;
+      `:body` writes only its body fragment, for core's layout to wrap. See
+      `default_html_mode/0` for what the mix task picks when not told.
     * `:raw_html_supported` — whether the `html` part may use `{{{var}}}` for
       a raw-HTML variable (see `rewrite_raw_html/3`). Defaults to detecting
       the loaded `phoenix_kit_templates` version; pass it explicitly to pin
@@ -135,6 +167,8 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
     raw_html_supported? =
       !!Keyword.get_lazy(opts, :raw_html_supported, &default_raw_html_support?/0)
 
+    html_mode = Keyword.get(opts, :html, :document)
+
     by_name = Map.new(shipped, &{&1.name, &1})
 
     {system, authored} = Enum.split_with(templates, & &1.is_system)
@@ -143,7 +177,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
     {files, notices} =
       edited
       |> Enum.flat_map(&files_for(&1, out))
-      |> Enum.map_reduce([], &rewrite_html_file(&1, &2, raw_html_supported?))
+      |> Enum.map_reduce([], &export_html_file(&1, &2, raw_html_supported?, html_mode))
 
     %{
       edited: edited,
@@ -151,8 +185,44 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
       authored: authored,
       files: files,
       notices: notices,
-      raw_html_supported: raw_html_supported?
+      raw_html_supported: raw_html_supported?,
+      html: html_mode
     }
+  end
+
+  @doc """
+  A `:document_on_disk` notice for `path`, when it is an existing `.html` file
+  holding a whole document and `html_mode` is `:body` — the case of a file
+  `write_files/2` refused to overwrite: core will not wrap it in its layout, so
+  an export that was meant to adopt the layout silently did not. `nil` when
+  there is nothing to say, or the file cannot be read.
+  """
+  @spec existing_document_notice(Path.t(), html_mode(), boolean()) :: notice() | nil
+  def existing_document_notice(path, :body, raw_html_supported?) do
+    with true <- String.ends_with?(path, ".html"),
+         {:ok, on_disk} <- File.read(path),
+         true <- Body.document?(on_disk) do
+      %{path: path, kind: :document_on_disk, names: [], raw_html_supported: raw_html_supported?}
+    else
+      _ -> nil
+    end
+  end
+
+  def existing_document_notice(_path, _html_mode, _raw_html_supported?), do: nil
+
+  @doc """
+  The `:html` mode the mix task uses when it is not told one: `:body` when the
+  loaded core has `PhoenixKit.Email.Layout` to wrap a fragment, `:document`
+  otherwise.
+
+  A bare fragment on a core without the layout would be sent as it is — no
+  `<html>`, no chrome — so on such a core the stored document is the only safe
+  thing to write. Core never wraps a whole document, so a `:document` file
+  keeps working after the upgrade too; it just keeps its old chrome.
+  """
+  @spec default_html_mode() :: html_mode()
+  def default_html_mode do
+    if Code.ensure_loaded?(PhoenixKit.Email.Layout), do: :body, else: :document
   end
 
   @doc """
@@ -424,6 +494,45 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
        "raw_html_variables/0 can be updated"}
   end
 
+  def notice_message(%{path: path, kind: :body_fallback, names: [reason | _]}, outcome) do
+    verb = if outcome == :written, do: "kept", else: "would keep"
+
+    {:warning,
+     "#{path}: could not cut the body out of this template (#{reason}) — #{verb} everything " <>
+       "inside <body>, its own header and footer included. Trim it by hand so the layout does " <>
+       "not double them"}
+  end
+
+  def notice_message(%{path: path, kind: :chrome_dropped, names: names}, outcome) do
+    verb = if outcome == :written, do: "removed", else: "would remove"
+
+    {:info,
+     "#{path}: #{verb} as decoration — #{Enum.join(names, " | ")}. If that text should still " <>
+       "reach the reader, put it in your own `_layout`"}
+  end
+
+  def notice_message(%{path: path, kind: :style_placeholder, names: names}, outcome) do
+    verb = if outcome == :written, do: "is", else: "would be"
+
+    {:warning,
+     "#{path}: the removed <style> used #{as_double(names)}, which has no element to carry " <>
+       "it — it #{verb} gone from the output"}
+  end
+
+  def notice_message(%{path: path, kind: :document_on_disk}, _outcome) do
+    {:warning,
+     "#{path}: the existing file is a whole HTML document, which core does not wrap in its " <>
+       "layout — this email keeps the chrome written in it. Reduce it to its body by hand, or " <>
+       "re-export with --force"}
+  end
+
+  def notice_message(%{path: path, kind: :injected_styles, names: names}, _outcome) do
+    {:warning,
+     "#{path}: #{as_triple(names)} inserts markup that was styled by classes from the old " <>
+       "<style> (cell padding, borders, .item-name, .text-right), which is gone — it renders " <>
+       "unstyled until the module producing it styles its own rows"}
+  end
+
   def notice_message(%{path: path, kind: :could_not_verify}, _outcome) do
     {:warning, "could not read #{path} to check whether it still needs a raw-HTML fix"}
   end
@@ -455,6 +564,16 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   function never actually confirmed.
   """
   @spec reconcile_skipped_notice(notice(), boolean()) :: notice() | nil
+  # Body notices describe what this run would have cut out of the stored row —
+  # nothing about a file left alone, which is not this run's to report on.
+  def reconcile_skipped_notice(%{kind: kind}, _raw_html_supported?)
+      when kind in [:body_fallback, :chrome_dropped, :injected_styles, :style_placeholder],
+      do: nil
+
+  # Read off the file on disk to begin with, so there is nothing to re-derive.
+  def reconcile_skipped_notice(%{kind: :document_on_disk} = notice, _raw_html_supported?),
+    do: notice
+
   def reconcile_skipped_notice(%{path: path, kind: kind} = notice, raw_html_supported?) do
     case File.read(path) do
       {:ok, on_disk} ->
@@ -469,13 +588,45 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   defp as_double(names), do: Enum.map_join(names, ", ", &"{{#{&1}}}")
   defp as_triple(names), do: Enum.map_join(names, ", ", &"{{{#{&1}}}}")
 
-  defp rewrite_html_file({path, content}, notices, raw_html_supported?) do
+  # The body is cut out first, so the raw-HTML rewrite and its notices see
+  # exactly the content that will be written.
+  defp export_html_file({path, content}, notices, raw_html_supported?, html_mode) do
     if String.ends_with?(path, ".html") do
+      {content, body_notices} = to_html_part(content, path, raw_html_supported?, html_mode)
+
       {new_content, file_notices} = rewrite_raw_html(content, path, raw_html_supported?)
-      {{path, new_content}, notices ++ file_notices}
+      {{path, new_content}, notices ++ body_notices ++ file_notices}
     else
       {{path, content}, notices}
     end
+  end
+
+  defp to_html_part(content, _path, _raw_html_supported?, :document), do: {content, []}
+
+  defp to_html_part(content, path, raw_html_supported?, :body) do
+    {fragment, notes} = Body.extract(content)
+
+    # A row that was already a fragment brought its own styling with it.
+    notes = if Body.document?(content), do: notes ++ injected_styles_notes(fragment), else: notes
+
+    notices =
+      Enum.map(notes, fn {kind, names} ->
+        %{path: path, kind: kind, names: names, raw_html_supported: raw_html_supported?}
+      end)
+
+    {fragment, notices}
+  end
+
+  # A raw-HTML variable's value is markup built elsewhere, and it styles itself
+  # with classes whose rules lived in the `<style>` the cut removed.
+  defp injected_styles_notes(fragment) do
+    names =
+      Template.raw_html_variables()
+      |> Enum.filter(fn name ->
+        Regex.match?(~r/\{\{\{?\s*#{Regex.escape(name)}\s*\}?\}\}/, fragment)
+      end)
+
+    if names == [], do: [], else: [{:injected_styles, names}]
   end
 
   @doc false

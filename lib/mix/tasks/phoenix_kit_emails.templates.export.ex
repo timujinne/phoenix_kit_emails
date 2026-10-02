@@ -40,12 +40,30 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
   explains it needs that manual edit once core is upgraded to `>= 2.40` (see
   `PhoenixKit.Modules.Emails.TemplateExport`).
 
+  ## Full document or body fragment
+
+  A stored `html_body` is a whole HTML document with its own container, header,
+  footer and `<style>`. Core wraps an email built from a file in a shared layout
+  (`PhoenixKit.Email.Layout`) but never wraps a whole document, so by default
+  this task writes the **body fragment** only: what sits between the template's
+  `.header` and `.footer`, with the styles the body needs inlined. Pass
+  `--html document` to write the stored document as it is.
+
+  The header's title (`<h1>`) and a footer that holds a placeholder (a fallback
+  link, company details) are text, not decoration, and stay in the body, as does
+  anything that sat outside the header and footer blocks. Only the decorative
+  wrapping goes, and any text it held is listed so you can move it into your own
+  `_layout`. See `PhoenixKit.Modules.Emails.TemplateExport.Body`.
+
   ## Options
 
     * `--dry-run` — report what would be written, write nothing.
     * `--force` — overwrite existing files. Refused by default, so a
       hand-written override is never clobbered by a re-run.
     * `--out DIR` — target directory (default `priv/phoenix_kit_templates`).
+    * `--html MODE` — `body`, `document` or `auto` (default). `auto` is `body`
+      when the loaded core has `PhoenixKit.Email.Layout`, `document` otherwise —
+      a fragment on a core without the layout would be sent bare.
   """
 
   use Mix.Task
@@ -56,7 +74,9 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
   @impl Mix.Task
   def run(argv) do
     {opts, _rest, _invalid} =
-      OptionParser.parse(argv, strict: [dry_run: :boolean, force: :boolean, out: :string])
+      OptionParser.parse(argv,
+        strict: [dry_run: :boolean, force: :boolean, out: :string, html: :string]
+      )
 
     Mix.Task.run("app.start")
 
@@ -64,12 +84,25 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
     dry_run? = Keyword.get(opts, :dry_run, false)
     force? = Keyword.get(opts, :force, false)
 
-    plan = TemplateExport.plan(load_templates(), Templates.default_system_templates(), out: out)
+    html = html_mode!(Keyword.get(opts, :html, "auto"))
+
+    plan =
+      TemplateExport.plan(load_templates(), Templates.default_system_templates(),
+        out: out,
+        html: html
+      )
 
     written = TemplateExport.write_files(plan.files, dry_run: dry_run?, force: force?)
 
     report(plan, written, out)
   end
+
+  defp html_mode!("auto"), do: TemplateExport.default_html_mode()
+  defp html_mode!("body"), do: :body
+  defp html_mode!("document"), do: :document
+
+  defp html_mode!(other),
+    do: Mix.raise("--html must be body, document or auto, got: #{inspect(other)}")
 
   # An operator runs this once, during an upgrade, and a raw Ecto stacktrace
   # is a poor way to learn the task was run from the wrong directory. A dead
@@ -111,7 +144,8 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
       shell.info([
         :bright,
         "Exporting #{length(plan.edited)} edited template(s) to #{out}/",
-        :reset
+        :reset,
+        " (html: #{plan.html})"
       ])
     end
 
@@ -136,7 +170,13 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
 
     outcome_by_path = Map.new(written)
 
-    for notice <- plan.notices do
+    skipped_documents =
+      for {path, :skipped} <- written,
+          notice =
+            TemplateExport.existing_document_notice(path, plan.html, plan.raw_html_supported),
+          do: notice
+
+    for notice <- plan.notices ++ skipped_documents do
       outcome = Map.get(outcome_by_path, notice.path)
       reconciled = reconcile(notice, outcome, plan.raw_html_supported)
 

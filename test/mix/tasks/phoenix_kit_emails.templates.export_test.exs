@@ -16,6 +16,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
   use PhoenixKitEmails.DataCase, async: false
 
   alias Mix.Tasks.PhoenixKitEmails.Templates.Export
+  alias PhoenixKit.Modules.Emails.TemplateExport
   alias PhoenixKit.Modules.Emails.Templates
   alias PhoenixKitEmails.TestSupport.PhoenixKitTemplatesVersion, as: Version
 
@@ -62,7 +63,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
   test "a dry run reports without writing anything", %{tmp_dir: dir} do
     edit_invoice_html("<!-- edited -->")
 
-    Export.run(["--out", dir, "--dry-run"])
+    Export.run(["--html", "document", "--out", dir, "--dry-run"])
     output = shell_messages() |> Enum.join("\n")
 
     refute File.exists?(Path.join([dir, "billing_invoice", "html.html"]))
@@ -76,7 +77,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
   } do
     edit_invoice_html("<!-- edited -->")
 
-    Version.with_version("0.1.2", fn -> Export.run(["--out", dir]) end)
+    Version.with_version("0.1.2", fn -> Export.run(["--html", "document", "--out", dir]) end)
     output = shell_messages() |> Enum.join("\n")
 
     assert File.read!(Path.join([dir, "billing_invoice", "html.html"])) =~ "{{line_items_html}}"
@@ -90,7 +91,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
        %{tmp_dir: dir} do
     edit_invoice_html("<!-- edited -->")
 
-    Version.with_version("0.2.0", fn -> Export.run(["--out", dir]) end)
+    Version.with_version("0.2.0", fn -> Export.run(["--html", "document", "--out", dir]) end)
     output = shell_messages() |> Enum.join("\n")
 
     assert File.read!(Path.join([dir, "billing_invoice", "html.html"])) =~
@@ -113,7 +114,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
     # what this run's own auto-detected raw_html_supported? would decide.
     File.write!(path, "<p>{{{line_items_html}}}</p>")
 
-    Export.run(["--out", dir])
+    Export.run(["--html", "document", "--out", dir])
     output = shell_messages() |> Enum.join("\n")
 
     assert File.read!(path) == "<p>{{{line_items_html}}}</p>"
@@ -130,7 +131,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, "<p>{{line_items_html}}</p>")
 
-    Export.run(["--out", dir])
+    Export.run(["--html", "document", "--out", dir])
     output = shell_messages() |> Enum.join("\n")
     warns = warn_lines(output)
 
@@ -147,13 +148,13 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
 
     Version.with_version("0.2.0", fn ->
       # 1. A dry run proposes the rewrite without writing it.
-      Export.run(["--out", dir, "--dry-run"])
+      Export.run(["--html", "document", "--out", dir, "--dry-run"])
       dry_output = shell_messages() |> Enum.join("\n")
       refute File.exists?(path)
       assert dry_output =~ "would rewrite {{line_items_html}} to {{{line_items_html}}}"
 
       # 2. A real run writes it, reported as an info note, not a warning.
-      Export.run(["--out", dir])
+      Export.run(["--html", "document", "--out", dir])
       write_output = shell_messages() |> Enum.join("\n")
       assert File.read!(path) =~ "{{{line_items_html}}}"
       assert write_output =~ "  note   "
@@ -162,7 +163,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
 
       # 3. A second run without the force flag skips the file and stays
       #    silent — it is already correct, so nothing needs saying again.
-      Export.run(["--out", dir])
+      Export.run(["--html", "document", "--out", dir])
       repeat_output = shell_messages() |> Enum.join("\n")
       assert repeat_output =~ "  skip   "
       refute repeat_output =~ "billing_invoice/html.html: "
@@ -172,7 +173,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
       #    must not push the flag as the fix, since it overwrites every
       #    skipped file, not just this one.
       File.write!(path, "<p>{{line_items_html}}</p>")
-      Export.run(["--out", dir])
+      Export.run(["--html", "document", "--out", dir])
       reverted_output = shell_messages() |> Enum.join("\n")
       reverted_warns = warn_lines(reverted_output)
       assert reverted_warns != []
@@ -180,10 +181,115 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
       refute Enum.any?(reverted_warns, &(&1 |> warn_message() |> String.contains?("--force")))
 
       # 5. The force flag overwrites it with the correct rewrite again.
-      Export.run(["--out", dir, "--force"])
+      Export.run(["--html", "document", "--out", dir, "--force"])
       forced_output = shell_messages() |> Enum.join("\n")
       assert File.read!(path) =~ "{{{line_items_html}}}"
       assert forced_output =~ "rewrote {{line_items_html}} to {{{line_items_html}}}"
     end)
+  end
+
+  describe "--html" do
+    # A seeded invoice whose edit is a changed greeting, so the row counts as
+    # edited and its document and body forms are both on offer.
+    defp edit_invoice_title do
+      {:ok, _} = Templates.seed_system_templates()
+      template = Templates.get_template_by_name("billing_invoice")
+      html = String.replace(template.html_body["en"], "Bill To", "Invoiced to")
+      {:ok, _} = Templates.update_template(template, %{html_body: %{"en" => html}})
+    end
+
+    @tag :tmp_dir
+    test "body writes the fragment: no document chrome, the edit kept, the injected-rows caveat reported",
+         %{tmp_dir: dir} do
+      edit_invoice_title()
+
+      Version.with_version("0.2.0", fn ->
+        Export.run(["--html", "body", "--out", dir])
+      end)
+
+      output = shell_messages() |> Enum.join("\n")
+      written = File.read!(Path.join([dir, "billing_invoice", "html.html"]))
+
+      refute written =~ "<html"
+      refute written =~ "<style"
+      assert written =~ "Invoiced to"
+      assert written =~ "{{{line_items_html}}}"
+      assert output =~ "(html: body)"
+      assert output =~ "inserts markup that was styled by classes"
+    end
+
+    @tag :tmp_dir
+    test "document writes the stored document as it is", %{tmp_dir: dir} do
+      edit_invoice_title()
+
+      Export.run(["--html", "document", "--out", dir])
+
+      written = File.read!(Path.join([dir, "billing_invoice", "html.html"]))
+      assert written =~ "<!DOCTYPE html>"
+      assert written =~ "<style>"
+      assert shell_messages() |> Enum.join("\n") =~ "(html: document)"
+    end
+
+    @tag :tmp_dir
+    test "auto follows whether the loaded core has the email layout", %{tmp_dir: dir} do
+      edit_invoice_title()
+
+      Export.run(["--out", dir])
+
+      written = File.read!(Path.join([dir, "billing_invoice", "html.html"]))
+      mode = TemplateExport.default_html_mode()
+
+      if mode == :body,
+        do: refute(written =~ "<html"),
+        else: assert(written =~ "<html")
+    end
+
+    @tag :tmp_dir
+    test "a body export that skips an existing whole-document file says core will not wrap it",
+         %{tmp_dir: dir} do
+      edit_invoice_title()
+      path = Path.join([dir, "billing_invoice", "html.html"])
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "<!DOCTYPE html><html><body><p>old</p></body></html>")
+
+      Export.run(["--html", "body", "--out", dir])
+      output = shell_messages() |> Enum.join("\n")
+
+      assert output =~ "  skip   "
+      assert output =~ "whole HTML document"
+      assert File.read!(path) =~ "<p>old</p>"
+    end
+
+    @tag :tmp_dir
+    test "a dry run speaks of what it would do, a real run of what it did", %{tmp_dir: dir} do
+      {:ok, _} = Templates.seed_system_templates()
+      template = Templates.get_template_by_name("register")
+
+      html =
+        String.replace(
+          template.html_body["en"],
+          ~r/<div class="footer">.*?<\/div>/s,
+          ~s(<div class="footer"><p>Acme, Tallinn</p></div>)
+        )
+
+      {:ok, _} = Templates.update_template(template, %{html_body: %{"en" => html}})
+
+      Export.run(["--html", "body", "--out", dir, "--dry-run"])
+      dry = shell_messages() |> Enum.join("\n")
+      refute File.exists?(Path.join([dir, "register", "html.html"]))
+      assert dry =~ "would remove as decoration — footer: Acme, Tallinn"
+      assert dry =~ "own `_layout`"
+
+      Export.run(["--html", "body", "--out", dir])
+      real = shell_messages() |> Enum.join("\n")
+      assert real =~ "removed as decoration — footer: Acme, Tallinn"
+      refute real =~ "would remove"
+    end
+
+    test "an unknown mode is refused" do
+      assert_raise Mix.Error, ~r/--html must be body, document or auto/, fn ->
+        Export.run(["--html", "fragment"])
+      end
+    end
   end
 end

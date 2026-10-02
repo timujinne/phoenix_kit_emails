@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.5.3 - 2026-10-01
+
+### Added
+
+- **Template export writes the body fragment, not the whole document**
+  (PR #42). Core wraps an email built from a file in `PhoenixKit.Email.Layout`
+  but never wraps a whole document, so an exported document kept its old
+  header, footer and `<style>` for good. `mix phoenix_kit_emails.templates.export`
+  now takes `--html auto|body|document` (default `auto`: `body` where the loaded
+  core has the layout, `document` where it does not). `body` keeps what sits
+  between the template's `.header` and `.footer`, inlines the styles the body
+  needs, keeps a title header and a footer carrying a placeholder as content,
+  and reports whatever decorative text it removed.
+  `TemplateExport.Body.extract/1` does the cutting.
+
+### Fixed
+
+- The body cut read an unquoted attribute value ending in `/`
+  (`<a href=https://x.com/>`) as a self-closing tag: the header/footer pair was
+  then judged "not siblings", the export fell back to the whole `<body>`, and
+  the URL lost its slash when a style was inlined.
+- The `Body` docs claimed indentation tidying was skipped only inside
+  `<pre>`/`<textarea>`; it is skipped for the whole block that contains one.
+
 ## 0.5.2 - 2026-10-01
 
 ### Added

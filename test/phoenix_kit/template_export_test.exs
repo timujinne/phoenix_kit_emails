@@ -472,6 +472,297 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
     end
   end
 
+  describe "plan/3 — html: :body" do
+    defp seed_row(seed_name, locales) do
+      seed = Enum.find(Templates.default_system_templates(), &(&1.name == seed_name))
+      html = seed.html_body["en"]
+
+      struct(%Template{is_system: true}, %{
+        name: seed_name,
+        subject: seed.subject,
+        text_body: seed.text_body,
+        html_body: Map.new(locales, fn {locale, edit} -> {locale, edit.(html)} end)
+      })
+    end
+
+    defp body_plan(rows, opts \\ []) do
+      TemplateExport.plan(
+        List.wrap(rows),
+        Templates.default_system_templates(),
+        Keyword.merge([out: "out", html: :body, raw_html_supported: true], opts)
+      )
+    end
+
+    test "the default is :document — the stored HTML as it is" do
+      row = seed_row("register", [{"en", &String.replace(&1, "Confirm", "Verify")}])
+      plan = TemplateExport.plan([row], Templates.default_system_templates(), out: "out")
+
+      assert plan.html == :document
+      assert file(plan, "register/html.html") =~ "<!DOCTYPE html>"
+    end
+
+    test "every seed reduces to a fragment, with no fallback and its placeholders intact" do
+      for seed <- Templates.default_system_templates() do
+        row = seed_row(seed.name, [{"en", &(&1 <> "\n<!-- edited -->")}])
+        plan = body_plan(row)
+        fragment = file(plan, "#{seed.name}/html.html")
+
+        assert fragment, "#{seed.name}: no html file planned"
+        refute fragment =~ "<html", "#{seed.name}: still a document"
+        refute fragment =~ "<style", "#{seed.name}: still carries its stylesheet"
+        refute Enum.any?(plan.notices, &(&1.kind == :body_fallback)), "#{seed.name}: fell back"
+
+        [_, body] = Regex.run(~r/<body>(.*)<\/body>/s, seed.html_body["en"])
+
+        for [name] <- Regex.scan(~r/\{\{\s*([a-z_]+)\s*\}\}/, body, capture: :all_but_first) do
+          assert fragment =~ name, "#{seed.name}: lost {{#{name}}}"
+        end
+      end
+    end
+
+    test "a host's edit survives in every locale, each under its own filename" do
+      edit = fn text -> &String.replace(&1, "Hi {{user_email}},", text) end
+
+      row =
+        seed_row("reset_password", [
+          {"en", edit.("Hello {{user_email}}, edited")},
+          {"ru", edit.("Здравствуйте, {{user_email}}!")},
+          {"de", edit.("Hallo {{user_email}}")}
+        ])
+
+      plan = body_plan(row)
+
+      assert file(plan, "reset_password/html.html") =~ "Hello {{user_email}}, edited"
+      assert file(plan, "reset_password/html.ru.html") =~ "Здравствуйте, {{user_email}}!"
+      assert file(plan, "reset_password/html.de.html") =~ "Hallo {{user_email}}"
+      refute file(plan, "reset_password/html.html") =~ "Здравствуйте"
+      assert plan.html == :body
+    end
+
+    test "the cut runs before the raw-HTML rewrite, which still applies to the fragment" do
+      row = seed_row("billing_invoice", [{"en", &(&1 <> "<!-- edited -->")}])
+      plan = body_plan(row)
+      fragment = file(plan, "billing_invoice/html.html")
+
+      assert fragment =~ "{{{line_items_html}}}"
+      refute Regex.match?(~r/(?<!\{)\{\{line_items_html\}\}(?!\})/, fragment)
+      assert Enum.any?(plan.notices, &(&1.kind == :rewritten))
+    end
+
+    test "a raw-HTML variable brings the unstyled-rows caveat, only in body mode" do
+      row = seed_row("billing_invoice", [{"en", &(&1 <> "<!-- edited -->")}])
+
+      assert Enum.any?(body_plan(row).notices, &(&1.kind == :injected_styles))
+
+      document = TemplateExport.plan([row], Templates.default_system_templates(), out: "out")
+      refute Enum.any?(document.notices, &(&1.kind == :injected_styles))
+    end
+
+    test "a row whose HTML is already a fragment is written as it is" do
+      row =
+        template(%{
+          name: "custom",
+          html_body: %{"en" => "<p>Hi {{name}}</p>"},
+          subject: %{"en" => "S"}
+        })
+
+      plan = body_plan(row)
+      assert file(plan, "custom/html.html") == "<p>Hi {{name}}</p>"
+      assert plan.notices == []
+    end
+
+    test "a document with no header and footer is written whole-body, with a warning notice" do
+      row =
+        template(%{
+          name: "custom",
+          html_body: %{"en" => "<html><body><p>Hi {{name}}</p></body></html>"},
+          subject: %{"en" => "S"}
+        })
+
+      plan = body_plan(row)
+
+      assert file(plan, "custom/html.html") =~ "Hi {{name}}"
+      refute file(plan, "custom/html.html") =~ "<body"
+      assert [%{kind: :body_fallback}] = plan.notices
+      assert {:warning, message} = TemplateExport.notice_message(hd(plan.notices), :written)
+      assert message =~ "could not cut the body out"
+    end
+
+    test "subject and text are never touched by the cut" do
+      row = seed_row("register", [{"en", &(&1 <> "<!-- edited -->")}])
+      plan = body_plan(row)
+
+      seed = Enum.find(Templates.default_system_templates(), &(&1.name == "register"))
+      assert file(plan, "register/subject.txt") == seed.subject["en"]
+      assert file(plan, "register/text.txt") == seed.text_body["en"]
+    end
+  end
+
+  describe "plan/3 — html: :body, on the shipped seeds" do
+    defp visible_text(html) do
+      html
+      |> String.replace("{{{", "{{")
+      |> String.replace("}}}", "}}")
+      |> String.replace(~r/<style.*?<\/style>/s, "")
+      |> String.replace(~r/<[^>]*>/s, " ")
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+    end
+
+    defp body_of_seed(name) do
+      seed = Enum.find(Templates.default_system_templates(), &(&1.name == name))
+      html = seed.html_body["en"]
+
+      row =
+        struct(
+          %Template{is_system: true},
+          Map.put(seed, :html_body, %{"en" => html <> "<!-- e -->"})
+        )
+
+      plan =
+        TemplateExport.plan([row], Templates.default_system_templates(),
+          out: "out",
+          html: :body,
+          raw_html_supported: true
+        )
+
+      {html, file(plan, "#{name}/html.html")}
+    end
+
+    test "no visible text is lost on any seed, not only placeholders" do
+      for seed <- Templates.default_system_templates() do
+        {html, fragment} = body_of_seed(seed.name)
+        [_, body] = Regex.run(~r/<body>(.*)<\/body>/s, html)
+
+        assert visible_text(fragment) == visible_text(body), "#{seed.name}: text differs"
+      end
+    end
+
+    test "descendant rules reach the cells and headings of the billing seeds" do
+      {_, invoice} = body_of_seed("billing_invoice")
+
+      # `.line-items th` and `.bank-details td` / `.bank-details h3`
+      assert invoice =~ ~r/<th style="[^"]*background: #f3f4f6/
+      assert invoice =~ ~r/<td class="label" style="[^"]*color: #6b7280; width: 120px/
+      assert invoice =~ ~r/<h3 style="[^"]*color: #0369a1/
+    end
+
+    test "a row that was already a fragment gets no warning about styles it never lost" do
+      row =
+        template(%{
+          name: "custom",
+          html_body: %{"en" => "<table>{{line_items_html}}</table>"},
+          subject: %{"en" => "S"}
+        })
+
+      plan = body_plan(row)
+      refute Enum.any?(plan.notices, &(&1.kind == :injected_styles))
+      assert file(plan, "custom/html.html") =~ "{{{line_items_html}}}"
+    end
+  end
+
+  describe "existing_document_notice/3" do
+    @describetag :tmp_dir
+
+    test "a skipped file that is a whole document is reported in body mode", %{tmp_dir: dir} do
+      path = Path.join(dir, "html.html")
+      File.write!(path, "<!DOCTYPE html><html><body>x</body></html>")
+
+      assert %{kind: :document_on_disk, path: ^path} =
+               TemplateExport.existing_document_notice(path, :body, true)
+
+      assert {:warning, message} =
+               TemplateExport.notice_message(
+                 TemplateExport.existing_document_notice(path, :body, true),
+                 :skipped
+               )
+
+      assert message =~ "does not wrap"
+    end
+
+    test "nothing to say for a fragment, document mode, a non-html path or a missing file", %{
+      tmp_dir: dir
+    } do
+      fragment = Path.join(dir, "f.html")
+      document = Path.join(dir, "d.html")
+      text = Path.join(dir, "t.txt")
+      File.write!(fragment, "<p>x</p>")
+      File.write!(document, "<html></html>")
+      File.write!(text, "<html></html>")
+
+      assert TemplateExport.existing_document_notice(fragment, :body, true) == nil
+      assert TemplateExport.existing_document_notice(document, :document, true) == nil
+      assert TemplateExport.existing_document_notice(text, :body, true) == nil
+
+      assert TemplateExport.existing_document_notice(Path.join(dir, "none.html"), :body, true) ==
+               nil
+    end
+  end
+
+  describe "notice_message/2 and reconcile_skipped_notice/2 — body notices" do
+    test "chrome_dropped is an info note that lists what was left out" do
+      notice = %{
+        path: "out/x/html.html",
+        kind: :chrome_dropped,
+        names: ["header: Acme", "footer: Tallinn"],
+        raw_html_supported: true
+      }
+
+      assert {:info, message} = TemplateExport.notice_message(notice, :written)
+      assert message =~ "header: Acme | footer: Tallinn"
+      assert message =~ "own `_layout`"
+      assert message =~ "removed as decoration"
+      assert {:info, planned} = TemplateExport.notice_message(notice, :would_write)
+      assert planned =~ "would remove"
+    end
+
+    test "injected_styles is a warning naming the variable" do
+      notice = %{
+        path: "out/x/html.html",
+        kind: :injected_styles,
+        names: ["line_items_html"],
+        raw_html_supported: true
+      }
+
+      assert {:warning, message} = TemplateExport.notice_message(notice, :written)
+      assert message =~ "{{{line_items_html}}}"
+    end
+
+    test "style_placeholder is a warning naming the variable, in the conditional for a dry run" do
+      notice = %{
+        path: "out/x/html.html",
+        kind: :style_placeholder,
+        names: ["extra_css"],
+        raw_html_supported: true
+      }
+
+      assert {:warning, written} = TemplateExport.notice_message(notice, :written)
+      assert written =~ "{{extra_css}}" and written =~ "is gone"
+      assert {:warning, planned} = TemplateExport.notice_message(notice, :would_write)
+      assert planned =~ "would be gone"
+    end
+
+    test "body notices say nothing about a file that was skipped" do
+      for kind <- [:body_fallback, :chrome_dropped, :injected_styles, :style_placeholder] do
+        notice = %{
+          path: "does/not/exist.html",
+          kind: kind,
+          names: ["x"],
+          raw_html_supported: true
+        }
+
+        assert TemplateExport.reconcile_skipped_notice(notice, true) == nil
+      end
+    end
+  end
+
+  describe "default_html_mode/0" do
+    test "is :body exactly when the loaded core has the email layout" do
+      expected = if Code.ensure_loaded?(PhoenixKit.Email.Layout), do: :body, else: :document
+      assert TemplateExport.default_html_mode() == expected
+    end
+  end
+
   describe "raw_html_support?/1" do
     test "true from 0.2.0 onward, false below it" do
       refute TemplateExport.raw_html_support?("0.1.2")

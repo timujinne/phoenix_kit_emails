@@ -64,6 +64,30 @@ priv/phoenix_kit_templates/
     └── html.html
 ```
 
+### The `html` part: a body, not a whole document
+
+A stored `html_body` is a whole HTML document with its own container, header,
+footer and `<style>`. Core wraps an email built from a file in a shared layout
+(`PhoenixKit.Email.Layout`) but never wraps a document, so a document exported
+verbatim keeps its old chrome and the layout never applies. Where core has the
+layout, the export writes the **body fragment** only: what sits between the
+template's header and footer, with the styles the body needs (the button, the
+notice boxes) inlined. The email's `<h1>` title, a footer that carries a
+placeholder (the "copy this link" fallback, billing's company details) and
+anything outside the header and footer blocks are content, not decoration, and
+stay in the body. Only the decorative wrapping goes; any text it held is listed
+in the output so it can be moved into your own `_layout`.
+
+```bash
+mix phoenix_kit_emails.templates.export --html document   # the stored document, as before
+```
+
+`--html` is `auto` by default: `body` when the loaded core has the layout,
+`document` when it does not (a fragment on such a core would be sent bare). One
+known gap: billing's `{{{line_items_html}}}` inserts rows styled by classes from
+the removed `<style>`, so they render unstyled until billing styles its own rows;
+the task warns about it.
+
 ## Installation
 
 Add `phoenix_kit_emails` to your dependencies in `mix.exs`:
