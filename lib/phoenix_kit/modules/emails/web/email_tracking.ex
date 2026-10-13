@@ -35,6 +35,7 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
   import PhoenixKitWeb.Components.Core.Icon
 
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.Utils
 
   def mount(params, _session, socket) do
     # Handle locale
@@ -121,10 +122,10 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
     # attribute also copies it to "retention_days". Never read a phx-value-*
     # of the current assign — that resubmits the previous number and the
     # field cannot change.
-    value = Map.get(params, "retention_days") || Map.get(params, "value") || ""
+    value = Map.get(params, "retention_days") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {retention_days, _} when retention_days > 0 and retention_days <= 365 ->
+    case Utils.parse_int(value, nil, min: 1, max: 365) do
+      retention_days when is_integer(retention_days) ->
         case Emails.set_retention_days(retention_days) do
           {:ok, _setting} ->
             socket =

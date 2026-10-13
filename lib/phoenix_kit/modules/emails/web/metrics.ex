@@ -45,6 +45,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
   alias PhoenixKit.Utils.Number, as: UtilsNumber
   alias PhoenixKit.Utils.Routes
 
+  # The periods the dashboard's buttons offer (metrics.html.heex). `:custom` is
+  # set only by apply_custom_range, never by name.
+  @periods %{
+    "last_24_hours" => :last_24_hours,
+    "last_7_days" => :last_7_days,
+    "last_30_days" => :last_30_days,
+    "last_90_days" => :last_90_days
+  }
+
   ## --- Lifecycle Callbacks ---
 
   @impl true
@@ -95,16 +104,21 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
   end
 
   @impl true
-  def handle_event("change_period", %{"period" => period}, socket) do
-    period_atom = String.to_atom(period)
-
+  def handle_event("change_period", %{"period" => period}, socket)
+      when is_map_key(@periods, period) do
     {:noreply,
      socket
-     |> assign(:period, period_atom)
+     |> assign(:period, Map.fetch!(@periods, period))
      |> assign(:custom_range, false)
      |> assign(:loading, true)
      |> load_metrics_data()}
   end
+
+  # Anything else — an unknown name, a non-string — keeps the current period.
+  # It used to go through String.to_atom/1, which minted a new atom for every
+  # value a crafted event sent and then crashed on the unknown period.
+  @impl true
+  def handle_event("change_period", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("toggle_custom_range", _params, socket) do
@@ -119,7 +133,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
         %{"start_date" => start_date, "end_date" => end_date},
         socket
       ) do
-    case {Date.from_iso8601(start_date), Date.from_iso8601(end_date)} do
+    case {Date.from_iso8601(Utils.string_param(start_date)),
+          Date.from_iso8601(Utils.string_param(end_date))} do
       {{:ok, start_date}, {:ok, end_date}} ->
         {:noreply,
          socket
@@ -135,6 +150,12 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
          socket
          |> put_flash(:error, gettext("Invalid date range"))}
     end
+  end
+
+  # Either date left out of a crafted event: same answer as a bad date.
+  @impl true
+  def handle_event("apply_custom_range", _params, socket) do
+    {:noreply, put_flash(socket, :error, gettext("Invalid date range"))}
   end
 
   @impl true
@@ -195,7 +216,9 @@ defmodule PhoenixKit.Modules.Emails.Web.Metrics do
   end
 
   defp determine_period(assigns) do
-    if assigns.period == :custom and assigns.start_date and assigns.end_date do
+    # `&&`, not `and`: start_date/end_date are Dates, and `and` raises
+    # BadBooleanError on a non-boolean, which broke every custom range.
+    if assigns.period == :custom && assigns.start_date && assigns.end_date do
       {:date_range, assigns.start_date, assigns.end_date}
     else
       assigns.period

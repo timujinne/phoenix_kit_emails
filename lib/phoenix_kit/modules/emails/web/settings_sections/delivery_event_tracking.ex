@@ -50,6 +50,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
   alias PhoenixKit.Modules.Emails.EventTracker
   alias PhoenixKit.Modules.Emails.EventTrackerReconciler
   alias PhoenixKit.Modules.Emails.EventTrackerRegistry
+  alias PhoenixKit.Modules.Emails.Utils
 
   @impl true
   def update(assigns, socket) do
@@ -148,8 +149,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
     with_tracker(socket, provider_kind, fn tracker ->
       value = Map.get(params, "interval") || Map.get(params, "value")
 
-      case Integer.parse(value || "") do
-        {interval_ms, _} ->
+      case Utils.parse_int(value, nil) do
+        interval_ms when is_integer(interval_ms) ->
           case tracker.set_polling_interval(interval_ms) do
             {:ok, _setting} ->
               socket
@@ -170,7 +171,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking d
               )
           end
 
-        :error ->
+        nil ->
           put_flash(socket, :error, gettext("Please enter a valid number of milliseconds"))
       end
     end)

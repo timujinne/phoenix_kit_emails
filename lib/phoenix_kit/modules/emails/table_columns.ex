@@ -11,6 +11,7 @@ defmodule PhoenixKit.Modules.Emails.TableColumns do
   Column preferences are stored in Settings under the key "emails_table_columns".
   """
 
+  alias PhoenixKit.Modules.Emails.Utils
   alias PhoenixKit.Settings
 
   @default_columns ["to", "subject", "status", "details", "actions"]
@@ -114,8 +115,9 @@ defmodule PhoenixKit.Modules.Emails.TableColumns do
   """
   def reorder_columns(current_columns, %{"from" => from_idx, "to" => to_idx})
       when is_list(current_columns) do
-    from_index = String.to_integer(from_idx)
-    to_index = String.to_integer(to_idx)
+    # A non-numeric index becomes -1, which the bounds check below rejects.
+    from_index = Utils.parse_int(from_idx, -1)
+    to_index = Utils.parse_int(to_idx, -1)
 
     if from_index >= 0 and from_index < length(current_columns) and
          to_index >= 0 and to_index < length(current_columns) do

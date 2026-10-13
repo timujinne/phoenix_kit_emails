@@ -187,18 +187,33 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   `Template.changeset/2` never casts `:is_system` from it for exactly that
   reason. To create a protected system row, see `seed_system_templates/0`.
 
+  The author is recorded from `opts[:created_by_user_uuid]`, never from
+  `attrs`: a form post can carry any key, and `Template.changeset/3` does not
+  cast the audit columns. A `created_by_user_uuid` key in `attrs` is ignored.
+
   ## Examples
 
       iex> Templates.create_template(%{name: "welcome", subject: "Welcome!", ...})
       {:ok, %Template{}}
 
+      iex> Templates.create_template(attrs, created_by_user_uuid: user_uuid)
+      {:ok, %Template{created_by_user_uuid: user_uuid}}
+
       iex> Templates.create_template(%{invalid: "data"})
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_template(attrs \\ %{}) do
-    %Template{}
+  def create_template(attrs \\ %{}, opts \\ []) do
+    create_from(%Template{}, attrs, opts)
+  end
+
+  # `base` is what the new row starts from: a blank struct, or a clone's copy
+  # of its source's metadata. Whatever `base` carries is stored data, not
+  # something a client submitted, so `Template.changeset/3` does not check it.
+  defp create_from(%Template{} = base, attrs, opts) do
+    base
     |> Template.changeset(attrs)
+    |> Template.put_created_by(Keyword.get(opts, :created_by_user_uuid))
     |> insert_template()
   end
 
@@ -229,22 +244,34 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   @doc """
   Updates an existing email template.
 
+  The editor is recorded from `opts[:updated_by_user_uuid]`, never from `attrs`
+  (see `create_template/2`); an `updated_by_user_uuid` key in `attrs` is
+  ignored. With no editor given, the one already on the row is kept.
+
+  A submitted `metadata` is merged into the stored one (see
+  `Template.changeset/3`), so a key cannot be removed through this function.
+  Changing `source_module` is allowed to any of `Template.valid_source_modules/0`.
+
   ## Examples
 
       iex> Templates.update_template(template, %{subject: "New Subject"})
       {:ok, %Template{}}
 
+      iex> Templates.update_template(template, attrs, updated_by_user_uuid: user_uuid)
+      {:ok, %Template{updated_by_user_uuid: user_uuid}}
+
       iex> Templates.update_template(template, %{invalid: "data"})
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_template(%Template{} = template, attrs) do
+  def update_template(%Template{} = template, attrs, opts \\ []) do
+    editor = Keyword.get(opts, :updated_by_user_uuid)
+
     template
     |> Template.changeset(attrs)
-    |> Template.version_changeset(%{
-      version: template.version + 1,
-      updated_by_user_uuid: attrs[:updated_by_user_uuid]
-    })
+    |> Template.version_changeset(
+      Map.merge(%{version: template.version + 1}, editor_attrs(editor))
+    )
     |> repo().update()
     |> case do
       {:ok, updated_template} ->
@@ -302,10 +329,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   def archive_template(%Template{} = template, user_uuid \\ nil) do
     user_uuid = resolve_user_uuid(user_uuid)
 
-    update_template(template, %{
-      status: "archived",
-      updated_by_user_uuid: user_uuid
-    })
+    update_template(template, %{status: "archived"}, updated_by_user_uuid: user_uuid)
   end
 
   @doc """
@@ -320,22 +344,27 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   def activate_template(%Template{} = template, user_uuid \\ nil) do
     user_uuid = resolve_user_uuid(user_uuid)
 
-    update_template(template, %{
-      status: "active",
-      updated_by_user_uuid: user_uuid
-    })
+    update_template(template, %{status: "active"}, updated_by_user_uuid: user_uuid)
   end
 
   @doc """
   Clones an existing template with a new name.
+
+  The copy keeps the source's metadata as it is — including a `source_module`
+  this version would not accept from a form, since it is stored data — and adds
+  `"cloned_from"`. The author is recorded from `opts[:created_by_user_uuid]`
+  (see `create_template/2`).
 
   ## Examples
 
       iex> Templates.clone_template(template, "new_welcome_email")
       {:ok, %Template{name: "new_welcome_email"}}
 
+      iex> Templates.clone_template(template, "new_welcome_email", %{}, created_by_user_uuid: user_uuid)
+      {:ok, %Template{created_by_user_uuid: user_uuid}}
+
   """
-  def clone_template(%Template{} = template, new_name, attrs \\ %{}) do
+  def clone_template(%Template{} = template, new_name, attrs \\ %{}, opts \\ []) do
     base_attrs = %{
       name: new_name,
       slug: String.replace(new_name, "_", "-"),
@@ -358,9 +387,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
       text_body: template.text_body,
       category: template.category,
       status: "draft",
-      variables: template.variables,
-      metadata: Map.merge(template.metadata, %{"cloned_from" => template.uuid}),
-      created_by_user_uuid: attrs[:created_by_user_uuid]
+      variables: template.variables
     }
 
     # create_template/1 never sets is_system regardless of what attrs
@@ -369,7 +396,9 @@ defmodule PhoenixKit.Modules.Emails.Templates do
     # caller's plain string into an i18n map, and merging the raw string back
     # over it fails the :map cast (which broke every clone from the UI).
     final_attrs = Map.merge(base_attrs, Map.delete(attrs, :display_name))
-    create_template(final_attrs)
+
+    metadata = Map.merge(template.metadata || %{}, %{"cloned_from" => template.uuid})
+    create_from(%Template{metadata: metadata}, final_attrs, opts)
   end
 
   @doc """
@@ -385,8 +414,17 @@ defmodule PhoenixKit.Modules.Emails.Templates do
 
   ## Parameters
   - `template` — the EmailTemplate struct
-  - `variables` — map of variable names to values
+  - `variables` — map of variable names to values; atom and string keys are
+    equivalent
   - `locale` — the target locale code (default: `"en"`)
+
+  `{{name}}` is HTML-escaped in the HTML body and `{{{name}}}` is inserted raw;
+  see `PhoenixKit.Modules.Emails.Template.substitute_variables/3` for the rules.
+
+  Raises `ArgumentError` naming the variable when a placeholder uses a value
+  that is not a string, number, atom or `String.Chars` struct (a map or a list,
+  say). Unlike the warnings below, this is not softened: a value that cannot
+  become text has no safe rendering.
 
   ## Examples
 
@@ -407,7 +445,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   def render_template(%Template{} = template, variables \\ %{}, locale \\ "en") do
     # Extract required variables from all language versions of the template
     required_vars = Template.extract_variables(template)
-    provided_vars = Map.keys(variables)
+    provided_vars = variables |> Map.keys() |> Enum.map(&to_string/1)
 
     # Check for missing variables
     missing_vars = required_vars -- provided_vars
@@ -431,29 +469,28 @@ defmodule PhoenixKit.Modules.Emails.Templates do
     rendered = Template.substitute_variables(template, variables, locale)
 
     # Check for unreplaced variables in rendered output
-    validate_rendered_content(template.name, rendered)
+    validate_rendered_content(template, provided_vars, locale)
 
     rendered
   end
 
-  # Private helper to validate rendered content for unreplaced variables
-  defp validate_rendered_content(template_name, rendered) do
-    # Check each field for unreplaced {{variable}} patterns
-    fields_with_issues =
-      [
-        {:subject, rendered.subject},
-        {:html_body, rendered.html_body},
-        {:text_body, rendered.text_body}
-      ]
-      |> Enum.filter(fn {_field, content} ->
-        String.contains?(content, "{{")
-      end)
+  # Warns about the fields that keep an unbound placeholder. Read from the
+  # template's own content with the substitution's parser, not by looking for
+  # "{{" in the output: a value may legitimately contain braces, and so may
+  # CSS in the html_body.
+  defp validate_rendered_content(template, provided_vars, locale) do
+    field_names =
+      for field <- [:subject, :html_body, :text_body],
+          template
+          |> Map.get(field)
+          |> Template.get_translation(locale)
+          |> Template.placeholder_names()
+          |> Enum.any?(&(&1 not in provided_vars)),
+          do: field
 
-    if fields_with_issues != [] do
-      field_names = Enum.map(fields_with_issues, fn {field, _} -> field end)
-
+    if field_names != [] do
       Logger.warning(
-        "Template '#{template_name}' contains unreplaced variables in: #{Enum.join(field_names, ", ")}"
+        "Template '#{template.name}' contains unreplaced variables in: #{Enum.join(field_names, ", ")}"
       )
     end
   end
@@ -497,19 +534,30 @@ defmodule PhoenixKit.Modules.Emails.Templates do
 
   This should be called whenever a template is used to send an email.
 
+  The count is raised by the database (`usage_count = usage_count + 1`), not
+  written back from `template`, so it does not matter how stale that struct is
+  or how many sends count at once. Only the two usage columns change: using a
+  template is not an edit, so `updated_at` stays as it was.
+
+  Returns the row as stored, or `{:error, :not_found}` when it no longer exists.
+
   ## Examples
 
       iex> Templates.track_usage(template)
       {:ok, %Template{usage_count: 1}}
 
   """
-  def track_usage(%Template{} = template) do
-    template
-    |> Template.usage_changeset(%{
-      usage_count: template.usage_count + 1,
-      last_used_at: UtilsDate.utc_now()
-    })
-    |> repo().update()
+  @spec track_usage(Template.t()) :: {:ok, Template.t()} | {:error, :not_found}
+  def track_usage(%Template{uuid: uuid}) do
+    query = from(t in Template, where: t.uuid == ^uuid, select: t)
+
+    case repo().update_all(query,
+           inc: [usage_count: 1],
+           set: [last_used_at: UtilsDate.utc_now()]
+         ) do
+      {1, [%Template{} = used]} -> {:ok, used}
+      {0, _} -> {:error, :not_found}
+    end
   end
 
   @doc """
@@ -1407,7 +1455,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
               </tr>
             </thead>
             <tbody>
-              {{line_items_html}}
+              {{{line_items_html}}}
             </tbody>
           </table>
 
@@ -1619,7 +1667,7 @@ defmodule PhoenixKit.Modules.Emails.Templates do
               </tr>
             </thead>
             <tbody>
-              {{line_items_html}}
+              {{{line_items_html}}}
             </tbody>
           </table>
 
@@ -2072,6 +2120,11 @@ defmodule PhoenixKit.Modules.Emails.Templates do
     Thank you for your business. If you have any questions, please contact us.
     """
   end
+
+  # The editor to record on an update. Nothing given means nothing changes: the
+  # one already on the row stays, rather than being overwritten with nil.
+  defp editor_attrs(nil), do: %{}
+  defp editor_attrs(user_uuid), do: %{updated_by_user_uuid: user_uuid}
 
   # Resolves user UUID from user_uuid string (passthrough) or nil
   defp resolve_user_uuid(user_uuid) when is_binary(user_uuid), do: user_uuid

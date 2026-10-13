@@ -1,5 +1,74 @@
 # Changelog
 
+## 0.5.5 - 2026-10-13
+
+### Added
+
+- **Migration V3** (PR #53): in every stored `html_body`, `{{line_items_html}}`
+  and `{{line_items_table_html}}` become the raw form `{{{...}}}`. Run
+  `mix phoenix_kit.update` after upgrading; until then the renderer still
+  inserts those two names raw, so mail keeps sending a table. `down/1` below 3
+  runs the inverse.
+- The templates list and the editor say when an active row shadows a host file
+  override or a default shipped by core or a module (`TemplateSources`,
+  `SourceBadges`; PR #57). On a core without the APIs it reads, nothing is shown.
+- The editor preview follows what is typed, uses sample values and is
+  translated (PR #55); variable hints are placeholders and are never saved into
+  the row (PR #54).
+
+### Changed
+
+- `{{name}}` is HTML-escaped in `html_body`; `{{{name}}}` inserts raw. One
+  tokenizer now reads placeholders for extraction, substitution, the unbound
+  warning and the export (PR #53). A variable value that is a map, list or
+  tuple raises `ArgumentError` naming the variable.
+- `Templates.create_template/2`, `update_template/3` and `clone_template/4`
+  take the author as `created_by_user_uuid:` / `updated_by_user_uuid:` options;
+  the audit columns are no longer cast from attrs. A submitted `metadata` is
+  merged into the stored one (PR #54).
+- A locale left empty is dropped instead of saved as a translation (PR #54).
+- `Provider.track_usage/1` returns `:ok`, as the core callback declares.
+
+### Fixed
+
+- The editor no longer writes fallback text into a locale as a translation of
+  its own, and no longer overwrites `cloned_from` in metadata (PR #54).
+- `usage_count` lost concurrent updates; it is now `usage_count + 1` in the
+  database. A failed or log-only test send no longer counts as a use (PR #56).
+- The `Every translation must be text` editor message was missing its Estonian
+  and Russian translations.
+- Saving or validating in the editor preserves stored translations for
+  languages without an enabled tab, including base-language keys on hosts
+  using regional tabs. Submitting empty text still removes that translation.
+- New templates now start with HTML and text bodies in the selected language;
+  the form previously passed strings to map fields and lost the starter content.
+- After a save, the editor refreshes its form, preview, variables, title and
+  version from the saved row.
+- Optional description translations now reject non-text values through the
+  context API too, while empty descriptions remain valid.
+- Catalog entries without content defaults no longer get a "Default shadowed"
+  badge. Default callbacks remain unevaluated when loading source badges.
+
+## 0.5.4 - 2026-10-10
+
+### Fixed
+
+- `?page` and `?per_page` on the emails and templates lists no longer crash on
+  junk (`?page=abc`); a page past the end lands on the last page (PR #51).
+  The settings number fields and column reorder read integers through the same
+  no-raise parser, `Utils.parse_int/3`.
+- LiveView events with a payload of the wrong shape (integer, `nil`, map,
+  list) are refused instead of crashing the LiveView, across Blocklist,
+  Details, Emails, Queue, Metrics, Templates, the template editor and the
+  settings sections (PR #52).
+- The metrics dashboard crashed on every custom date range (`and` on a `Date`).
+- `change_period` no longer mints an atom per client-sent value; it maps the
+  four known period names explicitly.
+
+### Added
+
+- Regression tests for non-map translation fields in the template editor.
+
 ## 0.5.3 - 2026-10-01
 
 ### Added
@@ -554,7 +623,7 @@ withheld in exactly that ambiguous case.
 ## 0.1.19 - 2026-07-29
 
 ### Added
-- **Outgoing send queue.** `Queue` implements core's optional `PhoenixKit.Email.Provider.maybe_enqueue/2` callback (floor raised to `phoenix_kit ~> 1.7.217`), so every outgoing message — including mail the host app sends through its own statically configured mailer — is offered to the `:emails` Oban queue and delivered by `SendJob` (`max_attempts: 5`) instead of on the request. Every decline is "send it inline now", never an error: a disabled system, `email_queue_enabled` off, no `:emails` queue in the **host's** Oban config (a package cannot add one, and `Oban.insert/1` would happily store a job nobody drains), a per-message `queue: false`, authentication mail, attachments, an `Oban.insert/1` error, and even a raise or a DBConnection exit all fall through to an inline send. Delivery is at-least-once, which is why authentication mail is excluded by default. (#22)
+- **Outgoing send queue.** `Queue` implements core's optional `c:PhoenixKit.Email.Provider.maybe_enqueue/2` callback (floor raised to `phoenix_kit ~> 1.7.217`), so every outgoing message — including mail the host app sends through its own statically configured mailer — is offered to the `:emails` Oban queue and delivered by `SendJob` (`max_attempts: 5`) instead of on the request. Every decline is "send it inline now", never an error: a disabled system, `email_queue_enabled` off, no `:emails` queue in the **host's** Oban config (a package cannot add one, and `Oban.insert/1` would happily store a job nobody drains), a per-message `queue: false`, authentication mail, attachments, an `Oban.insert/1` error, and even a raise or a DBConnection exit all fall through to an inline send. Delivery is at-least-once, which is why authentication mail is excluded by default. (#22)
 - **System-status card** in Settings → Email Sending → Email Tracking. Reports what the module is *doing*, not what it is configured to do: whether anything is being logged and why not (a `from` address that fails the `Log` schema's own format rule makes every insert fail, and the interceptor swallows that by design), which mailer or integration messages actually leave through, the queue's state and depth, and today's logged/sent/failed/queued counts. (#22)
 - **Two switches for the queue** — "Queue Outgoing Emails" (`email_queue_enabled`) and "Queue Authentication Emails Too" (`email_queue_auth_mail`) — in the same settings section as the card. Post-merge review: the queue shipped default-on and reported read-only, with no way to turn it off short of editing the settings table.
 
@@ -578,7 +647,7 @@ withheld in exactly that ambiguous case.
 - Brevo event polling no longer stays dead across app restarts when `brevo_events_enabled` is still on but no Oban job row survived (crash before `schedule_next_poll/1`, wiped jobs table, etc.). The supervisor now re-seeds the Brevo chain at boot the same way it already re-seeds SQS — via `BrevoPollingManager.enable_polling/0` after Oban is ready. Zero active Brevo profiles is fine; the job no-ops each cycle and still records `last_polled_at`.
 
 ### Changed
-- `Supervisor.system_status/0` also reports `brevo_polling_status` (alongside the existing SQS `polling_status`).
+- `PhoenixKit.Modules.Emails.Supervisor.system_status/0` also reports `brevo_polling_status` (alongside the existing SQS `polling_status`).
 - Clarified `BrevoPollingManager` docs: `poll_now/0` bypasses only the `brevo_events_enabled` toggle, not the sender-aware profile gate or `Emails.enabled?/0`.
 
 ## 0.1.17 - 2026-07-26

@@ -94,6 +94,22 @@ defmodule PhoenixKitEmailsTest do
     end
   end
 
+  describe "Utils.string_param/2" do
+    doctest PhoenixKit.Modules.Emails.Utils, only: [string_param: 2]
+
+    test "a string passes through untouched" do
+      assert EmailsUtils.string_param("x") == "x"
+      assert EmailsUtils.string_param("", "d") == ""
+    end
+
+    test "anything else is the default" do
+      for value <- [nil, 42, 1.5, :atom, %{"a" => "b"}, ["x"]] do
+        assert EmailsUtils.string_param(value) == ""
+        assert EmailsUtils.string_param(value, nil) == nil
+      end
+    end
+  end
+
   describe "Utils.detect_provider_from_config/0" do
     test "returns a binary provider name" do
       provider = EmailsUtils.detect_provider_from_config()

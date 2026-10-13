@@ -72,20 +72,14 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   # Stored field -> {file stem, extension}. Only `html` is markup.
   @parts [{:subject, "subject", "txt"}, {:text_body, "text", "txt"}, {:html_body, "html", "html"}]
 
-  # The character classes and whitespace handling below are copied from
-  # `PhoenixKit.Templates.Substitution`'s own placeholder pattern by design.
-  # This module cannot reuse `Substitution.variables/1` directly: that
-  # function recognizes both the double- and triple-brace form of a name,
-  # but has no way to report which of the two matched a given occurrence —
-  # exactly the distinction "already raw, leave alone" vs "double brace,
-  # rewrite" needs. Below `phoenix_kit_templates` 0.2.0, the triple-brace
-  # form has no special meaning — it renders as literal braces around a
-  # substituted double pair.
-  @placeholder ~r/
-    \{\{\{\s*(?<triple>[a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}\}
-    |
-    \{\{\s*(?<double>[a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}
-  /x
+  # The placeholder pattern is `Template.placeholder_regex/0` — the very one
+  # extraction and substitution use, so the export cannot disagree with them
+  # about what a placeholder is. It is read here, rather than going through
+  # `PhoenixKit.Templates.Substitution.variables/1`, because that function
+  # cannot report which of the two forms matched an occurrence — exactly the
+  # distinction "already raw, leave alone" vs "double brace, rewrite" needs.
+  # Below `phoenix_kit_templates` 0.2.0, the triple-brace form has no special
+  # meaning — it renders as literal braces around a substituted double pair.
 
   @typedoc """
   What an export would do, without having done any of it. `raw_html_supported`
@@ -331,7 +325,10 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
 
   An already-triple-braced placeholder is left alone — this is what keeps the
   rewrite idempotent across repeated exports, and across a single part that
-  mixes both forms of the same name. A `{{..._html}}` placeholder that is
+  mixes both forms of the same name. When `raw_html_supported?` is false, a
+  triple-braced known name (what rows store since the V3 migration) is
+  written back as `{{var}}`, which the older renderer inserts unescaped, and
+  reported like a double-braced one. A `{{..._html}}` placeholder that is
   *not* on `raw_html_variables/0` is also left alone, but reported: a new
   pre-rendered-HTML variable must be added to that list before an export can
   safely convert it, so silently leaving it as `{{var}}` (still correct under
@@ -357,32 +354,49 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   def rewrite_raw_html(content, path, raw_html_supported?, opts \\ []) when is_binary(content) do
     known = Keyword.get(opts, :known, Template.raw_html_variables())
 
-    double_names =
-      @placeholder
+    {double_names, triple_names} =
+      Template.placeholder_regex()
       |> Regex.scan(content, capture: :all_names)
-      |> Enum.flat_map(fn
-        [double, ""] when double != "" -> [double]
-        [_double, _triple] -> []
+      |> Enum.reduce({[], []}, fn
+        [double, ""], {doubles, triples} when double != "" -> {[double | doubles], triples}
+        [_double, triple], {doubles, triples} -> {doubles, [triple | triples]}
       end)
-      |> Enum.uniq()
 
+    double_names = double_names |> Enum.reverse() |> Enum.uniq()
     {known_names, candidate_unknown_names} = Enum.split_with(double_names, &(&1 in known))
+
+    # Rows store the triple form since the V3 migration. Below 0.2.0 it means
+    # "{" + value + "}", so it goes out as a double brace — unescaped there —
+    # and is reported for the same manual rewrite as one stored that way.
+    lowered_names =
+      if raw_html_supported?,
+        do: [],
+        else: triple_names |> Enum.reverse() |> Enum.uniq() |> Enum.filter(&(&1 in known))
 
     unknown_names =
       Enum.filter(candidate_unknown_names, &String.ends_with?(String.downcase(&1), "_html"))
 
     new_content =
-      if raw_html_supported? and known_names != [] do
-        Regex.replace(@placeholder, content, fn full, triple, double ->
-          cond do
-            triple != "" -> full
-            double in known_names -> "{{{#{double}}}}"
-            true -> full
-          end
-        end)
-      else
-        content
+      cond do
+        raw_html_supported? and known_names != [] ->
+          Regex.replace(Template.placeholder_regex(), content, fn full, triple, double ->
+            cond do
+              triple != "" -> full
+              double in known_names -> "{{{#{double}}}}"
+              true -> full
+            end
+          end)
+
+        lowered_names != [] ->
+          Regex.replace(Template.placeholder_regex(), content, fn full, triple, _double ->
+            if triple in lowered_names, do: "{{#{triple}}}", else: full
+          end)
+
+        true ->
+          content
       end
+
+    known_names = Enum.uniq(known_names ++ lowered_names)
 
     {new_content, build_notices(path, known_names, unknown_names, raw_html_supported?)}
   end

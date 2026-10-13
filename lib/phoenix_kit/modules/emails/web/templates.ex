@@ -40,7 +40,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
   alias PhoenixKit.Modules.Emails.Template
   alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.TemplateSources
+  alias PhoenixKit.Modules.Emails.Utils
+  alias PhoenixKit.Modules.Emails.Web.SourceBadges
   alias PhoenixKit.Settings
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
@@ -58,6 +62,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       |> assign(:page_title, gettext("Email Templates"))
       |> assign(:page_subtitle, gettext("Manage and organize your email templates"))
       |> assign(:templates, [])
+      |> assign(:template_sources, TemplateSources.empty())
+      |> assign(:template_sources_loaded, false)
       |> assign(:total_count, 0)
       |> assign(:stats, %{})
       |> assign(:loading, true)
@@ -79,6 +85,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     socket =
       socket
       |> apply_params(params)
+      |> load_template_sources()
       |> load_templates()
       |> load_stats()
 
@@ -95,15 +102,23 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     # Extract search parameters
     combined_params =
       case Map.get(params, "search") do
-        %{"query" => query} -> Map.put(combined_params, "search", String.trim(query || ""))
-        _ -> combined_params
+        %{"query" => query} ->
+          Map.put(combined_params, "search", String.trim(Utils.string_param(query)))
+
+        _ ->
+          combined_params
       end
 
     # Extract filter parameters
     combined_params =
       case Map.get(params, "filter") do
-        filter_params when is_map(filter_params) -> Map.merge(combined_params, filter_params)
-        _ -> combined_params
+        # Only flat string values: a crafted event can nest a map or list here,
+        # which URI.encode_query/1 raises on when the URL is built below.
+        filter_params when is_map(filter_params) ->
+          Map.merge(combined_params, Map.filter(filter_params, fn {_k, v} -> is_binary(v) end))
+
+        _ ->
+          combined_params
       end
 
     # Reset to first page when filtering
@@ -134,13 +149,19 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("set_filter", %{"field" => field, "value" => value}, socket) do
+  def handle_event("set_filter", %{"field" => field, "value" => value}, socket)
+      when is_binary(field) and is_binary(value) do
     # Dropdown filter selection (category/status/is_system): set the chosen
     # filter, reset to page 1, and patch. Empty value clears that filter.
     new_params = build_url_params(socket.assigns, %{field => value, "page" => "1"})
 
     {:noreply, push_patch(socket, to: Routes.path("/admin/emails/templates?#{new_params}"))}
   end
+
+  # A crafted field or value that is not a string would reach
+  # URI.encode_query/1 and raise; keep the current filters instead.
+  @impl true
+  def handle_event("set_filter", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("toggle_sort", %{"by" => by}, socket) do
@@ -171,6 +192,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     {:noreply,
      socket
      |> assign(:loading, true)
+     |> load_template_sources(force: true)
      |> load_templates()
      |> load_stats()}
   end
@@ -206,12 +228,13 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("validate_clone", %{"clone" => clone_params}, socket) do
+  def handle_event("validate_clone", params, socket) do
+    clone_params = clone_params(params)
     errors = validate_clone_form(clone_params)
 
     form = %{
-      name: clone_params["name"] || "",
-      display_name: clone_params["display_name"] || "",
+      name: clone_params["name"],
+      display_name: clone_params["display_name"],
       errors: errors
     }
 
@@ -219,14 +242,16 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("clone_template", %{"clone" => clone_params}, socket) do
+  def handle_event("clone_template", params, socket) do
+    clone_params = clone_params(params)
     errors = validate_clone_form(clone_params)
 
     if map_size(errors) == 0 and socket.assigns.clone_template do
       case Templates.clone_template(
              socket.assigns.clone_template,
              String.trim(clone_params["name"]),
-             %{display_name: clone_params["display_name"]}
+             %{display_name: clone_params["display_name"]},
+             created_by_user_uuid: current_user_uuid(socket)
            ) do
         {:ok, new_template} ->
           {:noreply,
@@ -247,8 +272,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     else
       # Show validation errors
       form = %{
-        name: clone_params["name"] || "",
-        display_name: clone_params["display_name"] || "",
+        name: clone_params["name"],
+        display_name: clone_params["display_name"],
         errors: errors
       }
 
@@ -257,11 +282,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("edit_template", %{"uuid" => template_uuid}, socket) do
+  def handle_event("edit_template", %{"uuid" => template_uuid}, socket)
+      when is_binary(template_uuid) do
     {:noreply,
      socket
      |> push_navigate(to: Routes.path("/admin/emails/templates/#{template_uuid}/edit"))}
   end
+
+  @impl true
+  def handle_event("edit_template", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("request_archive", %{"uuid" => template_uuid}, socket) do
@@ -344,7 +373,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   @impl true
-  def handle_event("request_delete", %{"uuid" => uuid, "name" => name}, socket) do
+  def handle_event("request_delete", %{"uuid" => uuid, "name" => name}, socket)
+      when is_binary(uuid) and is_binary(name) do
     modal = %{
       show: true,
       title: "Confirm Delete",
@@ -357,6 +387,10 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     {:noreply, assign(socket, :confirmation_modal, modal)}
   end
+
+  # A crafted name or uuid that is not a string cannot go into the message.
+  @impl true
+  def handle_event("request_delete", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("cancel_confirmation", _params, socket) do
@@ -520,12 +554,15 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     end
   end
 
+  # Who is acting, from the session — recorded as the editor or author.
+  defp current_user_uuid(socket), do: Scope.user_uuid(socket.assigns[:phoenix_kit_current_scope])
+
   # Shared by the "archive_template" event (uuid lookup — from confirm_action
   # after a system-row confirmation, or the plain uuid-only client event) and
   # request_archive's non-system branch (which already has `template` loaded
   # and would otherwise fetch it a second time).
   defp do_archive(socket, template) do
-    case Templates.archive_template(template) do
+    case Templates.archive_template(template, current_user_uuid(socket)) do
       {:ok, archived_template} ->
         {:noreply,
          socket
@@ -541,7 +578,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   end
 
   defp do_activate(socket, template) do
-    case Templates.activate_template(template) do
+    case Templates.activate_template(template, current_user_uuid(socket)) do
       {:ok, activated_template} ->
         {:noreply,
          socket
@@ -585,8 +622,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
       is_system: params["is_system"] || ""
     }
 
-    page = String.to_integer(params["page"] || "1")
-    per_page = min(String.to_integer(params["per_page"] || "#{@default_per_page}"), @max_per_page)
+    page = Utils.parse_page(params["page"])
+
+    per_page =
+      Utils.parse_int(params["per_page"], @default_per_page,
+        min: 1,
+        max: @max_per_page,
+        above_max: :clamp
+      )
 
     sort_by = validate_sort_by(params["sort_by"])
     sort_dir = validate_sort_dir(params["sort_dir"])
@@ -603,8 +646,17 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
   defp load_templates(socket) do
     %{filters: filters, page: page, per_page: per_page} = socket.assigns
 
-    # Build filters for Templates query, adding sort order (list only — the
-    # count query below intentionally drops ordering).
+    # Get total count for pagination (the count query drops limit/offset and
+    # ordering)
+    total_count =
+      Templates.count_templates(Map.drop(build_query_filters(filters, 1, 1), [:limit, :offset]))
+
+    # Floor of 1 so an empty list still has a page to sit on. A ?page past the
+    # end (a stale bookmark, a hand-edited URL) lands on the last page instead
+    # of an empty one with no pagination left to get back — same as Blocklist.
+    total_pages = max(ceil(total_count / per_page), 1)
+    page = Utils.clamp_page(page, total_pages)
+
     query_filters =
       build_query_filters(filters, page, per_page)
       |> Map.put(:order_by, socket.assigns.sort_by)
@@ -612,16 +664,25 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     templates = Templates.list_templates(query_filters)
 
-    # Get total count for pagination
-    total_count = Templates.count_templates(Map.drop(query_filters, [:limit, :offset]))
-
-    total_pages = ceil(total_count / per_page)
-
     socket
+    |> assign(:page, page)
     |> assign(:templates, templates)
     |> assign(:total_count, total_count)
     |> assign(:total_pages, total_pages)
     |> assign(:loading, false)
+  end
+
+  # The file overrides and defaults a row can hide do not depend on the filters
+  # or the page, and reading them walks the override directories: read once
+  # per mount, again on refresh.
+  defp load_template_sources(socket, opts \\ []) do
+    if socket.assigns[:template_sources_loaded] && !Keyword.get(opts, :force, false) do
+      socket
+    else
+      socket
+      |> assign(:template_sources, TemplateSources.load())
+      |> assign(:template_sources_loaded, true)
+    end
   end
 
   # Load template statistics
@@ -716,13 +777,26 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
     end
   end
 
+  # The clone form's name and display name, as strings. A crafted event can
+  # send a non-map form or non-string fields; they read as blank, so validation
+  # reports them and the form re-renders with strings, not raw values (which
+  # the template cannot render).
+  defp clone_params(%{"clone" => clone}) when is_map(clone) do
+    %{
+      "name" => Utils.string_param(clone["name"]),
+      "display_name" => Utils.string_param(clone["display_name"])
+    }
+  end
+
+  defp clone_params(_params), do: %{"name" => "", "display_name" => ""}
+
   # Validate clone form
   defp validate_clone_form(params) do
     errors = %{}
 
     # Validate name
     errors =
-      case String.trim(params["name"] || "") do
+      case String.trim(params["name"]) do
         "" ->
           Map.put(errors, :name, "Name is required")
 
@@ -750,7 +824,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Templates do
 
     # Validate display_name
     errors =
-      case String.trim(params["display_name"] || "") do
+      case String.trim(params["display_name"]) do
         "" ->
           Map.put(errors, :display_name, "Display name is required")
 

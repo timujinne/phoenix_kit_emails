@@ -136,7 +136,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingJob do
     this permanent, on top of merely stalling per-cycle.)
   - **A wider list (e.g. adding `:available`) fails the build.** Oban's
     `use Oban.Worker, unique: [...]` option is checked at compile time
-    (`Oban.Worker.__after_compile__/2` → `Job.warn_unique/1`): any
+    (`Oban.Worker`'s `__after_compile__` hook → `Job.warn_unique/1`): any
     `:states` list other than the exact literal `[:scheduled]` that
     doesn't cover every "incomplete" state (`:scheduled`, `:available`,
     `:executing`, `:retryable`, `:suspended`) emits a compiler warning

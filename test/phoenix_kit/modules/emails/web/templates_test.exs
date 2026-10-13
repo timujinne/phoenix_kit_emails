@@ -396,4 +396,155 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplatesTest do
       refute html =~ ~s|class="btn btn-error"|
     end
   end
+
+  # `?page` / `?per_page` come straight from the address bar. They went through
+  # `String.to_integer/1`, so `?page=abc` (or an empty, fractional or huge
+  # value) raised and took the LiveView down. No router here, so the page is
+  # driven the way LiveView drives it: mount/3, handle_params/3, render/1.
+  describe "malformed pagination params" do
+    defp visit(params) do
+      {:ok, socket} =
+        TemplatesLive.mount(%{}, %{}, %Phoenix.LiveView.Socket{
+          assigns: %{__changed__: %{}, flash: %{}}
+        })
+
+      {:noreply, socket} =
+        TemplatesLive.handle_params(params, "http://localhost/admin/emails/templates", socket)
+
+      html =
+        render_component(&TemplatesLive.render/1, Map.delete(socket.assigns, :__changed__),
+          endpoint: PhoenixKitEmails.Test.StubEndpoint
+        )
+
+      {socket.assigns, html}
+    end
+
+    for page <- ["abc", "-1", "0", "", "1.5", "2abc"] do
+      test "page=#{inspect(page)} renders the first page" do
+        template = create_custom_template()
+
+        {assigns, html} = visit(%{"page" => unquote(page)})
+
+        assert assigns.page == 1
+        assert assigns.per_page == 25
+        assert html =~ template.name
+      end
+    end
+
+    test "a page number past the 1_000_000 ceiling falls back to the first page" do
+      template = create_custom_template()
+
+      {assigns, html} = visit(%{"page" => String.duplicate("9", 30)})
+
+      assert assigns.page == 1
+      assert html =~ template.name
+    end
+
+    test "a page past the end lands on the last page" do
+      for _ <- 1..3, do: create_custom_template()
+
+      {assigns, _html} =
+        visit(%{"page" => "5", "per_page" => "2", "is_system" => "false"})
+
+      assert assigns.total_pages == 2
+      assert assigns.page == 2
+      assert length(assigns.templates) == 1
+    end
+
+    for per_page <- ["abc", "", "0", "-5"] do
+      test "per_page=#{inspect(per_page)} falls back to the default size" do
+        template = create_custom_template()
+
+        {assigns, html} = visit(%{"per_page" => unquote(per_page)})
+
+        assert assigns.page == 1
+        assert assigns.per_page == 25
+        assert html =~ template.name
+      end
+    end
+
+    test "a huge per_page is capped at the maximum" do
+      {assigns, _html} = visit(%{"per_page" => "100000000000000000000000"})
+
+      assert assigns.per_page == 100
+    end
+
+    test "well-formed values are still honored" do
+      for _ <- 1..3, do: create_custom_template()
+
+      {assigns, _html} = visit(%{"page" => "2", "per_page" => "2", "is_system" => "false"})
+
+      assert assigns.page == 2
+      assert assigns.per_page == 2
+      assert length(assigns.templates) == 1
+    end
+  end
+
+  describe "who acted is recorded from the session (#47)" do
+    @admin "01900000-0000-7000-8000-0000000000a1"
+
+    defp acting_socket(assigns \\ %{}) do
+      bare_socket(
+        Map.put(assigns, :phoenix_kit_current_scope, %PhoenixKit.Users.Auth.Scope{
+          user: %PhoenixKit.Users.Auth.User{uuid: @admin}
+        })
+      )
+    end
+
+    test "archive and activate record the editor" do
+      template = create_custom_template()
+
+      assert {:noreply, _} =
+               TemplatesLive.handle_event(
+                 "request_archive",
+                 %{"uuid" => template.uuid},
+                 acting_socket()
+               )
+
+      archived = Templates.get_template(template.uuid)
+      assert archived.status == "archived"
+      assert archived.updated_by_user_uuid == @admin
+
+      other = create_custom_template(%{status: "archived"})
+
+      assert {:noreply, _} =
+               TemplatesLive.handle_event(
+                 "request_activate",
+                 %{"uuid" => other.uuid},
+                 acting_socket()
+               )
+
+      activated = Templates.get_template(other.uuid)
+      assert activated.status == "active"
+      assert activated.updated_by_user_uuid == @admin
+    end
+
+    test "cloning records the author" do
+      source = create_custom_template()
+      name = "cloned_by_#{System.unique_integer([:positive])}"
+      socket = acting_socket(%{clone_template: source, clone_form: %{name: "", display_name: ""}})
+
+      assert {:noreply, _} =
+               TemplatesLive.handle_event(
+                 "clone_template",
+                 %{"clone" => %{"name" => name, "display_name" => "Copy"}},
+                 socket
+               )
+
+      assert Templates.get_template_by_name(name).created_by_user_uuid == @admin
+    end
+
+    test "without a scope nothing is recorded and nothing breaks" do
+      template = create_custom_template()
+
+      assert {:noreply, _} =
+               TemplatesLive.handle_event(
+                 "request_archive",
+                 %{"uuid" => template.uuid},
+                 bare_socket()
+               )
+
+      assert Templates.get_template(template.uuid).updated_by_user_uuid == nil
+    end
+  end
 end

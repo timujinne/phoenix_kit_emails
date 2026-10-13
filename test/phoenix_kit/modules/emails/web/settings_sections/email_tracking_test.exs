@@ -254,4 +254,100 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
       assert Emails.get_config().archive_to_s3 == true
     end
   end
+
+  # These handlers used to hand the payload straight to Integer.parse/1, which
+  # raises on nil (neither key sent) and on an integer (a crafted event).
+  describe "the number handlers never raise on the payload shape" do
+    defp number_socket do
+      %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, flash: %{}},
+        private: %{live_temp: %{}}
+      }
+    end
+
+    for {event, key, value, assign} <- [
+          {"update_email_sampling_rate", "sampling_rate", 50, :email_sampling_rate},
+          {"update_email_retention", "retention_days", 30, :email_retention_days},
+          {"update_compress_days", "compress_days", 14, :email_compress_body}
+        ] do
+      test "#{event} accepts an integer" do
+        assert {:noreply, socket} =
+                 EmailTracking.handle_event(
+                   unquote(event),
+                   %{unquote(key) => unquote(value)},
+                   number_socket()
+                 )
+
+        assert socket.assigns[unquote(assign)] == unquote(value)
+        refute socket.assigns.flash["error"]
+      end
+
+      test "#{event} rejects a missing value with a flash" do
+        assert {:noreply, socket} =
+                 EmailTracking.handle_event(unquote(event), %{"value" => nil}, number_socket())
+
+        assert socket.assigns.flash["error"]
+        refute Map.has_key?(socket.assigns, unquote(assign))
+      end
+    end
+  end
+
+  # The range checks moved from `when` guards into parse_int's :min/:max, so
+  # each edge is pinned: on it the value is saved, one past it is refused.
+  describe "the number handlers' ranges" do
+    defp range_socket do
+      %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, flash: %{}},
+        private: %{live_temp: %{}}
+      }
+    end
+
+    defp stored(:email_sampling_rate), do: Emails.get_sampling_rate()
+    defp stored(:email_retention_days), do: Emails.get_retention_days()
+    defp stored(:email_compress_body), do: Emails.get_config().compress_after_days
+
+    for {event, key, assign, baseline, inside, outside} <- [
+          {"update_email_sampling_rate", "sampling_rate", :email_sampling_rate, 50, [0, 100],
+           [-1, 101]},
+          {"update_email_retention", "retention_days", :email_retention_days, 90, [1, 365],
+           [0, 366]},
+          {"update_compress_days", "compress_days", :email_compress_body, 30, [7, 365], [6, 366]}
+        ] do
+      for value <- inside do
+        test "#{event} saves #{value}, on the edge of the range" do
+          assert {:noreply, socket} =
+                   EmailTracking.handle_event(
+                     unquote(event),
+                     %{unquote(key) => unquote(to_string(value))},
+                     range_socket()
+                   )
+
+          assert socket.assigns[unquote(assign)] == unquote(value)
+          assert stored(unquote(assign)) == unquote(value)
+        end
+      end
+
+      for value <- outside do
+        test "#{event} refuses #{value}, just outside the range" do
+          {:noreply, _} =
+            EmailTracking.handle_event(
+              unquote(event),
+              %{unquote(key) => unquote(to_string(baseline))},
+              range_socket()
+            )
+
+          assert {:noreply, socket} =
+                   EmailTracking.handle_event(
+                     unquote(event),
+                     %{unquote(key) => unquote(to_string(value))},
+                     range_socket()
+                   )
+
+          assert socket.assigns.flash["error"]
+          refute Map.has_key?(socket.assigns, unquote(assign))
+          assert stored(unquote(assign)) == unquote(baseline)
+        end
+      end
+    end
+  end
 end

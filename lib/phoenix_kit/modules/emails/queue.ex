@@ -2,8 +2,8 @@ defmodule PhoenixKit.Modules.Emails.Queue do
   @moduledoc """
   Decides whether an outgoing message is sent inline or handed to Oban.
 
-  Core calls `PhoenixKit.Modules.Emails.Provider.maybe_enqueue/2` (the optional
-  `PhoenixKit.Email.Provider` callback) right after interception, on **both**
+  Core calls `c:PhoenixKit.Email.Provider.maybe_enqueue/2` (an optional callback,
+  implemented by `PhoenixKit.Modules.Emails.Provider`) right after interception, on **both**
   delivery paths. That placement is the whole point: the host application's own
   mail — password resets, confirmations, anything sent through its statically
   configured mailer — goes through the same gate as mail sent through this

@@ -254,6 +254,21 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
       assert [%{kind: :needs_manual_rewrite, names: ["line_items_html"]}] = plan.notices
     end
 
+    test "turns a stored triple brace back into a double one when the loaded templates version is too old" do
+      # Since the V3 migration, rows store {{{line_items_html}}}. Below
+      # phoenix_kit_templates 0.2.0 that renders as "{" + table + "}", while
+      # the double form is inserted unescaped there — so the file gets the
+      # double form, with the same warning to switch once core is upgraded.
+      plan =
+        TemplateExport.plan([invoice("{{{line_items_html}}} {{{ other }}}")], invoice_shipped(),
+          out: "out",
+          raw_html_supported: false
+        )
+
+      assert html_file(plan) == "{{line_items_html}} {{{ other }}}"
+      assert [%{kind: :needs_manual_rewrite, names: ["line_items_html"]}] = plan.notices
+    end
+
     test "warns about an unrecognized _html placeholder and leaves it untouched" do
       plan =
         TemplateExport.plan([invoice("{{mystery_html}}")], invoice_shipped(),
@@ -319,7 +334,12 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
 
     test "billing_invoice is rewritten the same way, starting from the real seed" do
       seed = real_seed("billing_invoice")
-      edited_html = String.replace(seed.html_body["en"], "{{tax_amount}}", "{{tax_amount}} incl.")
+      # A row stored before the V3 migration, which still says {{line_items_html}}.
+      edited_html =
+        seed.html_body["en"]
+        |> String.replace("{{{line_items_html}}}", "{{line_items_html}}")
+        |> String.replace("{{tax_amount}}", "{{tax_amount}} incl.")
+
       edited = struct(%Template{is_system: true}, %{seed | html_body: %{"en" => edited_html}})
 
       plan =
@@ -339,10 +359,29 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
              )
     end
 
+    test "the current seed already says {{{line_items_html}}} and goes out unchanged" do
+      seed = real_seed("billing_invoice")
+      edited_html = String.replace(seed.html_body["en"], "{{tax_amount}}", "{{tax_amount}} incl.")
+      edited = struct(%Template{is_system: true}, %{seed | html_body: %{"en" => edited_html}})
+
+      plan =
+        TemplateExport.plan([edited], Templates.default_system_templates(),
+          out: "out",
+          raw_html_supported: true
+        )
+
+      assert edited_html =~ "{{{line_items_html}}}"
+      assert file(plan, "billing_invoice/html.html") == edited_html
+      refute Enum.any?(plan.notices, &(&1.kind == :rewritten))
+    end
+
     test "billing_receipt is rewritten the same way, starting from the real seed" do
       seed = real_seed("billing_receipt")
 
-      edited_html = String.replace(seed.html_body["en"], "{{paid_amount}}", "{{paid_amount}} USD")
+      edited_html =
+        seed.html_body["en"]
+        |> String.replace("{{{line_items_html}}}", "{{line_items_html}}")
+        |> String.replace("{{paid_amount}}", "{{paid_amount}} USD")
 
       edited = struct(%Template{is_system: true}, %{seed | html_body: %{"en" => edited_html}})
 
@@ -540,7 +579,11 @@ defmodule PhoenixKit.Modules.Emails.TemplateExportTest do
     end
 
     test "the cut runs before the raw-HTML rewrite, which still applies to the fragment" do
-      row = seed_row("billing_invoice", [{"en", &(&1 <> "<!-- edited -->")}])
+      # A row stored before the V3 migration, which still says {{line_items_html}}.
+      pre_v3 =
+        &(String.replace(&1, "{{{line_items_html}}}", "{{line_items_html}}") <> "<!-- edited -->")
+
+      row = seed_row("billing_invoice", [{"en", pre_v3}])
       plan = body_plan(row)
       fragment = file(plan, "billing_invoice/html.html")
 

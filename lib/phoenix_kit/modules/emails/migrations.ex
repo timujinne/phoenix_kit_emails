@@ -75,6 +75,32 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   Same deviation status as `integration_uuid`: unknown to core's manifest,
   reported at `:info`, never a failure.
 
+  ## What V3 is
+
+  A data step, no shape change: in every stored `html_body` locale value,
+  `{{name}}` becomes `{{{name}}}` for `line_items_html` and
+  `line_items_table_html` — billing's ready-made table. The two names are
+  frozen into the migration; they match
+  `PhoenixKit.Modules.Emails.Template.raw_html_variables/0` today, but a name
+  added to that list later does not change what V3 rewrites.
+
+  Since V3's release `{{name}}` is HTML-escaped in `html_body` and
+  `{{{name}}}` is the raw form (see `Template.substitute_variables/3`).
+  Rows seeded or edited before then carry the double-brace spelling of these
+  names and would otherwise depend on the renderer's fallback for them.
+  After the rewrite the stored content says what it means, and
+  `mix phoenix_kit_emails.templates.export` copies it into files unchanged.
+
+  Idempotent by construction: only a placeholder that is not already inside
+  a third pair of braces matches, so a second run finds nothing. `subject`
+  and `text_body` are untouched — they are never escaped. A row whose
+  `html_body` is not a locale map, and a locale value that is not a string,
+  are left alone rather than failing the step.
+
+  `down/1` to a target below 3 runs the inverse, `{{{name}}}` → `{{name}}`,
+  for the same names only: code older than V3 has no raw form and renders
+  `{{{name}}}` as `{` + value + `}`.
+
   ## Which tables, and which one is NOT here
 
   Adopted: `phoenix_kit_email_logs`, `phoenix_kit_email_events`,
@@ -110,7 +136,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   ## Where the DDL comes from
 
-  Mechanically extracted from core's own `PhoenixKit.Migrations.ExpectedSchema`
+  Mechanically extracted from core's own `ExpectedSchema`
   manifest — the same object list `mix phoenix_kit.doctor` and
   `mix phoenix_kit.repair` verify a live database against — so every
   statement is byte-identical to what core would emit for the same object,
@@ -234,7 +260,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   use Ecto.Migration
 
-  @current_version 2
+  @current_version 3
   @marker_prefix "pke_schema:"
   @version_table "phoenix_kit_email_logs"
 
@@ -492,6 +518,23 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
        "WHERE archived_at IS NOT NULL"}
   ]
 
+  # V3's data step — see the moduledoc's "What V3 is". Postgres ARE syntax.
+  # The lookbehind/lookahead keep a placeholder that already has a third pair
+  # of braces (or a brace run that is not a plain placeholder) out of it,
+  # which is what makes the step idempotent.
+  #
+  # The names are a frozen literal, NOT `Template.raw_html_variables/0`: a
+  # shipped migration must do tomorrow what it did the day it was released,
+  # and a name added to that list later is a decision for a new version, not
+  # something an old one should start rewriting silently. The whitespace class
+  # is spelled out because the renderer's `\s` is ASCII-only, and Postgres'
+  # `\s` also matches other space characters.
+  @raw_html_names Enum.join(~w(line_items_html line_items_table_html), "|")
+  @ws "[ \\t\\r\\n\\f\\v]*"
+
+  @escaped_raw_html_placeholder "(?<!\\{)\\{\\{#{@ws}(#{@raw_html_names})#{@ws}\\}\\}(?!\\})"
+  @raw_raw_html_placeholder "(?<!\\{)\\{\\{\\{#{@ws}(#{@raw_html_names})#{@ws}\\}\\}\\}(?!\\})"
+
   @doc "The chain version this code needs."
   @spec current_version() :: pos_integer()
   def current_version, do: @current_version
@@ -619,12 +662,20 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
         index_statements(version) ++
         constraint_statements() ++
         validate_foreign_key_statements() ++
+        data_statements(version) ++
         [marker_statement(version), reset_lock_timeout_statement()]
 
     Enum.map(statements, &materialize(&1, prefix))
   end
 
-  @doc "The SQL `down/1` executes, as data (marker bookkeeping only)."
+  @doc """
+  The SQL `down/1` executes, as data.
+
+  Always the marker bookkeeping; rolling back below V3 also carries the
+  inverse of V3's data step (`{{{name}}}` back to `{{name}}` for the two
+  billing names), so code that predates triple braces reads the rows it
+  expects.
+  """
   @spec down_statements(String.t(), non_neg_integer()) :: [String.t()]
   def down_statements(prefix \\ "public", target \\ 0) do
     prefix = validated_prefix(prefix: prefix)
@@ -636,7 +687,12 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
         "COMMENT ON TABLE #{@schema_token}.#{@version_table} IS NULL"
       end
 
-    [materialize(statement, prefix)]
+    rewrite =
+      if target < 3,
+        do: [rewrite_html_body_statement(@raw_raw_html_placeholder, "{{\\1}}")],
+        else: []
+
+    Enum.map(rewrite ++ [statement], &materialize(&1, prefix))
   end
 
   ## --- Statement builders ---
@@ -1009,6 +1065,34 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
       $$\
       """
     end)
+  end
+
+  defp data_statements(version) when version >= 3,
+    do: [rewrite_html_body_statement(@escaped_raw_html_placeholder, "{{{\\1}}}")]
+
+  defp data_statements(_version), do: []
+
+  # Rewrites `pattern` to `replacement` in every string value of every
+  # locale-map `html_body`. Only rows that contain a match are touched, so a
+  # re-run updates nothing (and an empty map is never aggregated into NULL).
+  defp rewrite_html_body_statement(pattern, replacement) do
+    """
+    UPDATE #{@schema_token}.phoenix_kit_email_templates SET html_body = (
+      SELECT jsonb_object_agg(
+        e.key,
+        CASE WHEN jsonb_typeof(e.value) = 'string'
+          THEN to_jsonb(regexp_replace(e.value #>> '{}', '#{pattern}', '#{replacement}', 'g'))
+          ELSE e.value
+        END
+      )
+      FROM jsonb_each(html_body) AS e
+    )
+    WHERE jsonb_typeof(html_body) = 'object'
+      AND EXISTS (
+        SELECT 1 FROM jsonb_each(html_body) AS e
+        WHERE jsonb_typeof(e.value) = 'string' AND (e.value #>> '{}') ~ '#{pattern}'
+      )\
+    """
   end
 
   defp marker_statement(version) do

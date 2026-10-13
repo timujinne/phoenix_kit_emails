@@ -153,18 +153,28 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   # instead of leaving the page. The clear-search button also fires this event
   # with search="" and inherits the same replace: true behaviour.
   @impl true
-  def handle_event("filter_search", %{"search" => search_term}, socket) do
+  def handle_event("filter_search", %{"search" => search_term}, socket)
+      when is_binary(search_term) do
     {:noreply, push_url_state(socket, [search_term: search_term], replace: true)}
   end
 
   @impl true
-  def handle_event("filter_reason", %{"reason" => reason}, socket) do
+  def handle_event("filter_reason", %{"reason" => reason}, socket) when is_binary(reason) do
     {:noreply, push_url_state(socket, reason_filter: reason)}
   end
 
   @impl true
-  def handle_event("filter_status", %{"status" => status}, socket) do
+  def handle_event("filter_status", %{"status" => status}, socket) when is_binary(status) do
     {:noreply, push_url_state(socket, status_filter: status)}
+  end
+
+  # A crafted filter value that is not a string: UrlState would to_string/1 it
+  # into the URL (raising on a map) or quietly reset the filter. Keep the
+  # current filters instead.
+  @impl true
+  def handle_event(event, _params, socket)
+      when event in ["filter_search", "filter_reason", "filter_status"] do
+    {:noreply, socket}
   end
 
   @impl true
@@ -186,12 +196,11 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
   @impl true
   def handle_event("change_page", %{"page" => page}, socket) do
-    case Integer.parse(page) do
-      {page_num, _} when page_num > 0 ->
-        {:noreply, push_url_state(socket, page: page_num)}
-
-      _ ->
-        {:noreply, socket}
+    # The payload is a crafted event's to choose — an integer, nil or junk —
+    # so it goes through the same no-raise parser as the URL itself.
+    case Utils.parse_int(page, nil, min: 1) do
+      nil -> {:noreply, socket}
+      page_num -> {:noreply, push_url_state(socket, page: page_num)}
     end
   end
 
@@ -211,17 +220,17 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
 
   @impl true
   def handle_event("add_block", params, socket) do
-    %{
-      "email" => email,
-      "reason" => reason,
-      "expires_at" => expires_at
-    } = params
+    # Read, not matched: a crafted event can leave any of these out. A missing
+    # reason is the form's own default.
+    email = Utils.string_param(params["email"])
+    reason = Utils.string_param(params["reason"], "manual_block")
+    expires_at = params["expires_at"]
 
     opts = []
 
     opts =
       if expires_at && expires_at != "" do
-        case Date.from_iso8601(expires_at) do
+        case Date.from_iso8601(Utils.string_param(expires_at)) do
           {:ok, date} ->
             expires_datetime = DateTime.new!(date, ~T[23:59:59])
             [expires_at: expires_datetime] ++ opts
@@ -249,7 +258,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   end
 
   @impl true
-  def handle_event("remove_block", %{"email" => email}, socket) do
+  def handle_event("remove_block", %{"email" => email}, socket) when is_binary(email) do
     RateLimiter.remove_from_blocklist(email)
 
     {:noreply,
@@ -259,7 +268,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   end
 
   @impl true
-  def handle_event("toggle_email_selection", %{"email" => email}, socket) do
+  def handle_event("toggle_email_selection", %{"email" => email}, socket)
+      when is_binary(email) do
     selected = socket.assigns.selected_emails
 
     new_selected =
@@ -272,6 +282,14 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
     {:noreply,
      socket
      |> assign(:selected_emails, new_selected)}
+  end
+
+  # A crafted email that is not a string: RateLimiter would raise on it, and a
+  # selected one would reach the bulk remove later. Ignore it.
+  @impl true
+  def handle_event(event, _params, socket)
+      when event in ["remove_block", "toggle_email_selection"] do
+    {:noreply, socket}
   end
 
   @impl true
@@ -445,10 +463,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Blocklist do
   # The page a request can actually land on. `@doc false` rather than private so
   # the pagination-window regression can be pinned by a test without a database.
   @doc false
-  @spec clamp_page(integer(), integer()) :: integer()
-  def clamp_page(page, total_pages) when is_integer(page) and is_integer(total_pages) do
-    page |> max(1) |> min(max(total_pages, 1))
-  end
+  defdelegate clamp_page(page, total_pages), to: Utils
 
   defp validate_sort_by(value) when is_atom(value) do
     if value in @sort_fields, do: value, else: :inserted_at

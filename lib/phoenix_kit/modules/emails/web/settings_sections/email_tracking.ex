@@ -7,7 +7,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   rate), how long to keep it (retention, compression, S3 archival), and the
   send queue's two switches — plus the system-status card, which reports what
   the module is actually doing rather than what it is configured to do.
-  Contributed via `PhoenixKit.Modules.Emails.email_settings_sections/0`.
+  Contributed via `c:PhoenixKit.Module.email_settings_sections/0`.
   """
 
   use PhoenixKitWeb, :live_component
@@ -17,6 +17,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Queue
   alias PhoenixKit.Modules.Emails.Status
+  alias PhoenixKit.Modules.Emails.Utils
 
   @dialyzer {:nowarn_function, handle_event: 3}
 
@@ -162,8 +163,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   def handle_event("update_email_sampling_rate", params, socket) do
     value = Map.get(params, "sampling_rate") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {sampling_rate, _} when sampling_rate >= 0 and sampling_rate <= 100 ->
+    case Utils.parse_int(value, nil, min: 0, max: 100) do
+      sampling_rate when is_integer(sampling_rate) ->
         case Emails.set_sampling_rate(sampling_rate) do
           {:ok, _setting} ->
             socket =
@@ -193,8 +194,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   def handle_event("update_email_retention", params, socket) do
     value = Map.get(params, "retention_days") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {retention_days, _} when retention_days > 0 and retention_days <= 365 ->
+    case Utils.parse_int(value, nil, min: 1, max: 365) do
+      retention_days when is_integer(retention_days) ->
         case Emails.set_retention_days(retention_days) do
           {:ok, _setting} ->
             socket =
@@ -225,8 +226,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
 
     socket = assign(socket, :updating_compress_days, true)
 
-    case Integer.parse(value) do
-      {compress_days, _} when compress_days >= 7 and compress_days <= 365 ->
+    case Utils.parse_int(value, nil, min: 7, max: 365) do
+      compress_days when is_integer(compress_days) ->
         case Emails.set_compress_after_days(compress_days) do
           {:ok, _setting} ->
             socket =
@@ -403,52 +404,50 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
     # `phx-blur` sends the element's value under "value", not under its name —
     # reading only "s3_bucket" got `nil` on every blur and cleared the setting
     # the operator had just typed. The three fields above this one already read
-    # both keys; this one has to as well.
-    bucket =
-      (Map.get(params, "s3_bucket") || Map.get(params, "value") || "")
-      |> String.trim()
-
-    case Emails.set_s3_bucket(bucket) do
-      {:ok, _} ->
-        socket =
-          socket
-          |> assign(:email_s3_bucket, bucket)
-          |> put_flash(
-            :info,
-            if(bucket == "",
-              do: gettext("S3 bucket cleared"),
-              else: gettext("S3 bucket set to %{bucket}", bucket: bucket)
-            )
+    # both keys; this one has to as well. A non-string (crafted) payload is
+    # refused like a failed write rather than read as blank, which would clear
+    # the stored bucket.
+    with bucket when is_binary(bucket) <-
+           Map.get(params, "s3_bucket") || Map.get(params, "value") || "",
+         bucket = String.trim(bucket),
+         {:ok, _} <- Emails.set_s3_bucket(bucket) do
+      socket =
+        socket
+        |> assign(:email_s3_bucket, bucket)
+        |> put_flash(
+          :info,
+          if(bucket == "",
+            do: gettext("S3 bucket cleared"),
+            else: gettext("S3 bucket set to %{bucket}", bucket: bucket)
           )
+        )
 
-        {:noreply, socket}
-
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, gettext("Failed to update S3 bucket"))}
+      {:noreply, socket}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("Failed to update S3 bucket"))}
     end
   end
 
   def handle_event("update_s3_integration", params, socket) do
     # Same shape problem: a `phx-change` on a <select> outside a form sends
-    # `%{"value" => uuid}`.
-    uuid = Map.get(params, "s3_integration") || Map.get(params, "value") || ""
-
-    case Emails.set_s3_integration(uuid) do
-      {:ok, _} ->
-        socket =
-          socket
-          |> assign(:email_s3_integration, uuid)
-          |> put_flash(
-            :info,
-            if(uuid == "",
-              do: gettext("Archive uploads will use the ambient AWS credentials"),
-              else: gettext("Archive uploads will use the selected connection")
-            )
+    # `%{"value" => uuid}`. Same refusal of a non-string payload, too.
+    with uuid when is_binary(uuid) <-
+           Map.get(params, "s3_integration") || Map.get(params, "value") || "",
+         {:ok, _} <- Emails.set_s3_integration(uuid) do
+      socket =
+        socket
+        |> assign(:email_s3_integration, uuid)
+        |> put_flash(
+          :info,
+          if(uuid == "",
+            do: gettext("Archive uploads will use the ambient AWS credentials"),
+            else: gettext("Archive uploads will use the selected connection")
           )
+        )
 
-        {:noreply, socket}
-
-      {:error, _} ->
+      {:noreply, socket}
+    else
+      _ ->
         {:noreply, put_flash(socket, :error, gettext("Failed to update the archive connection"))}
     end
   end

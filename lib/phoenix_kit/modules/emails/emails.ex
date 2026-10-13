@@ -3135,7 +3135,7 @@ defmodule PhoenixKit.Modules.Emails do
   through it, so it accepts either provider shape: `aws_ses` (the connection
   an install may already have pointed archival at, before `object_storage`
   existed) or `object_storage` (the type built for this — see
-  `PhoenixKit.Integrations.Providers.object_storage/0` in core).
+  `object_storage` in core's `PhoenixKit.Integrations.Providers`).
   """
   @spec s3_archival_credentials(String.t()) :: map()
   def s3_archival_credentials(uuid) when is_binary(uuid) and uuid != "" do

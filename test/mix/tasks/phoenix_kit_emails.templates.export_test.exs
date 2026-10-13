@@ -52,10 +52,17 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
     end
   end
 
+  # An edited invoice row as stored before the V3 migration, which still says
+  # {{line_items_html}} — the case the export has to rewrite. The seed itself
+  # says {{{line_items_html}}} now.
   defp edit_invoice_html(replacement_suffix) do
     {:ok, _} = Templates.seed_system_templates()
     template = Templates.get_template_by_name("billing_invoice")
-    html = template.html_body["en"] <> replacement_suffix
+
+    html =
+      String.replace(template.html_body["en"], "{{{line_items_html}}}", "{{line_items_html}}") <>
+        replacement_suffix
+
     {:ok, _} = Templates.update_template(template, %{html_body: %{"en" => html}})
   end
 

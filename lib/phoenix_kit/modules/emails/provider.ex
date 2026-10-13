@@ -73,7 +73,15 @@ defmodule PhoenixKit.Modules.Emails.Provider do
     do: Templates.render_template(template, variables, locale)
 
   @impl PhoenixKit.Email.Provider
-  def track_usage(template), do: Templates.track_usage(template)
+  def track_usage(%Template{} = template) do
+    case Templates.track_usage(template) do
+      {:ok, _used} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Could not count a use of template #{template.name}: #{inspect(reason)}")
+    end
+  end
 
   @impl PhoenixKit.Email.Provider
   def get_source_module(template), do: Template.get_source_module(template)
@@ -130,18 +138,19 @@ defmodule PhoenixKit.Modules.Emails.Provider do
           |> Swoosh.Email.html_body(rendered.html_body || "")
           |> Swoosh.Email.text_body(rendered.text_body || "")
 
-        Templates.track_usage(template)
         # template_name / user_uuid / source_module opts → recorded on the email
         # log by the interceptor (so Details shows the template, user, and module).
         # skip_queue: a test send exists to give an immediate verdict. Queued,
         # it would flash "sent successfully" the moment Oban accepted the job —
         # before a relay had seen it, and while a later failure went unreported.
-        PhoenixKit.Mailer.deliver_email(email,
+        email
+        |> PhoenixKit.Mailer.deliver_email(
           template_name: template.name,
           user_uuid: user_uuid,
           source_module: "emails",
           skip_queue: true
         )
+        |> count_use_if_delivered(template)
 
       _ ->
         email =
@@ -167,6 +176,32 @@ defmodule PhoenixKit.Modules.Emails.Provider do
     error ->
       Logger.error("Failed to send test tracking email: #{inspect(error)}")
       {:error, error}
+  end
+
+  @doc false
+  # A template is used when its message was delivered: an error, or a message a
+  # dev transport only logged, leaves the count as it was. The delivery result
+  # is returned unchanged, and a count that cannot be written does not turn a
+  # delivered message into a failure.
+  @spec count_use_if_delivered(term(), Template.t()) :: term()
+  def count_use_if_delivered({:ok, %{suppressed: true}} = result, _template), do: result
+
+  def count_use_if_delivered({:ok, _} = result, %Template{} = template) do
+    try do
+      track_usage(template)
+    rescue
+      error -> log_count_failure(template, error)
+    catch
+      :exit, reason -> log_count_failure(template, {:exit, reason})
+    end
+
+    result
+  end
+
+  def count_use_if_delivered(result, _template), do: result
+
+  defp log_count_failure(template, reason) do
+    Logger.warning("Could not count a use of template #{template.name}: #{inspect(reason)}")
   end
 
   # Sample values for every variable the test_email template declares, so the

@@ -86,13 +86,19 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
              )
     end
 
-    test "down only rewrites the marker" do
-      assert Migrations.down_statements("public", 0) == [
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS NULL"
-             ]
+    test "down rewrites the marker, and below V3 hands raw-HTML placeholders back" do
+      assert [rewrite, "COMMENT ON TABLE public.phoenix_kit_email_logs IS NULL"] =
+               Migrations.down_statements("public", 0)
 
-      assert Migrations.down_statements("public", 1) == [
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:1'"
+      assert rewrite =~ "UPDATE public.phoenix_kit_email_templates SET html_body"
+
+      assert [rewrite, "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:1'"] =
+               Migrations.down_statements("public", 1)
+
+      assert rewrite =~ "UPDATE public.phoenix_kit_email_templates SET html_body"
+
+      assert Migrations.down_statements("public", 3) == [
+               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:3'"
              ]
     end
 
@@ -262,6 +268,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       for statement <- Migrations.up_statements() do
         assert statement =~ "IF NOT EXISTS" or statement =~ "COMMENT ON" or
                  statement =~ "SET lock_timeout" or statement =~ "RESET lock_timeout" or
+                 raw_html_rewrite?(statement) or
                  (statement =~ "DO $$" and
                     (statement =~ "EXISTS (" or statement =~ "VALIDATE CONSTRAINT")),
                "non-idempotent statement: #{statement}"
@@ -536,6 +543,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
             MapSet.member?(core, statement) or
               String.starts_with?(statement, "SET lock_timeout") or
               statement == "RESET lock_timeout" or
+              raw_html_rewrite?(statement) or
               Enum.any?(core, &String.contains?(statement, &1)) or
               Enum.any?(departure_shapes, &String.contains?(statement, &1))
           end
@@ -549,7 +557,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"archived_at\" timestamp with time zone",
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"s3_key\" text",
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:2'"
+               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:3'"
              ]
     end
 
@@ -563,6 +571,13 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       end)
     end
   end
+
+  # V3's data step (see the moduledoc's "What V3 is"). Idempotent by
+  # construction rather than by an `IF NOT EXISTS`: it only matches a
+  # placeholder that is not already triple-braced, which
+  # `migration_v3_raw_html_test.exs` proves against real rows.
+  defp raw_html_rewrite?(statement),
+    do: String.starts_with?(statement, "UPDATE public.phoenix_kit_email_templates SET html_body")
 
   defp create_table_statement(table) do
     Enum.find(
@@ -605,12 +620,38 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       assert Enum.any?(statements, &String.contains?(&1, "\"s3_key\""))
       assert Enum.any?(statements, &String.contains?(&1, "archived_at_idx"))
       assert Enum.any?(statements, &String.contains?(&1, "pke_schema:2"))
+      refute Enum.any?(statements, &raw_html_rewrite?/1)
+      refute Enum.any?(statements, &String.contains?(&1, "pke_schema:3"))
+    end
+
+    test "V3 adds the raw-HTML placeholder rewrite, after the tables exist, and stamps V3" do
+      statements = Migrations.up_statements("public", 3)
+
+      rewrite = Enum.find_index(statements, &raw_html_rewrite?/1)
+
+      create =
+        Enum.find_index(
+          statements,
+          &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_templates")
+        )
+
+      assert rewrite && create && rewrite > create
+      assert Enum.at(statements, rewrite) =~ "line_items_html"
+      assert Enum.at(statements, rewrite) =~ "line_items_table_html"
+      assert Enum.any?(statements, &String.contains?(&1, "pke_schema:3"))
+    end
+
+    test "the rewrite follows the schema prefix" do
+      rewrite = Enum.find(Migrations.up_statements("tenant_a", 3), &(&1 =~ "UPDATE "))
+
+      assert rewrite =~ "UPDATE tenant_a.phoenix_kit_email_templates"
+      refute rewrite =~ "public."
     end
 
     test "the adoption half is emitted at every version" do
       # Adoption is not versioned: it is "the tables core already made", and a
       # pinned version must still repair a missing one.
-      for version <- [1, 2] do
+      for version <- [1, 2, 3] do
         statements = Migrations.up_statements("public", version)
 
         assert Enum.any?(statements, &String.contains?(&1, "phoenix_kit_email_logs")),

@@ -64,8 +64,8 @@ defmodule PhoenixKit.Modules.Emails.TemplateTest do
   end
 
   describe "raw_html_variables/0" do
-    test "lists line_items_html and nothing else" do
-      assert Template.raw_html_variables() == ["line_items_html"]
+    test "lists billing's two ready-made HTML variables and nothing else" do
+      assert Template.raw_html_variables() == ["line_items_html", "line_items_table_html"]
     end
   end
 

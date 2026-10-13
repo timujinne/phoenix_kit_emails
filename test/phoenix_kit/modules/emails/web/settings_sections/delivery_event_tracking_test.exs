@@ -648,4 +648,66 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
       assert Emails.ses_events_enabled?()
     end
   end
+
+  # `value || ""` covered a missing value but not an integer from a crafted
+  # event, which Integer.parse/1 raised on just the same.
+  describe "handle_event(\"update_interval\", ...) payload shapes" do
+    test "accepts an integer" do
+      assert {:noreply, socket} =
+               Panel.handle_event(
+                 "update_interval",
+                 %{"provider" => "aws_ses", "interval" => 7_000},
+                 bare_socket()
+               )
+
+      assert Emails.get_sqs_config().polling_interval_ms == 7_000
+      assert socket.assigns.flash["error"] == nil
+    end
+
+    test "rejects a missing value with a flash" do
+      assert {:noreply, socket} =
+               Panel.handle_event(
+                 "update_interval",
+                 %{"provider" => "aws_ses", "value" => nil},
+                 bare_socket()
+               )
+
+      assert socket.assigns.flash["error"]
+    end
+  end
+
+  # The handler parses without bounds and leaves the range to the tracker
+  # (SQSPollingManager: >= 1000 ms), so the edge is the tracker's.
+  describe "handle_event(\"update_interval\", ...) range" do
+    test "saves 1000, the tracker's minimum" do
+      assert {:noreply, socket} =
+               Panel.handle_event(
+                 "update_interval",
+                 %{"provider" => "aws_ses", "interval" => "1000"},
+                 bare_socket()
+               )
+
+      assert socket.assigns.flash["error"] == nil
+      assert Emails.get_sqs_config().polling_interval_ms == 1_000
+    end
+
+    test "refuses 999, just below it" do
+      {:noreply, _} =
+        Panel.handle_event(
+          "update_interval",
+          %{"provider" => "aws_ses", "interval" => "5000"},
+          bare_socket()
+        )
+
+      assert {:noreply, socket} =
+               Panel.handle_event(
+                 "update_interval",
+                 %{"provider" => "aws_ses", "interval" => "999"},
+                 bare_socket()
+               )
+
+      assert socket.assigns.flash["error"]
+      assert Emails.get_sqs_config().polling_interval_ms == 5_000
+    end
+  end
 end

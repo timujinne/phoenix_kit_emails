@@ -29,15 +29,16 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
 
   ## Raw-HTML variables
 
-  A variable whose value is already-rendered HTML — so far only
-  `line_items_html`, billing's ready-rendered line-items table — needs
-  different handling than plain text. From `phoenix_kit_templates` 0.2.0
-  onward the `html` part escapes `{{var}}` values, so a variable like that
-  must be written as `{{{var}}}` (triple braces) instead. This task rewrites
-  such names automatically when the loaded `phoenix_kit_templates` is 0.2.0
-  or newer, and prints which files it touched. On an older
-  `phoenix_kit_templates`, the file is written unchanged and a warning
-  explains it needs that manual edit once core is upgraded to `>= 2.40` (see
+  A variable whose value is already-rendered HTML — billing's
+  `line_items_html` and `line_items_table_html` — needs different handling
+  than plain text. From `phoenix_kit_templates` 0.2.0 onward the `html` part
+  escapes `{{var}}` values, so a variable like that must be written as
+  `{{{var}}}` (triple braces) instead — the form rows store since this
+  package's V3 migration. This task rewrites a double-braced one
+  automatically when the loaded `phoenix_kit_templates` is 0.2.0 or newer,
+  and prints which files it touched. On an older `phoenix_kit_templates`,
+  the file gets the double-brace form and a warning explains it needs that
+  manual edit once core is upgraded to `>= 2.40` (see
   `PhoenixKit.Modules.Emails.TemplateExport`).
 
   ## Full document or body fragment

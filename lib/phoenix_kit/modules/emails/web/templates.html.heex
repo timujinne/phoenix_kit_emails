@@ -133,6 +133,7 @@
                   <% end %>
                 </div>
                 <div class="text-xs text-base-content/70">{template.name}</div>
+                <SourceBadges.source_badges template={template} sources={assigns[:template_sources]} />
               </div>
             </:card_header>
             <:card_actions :let={template}>
@@ -402,6 +403,7 @@
                       <%= if template.is_system do %>
                         <div class="badge badge-info badge-xs h-auto">{gettext("System")}</div>
                       <% end %>
+                      <SourceBadges.source_badges template={template} sources={assigns[:template_sources]} />
                     </div>
                   </.table_default_cell>
 

@@ -53,9 +53,10 @@
                       type="hidden"
                       name={"email_template[display_name][#{locale}]"}
                       value={
-                        PhoenixKit.Modules.Emails.Template.get_translation(
+                        PhoenixKit.Modules.Emails.Template.stored_translation(
                           Ecto.Changeset.get_field(@changeset, :display_name) || %{},
-                          locale
+                          locale,
+                          @available_locales
                         )
                       }
                     />
@@ -69,12 +70,13 @@
                     type="text"
                     name={"email_template[display_name][#{@current_editor_locale}]"}
                     value={
-                      PhoenixKit.Modules.Emails.Template.get_translation(
+                      PhoenixKit.Modules.Emails.Template.stored_translation(
                         Ecto.Changeset.get_field(@changeset, :display_name) || %{},
-                        @current_editor_locale
+                        @current_editor_locale,
+                        @available_locales
                       )
                     }
-                    placeholder="Welcome Email"
+                    placeholder={gettext("Welcome Email")}
                     class="input w-full"
                   />
                   <%= if display_name_err do %>
@@ -238,6 +240,11 @@
                       )}
                     </p>
                   <% end %>
+                  <SourceBadges.source_badges
+                    template={@template}
+                    sources={assigns[:template_sources]}
+                    variant={:notice}
+                  />
                 </fieldset>
               </div>
 
@@ -245,7 +252,7 @@
                 <legend class="fieldset-legend">{gettext("Description (Optional)")}</legend>
                 <%!-- Hidden textareas preserve all locale values --%>
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
-                  <textarea name={"email_template[description][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :description) || %{}, locale) %></textarea>
+                  <textarea name={"email_template[description][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.stored_translation(Ecto.Changeset.get_field(@changeset, :description) || %{}, locale, @available_locales) %></textarea>
                 <% end %>
                 <% description_err =
                   @changeset.action && Keyword.get(@changeset.errors, :description) %>
@@ -257,7 +264,7 @@
                   placeholder={gettext("Brief description of this template...")}
                   class="textarea w-full"
                   rows="2"
-                ><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :description) || %{}, @current_editor_locale) %></textarea>
+                ><%= PhoenixKit.Modules.Emails.Template.stored_translation(Ecto.Changeset.get_field(@changeset, :description) || %{}, @current_editor_locale, @available_locales) %></textarea>
                 <%= if description_err do %>
                   <p id="template-description-error" class="text-sm text-error mt-1">
                     {elem(description_err, 0)}
@@ -297,9 +304,10 @@
                     type="hidden"
                     name={"email_template[subject][#{locale}]"}
                     value={
-                      PhoenixKit.Modules.Emails.Template.get_translation(
+                      PhoenixKit.Modules.Emails.Template.stored_translation(
                         Ecto.Changeset.get_field(@changeset, :subject) || %{},
-                        locale
+                        locale,
+                        @available_locales
                       )
                     }
                   />
@@ -312,12 +320,18 @@
                   type="text"
                   name={"email_template[subject][#{@current_editor_locale}]"}
                   value={
-                    PhoenixKit.Modules.Emails.Template.get_translation(
+                    PhoenixKit.Modules.Emails.Template.stored_translation(
                       Ecto.Changeset.get_field(@changeset, :subject) || %{},
-                      @current_editor_locale
+                      @current_editor_locale,
+                      @available_locales
                     )
                   }
-                  placeholder={"Welcome to {{app_name}}! (#{String.upcase(@current_editor_locale)})"}
+                  placeholder={
+                    gettext("Welcome to %{app_name}! (%{locale})",
+                      app_name: "{{app_name}}",
+                      locale: String.upcase(@current_editor_locale)
+                    )
+                  }
                   class="input w-full"
                 />
                 <%= if subject_err do %>
@@ -338,7 +352,7 @@
                 <legend class="fieldset-legend">{gettext("HTML Body")}</legend>
                 <%!-- Hidden textareas preserve all locale values --%>
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
-                  <textarea name={"email_template[html_body][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :html_body) || %{}, locale) %></textarea>
+                  <textarea name={"email_template[html_body][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.stored_translation(Ecto.Changeset.get_field(@changeset, :html_body) || %{}, locale, @available_locales) %></textarea>
                 <% end %>
                 <% html_body_err = @changeset.action && Keyword.get(@changeset.errors, :html_body) %>
                 <textarea
@@ -348,8 +362,13 @@
                   name={"email_template[html_body][#{@current_editor_locale}]"}
                   class="textarea font-mono w-full"
                   rows="12"
-                  placeholder={"<h1>Welcome {{user_name}}!</h1> (#{String.upcase(@current_editor_locale)})"}
-                ><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :html_body) || %{}, @current_editor_locale) %></textarea>
+                  placeholder={
+                    gettext("<h1>Welcome %{user_name}!</h1> (%{locale})",
+                      user_name: "{{user_name}}",
+                      locale: String.upcase(@current_editor_locale)
+                    )
+                  }
+                ><%= PhoenixKit.Modules.Emails.Template.stored_translation(Ecto.Changeset.get_field(@changeset, :html_body) || %{}, @current_editor_locale, @available_locales) %></textarea>
                 <%= if html_body_err do %>
                   <p id="template-html-body-error" class="text-sm text-error mt-1">
                     {elem(html_body_err, 0)}
@@ -361,7 +380,7 @@
                 <legend class="fieldset-legend">{gettext("Text Body")}</legend>
                 <%!-- Hidden textareas preserve all locale values --%>
                 <%= for locale <- @available_locales, locale != @current_editor_locale do %>
-                  <textarea name={"email_template[text_body][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :text_body) || %{}, locale) %></textarea>
+                  <textarea name={"email_template[text_body][#{locale}]"} hidden><%= PhoenixKit.Modules.Emails.Template.stored_translation(Ecto.Changeset.get_field(@changeset, :text_body) || %{}, locale, @available_locales) %></textarea>
                 <% end %>
                 <% text_body_err = @changeset.action && Keyword.get(@changeset.errors, :text_body) %>
                 <textarea
@@ -371,8 +390,13 @@
                   name={"email_template[text_body][#{@current_editor_locale}]"}
                   class="textarea font-mono w-full"
                   rows="8"
-                  placeholder={"Welcome {{user_name}}! (#{String.upcase(@current_editor_locale)})"}
-                ><%= PhoenixKit.Modules.Emails.Template.get_translation(Ecto.Changeset.get_field(@changeset, :text_body) || %{}, @current_editor_locale) %></textarea>
+                  placeholder={
+                    gettext("Welcome %{user_name}! (%{locale})",
+                      user_name: "{{user_name}}",
+                      locale: String.upcase(@current_editor_locale)
+                    )
+                  }
+                ><%= PhoenixKit.Modules.Emails.Template.stored_translation(Ecto.Changeset.get_field(@changeset, :text_body) || %{}, @current_editor_locale, @available_locales) %></textarea>
                 <%= if text_body_err do %>
                   <p id="template-text-body-error" class="text-sm text-error mt-1">
                     {elem(text_body_err, 0)}
@@ -417,7 +441,7 @@
                           type="text"
                           value={description}
                           aria-labelledby={"var-name-#{name}"}
-                          placeholder={gettext("Description for this variable...")}
+                          placeholder={variable_hint(name)}
                           class="input input-sm w-full"
                           phx-change="update_variable_description"
                           phx-value-name={name}
@@ -545,12 +569,12 @@
               </div>
             </div>
 
-            <%!-- Subject Preview — locale-aware --%>
-            <% preview_subject =
-              PhoenixKit.Modules.Emails.Template.get_translation(
-                Ecto.Changeset.get_field(@changeset, :subject) || %{},
-                @current_editor_locale
-              ) %>
+            <%!-- The preview is the template as edited so far, in this tab's
+                 language, with sample values for its variables. --%>
+            <% preview = preview(@changeset, @current_editor_locale) %>
+            <% preview_subject = preview.subject %>
+            <% preview_html = preview.html_body %>
+            <% preview_text = preview.text_body %>
             <div class="mb-4">
               <div class="text-sm font-medium text-base-content/70 mb-1">
                 {gettext("Subject (%{locale}):", locale: String.upcase(@current_editor_locale))}
@@ -560,17 +584,6 @@
               </div>
             </div>
 
-            <%!-- Body Preview — locale-aware --%>
-            <% preview_html =
-              PhoenixKit.Modules.Emails.Template.get_translation(
-                Ecto.Changeset.get_field(@changeset, :html_body) || %{},
-                @current_editor_locale
-              ) %>
-            <% preview_text =
-              PhoenixKit.Modules.Emails.Template.get_translation(
-                Ecto.Changeset.get_field(@changeset, :text_body) || %{},
-                @current_editor_locale
-              ) %>
             <div class="border rounded-lg overflow-hidden">
               <%= if @preview_mode == "html" do %>
                 <%= if preview_html != "" do %>
@@ -580,7 +593,7 @@
                     class="w-full border-0 bg-white"
                     style="min-height: 400px; height: auto;"
                     srcdoc={preview_html}
-                    phx-update="ignore"
+                    phx-mounted={Phoenix.LiveView.JS.ignore_attributes(["style"])}
                     onload="this.style.height = (this.contentWindow.document.body.scrollHeight + 40) + 'px';"
                   >
                   </iframe>

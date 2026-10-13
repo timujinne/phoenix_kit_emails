@@ -6,7 +6,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   infrastructure setup, and the SQS worker's tuning knobs.
 
   Reached through `SQSPollingManager.settings_component/0`, not through
-  `PhoenixKit.Modules.Emails.email_settings_sections/0`. It used to be a
+  `c:PhoenixKit.Module.email_settings_sections/0`. It used to be a
   third section on the settings page, listed as a peer of the tracker table
   while actually being the detail of one of its rows: it repeated that
   table's "is collection on" answer, and nothing on the page said which
@@ -70,8 +70,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   def handle_event("update_max_messages", params, socket) do
     value = Map.get(params, "max_messages") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {max_messages, _} when max_messages >= 1 and max_messages <= 10 ->
+    case Utils.parse_int(value, nil, min: 1, max: 10) do
+      max_messages when is_integer(max_messages) ->
         case Emails.set_sqs_max_messages(max_messages) do
           {:ok, _setting} ->
             socket =
@@ -100,8 +100,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
   def handle_event("update_visibility_timeout", params, socket) do
     value = Map.get(params, "timeout") || Map.get(params, "value")
 
-    case Integer.parse(value) do
-      {timeout, _} when timeout >= 30 and timeout <= 43_200 ->
+    case Utils.parse_int(value, nil, min: 30, max: 43_200) do
+      timeout when is_integer(timeout) ->
         case Emails.set_sqs_visibility_timeout(timeout) do
           {:ok, _setting} ->
             socket =
@@ -166,14 +166,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs do
     attrs = Map.get(params, "tracking", %{})
 
     if known_connection?(socket, uuid) do
-      case Emails.set_aws_tracking(uuid, attrs) do
+      # A crafted non-map "tracking" is a failed save, not a FunctionClauseError
+      # out of set_aws_tracking/2.
+      case is_map(attrs) && Emails.set_aws_tracking(uuid, attrs) do
         {:ok, _setting} ->
           {:noreply,
            socket
            |> after_tracking_change()
            |> put_flash(:info, gettext("Account tracking settings saved"))}
 
-        {:error, _reason} ->
+        _failed ->
           {:noreply, put_flash(socket, :error, gettext("Failed to save account settings"))}
       end
     else

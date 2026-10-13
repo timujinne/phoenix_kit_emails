@@ -158,18 +158,28 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
   end
 
   @impl true
-  def handle_event("view_related", %{"campaign_id" => campaign_id}, socket) do
+  def handle_event("view_related", %{"campaign_id" => campaign_id}, socket)
+      when is_binary(campaign_id) do
     {:noreply,
      socket
-     |> push_navigate(to: Routes.path("/admin/emails?campaign_id=#{campaign_id}"))}
+     |> push_navigate(
+       to: Routes.path("/admin/emails?" <> URI.encode_query(%{"campaign_id" => campaign_id}))
+     )}
   end
 
   @impl true
-  def handle_event("view_related", %{"template_name" => template_name}, socket) do
+  def handle_event("view_related", %{"template_name" => template_name}, socket)
+      when is_binary(template_name) do
     {:noreply,
      socket
-     |> push_navigate(to: Routes.path("/admin/emails?template_name=#{template_name}"))}
+     |> push_navigate(
+       to: Routes.path("/admin/emails?" <> URI.encode_query(%{"template_name" => template_name}))
+     )}
   end
+
+  # A crafted value that is not a string cannot be put into the link.
+  @impl true
+  def handle_event("view_related", _params, socket), do: {:noreply, socket}
 
   ## --- Template ---
 

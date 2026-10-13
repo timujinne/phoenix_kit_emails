@@ -88,6 +88,33 @@ known gap: billing's `{{{line_items_html}}}` inserts rows styled by classes from
 the removed `<style>`, so they render unstyled until billing styles its own rows;
 the task warns about it.
 
+### Variables in a template
+
+A database template follows the same rules as a `phoenix_kit_templates` file:
+
+- `{{name}}` is HTML-escaped in the HTML body; `{{{name}}}` is inserted raw, for
+  a value that is already rendered HTML. Subject and text body are plain text
+  and never escaped.
+- `{{ name }}` is `{{name}}`. A name is an identifier — `{{user.name}}` or an
+  unclosed `{{name` is literal text — and an unbound placeholder is left as written.
+- A value is a string, number, atom or a `String.Chars` struct (`Date`,
+  `Decimal`, ...). A map or list used by a placeholder raises `ArgumentError`.
+
+When upgrading:
+
+- `mix phoenix_kit.update` runs this package's V3 migration, which rewrites
+  billing's `{{line_items_html}}` and `{{line_items_table_html}}` to the raw form
+  in stored HTML bodies. Those two names are inserted raw in either form anyway.
+- A template you wrote yourself that passes ready-made HTML in another variable
+  needs `{{{name}}}` now — otherwise the markup arrives escaped.
+- A list or charlist value that a placeholder uses is an `ArgumentError` now;
+  before, it was silently turned into text.
+- A name with a dot or a dash (`{{user.name}}`, `{{a-b}}`) is literal text, not a
+  variable.
+- Code up to 0.5.4 renders `{{{x}}}` as `{` + value + `}`. If you roll back,
+  `mix phoenix_kit.update` to a version below V3 restores the double braces for
+  the two billing names, but a `{{{name}}}` you wrote yourself stays as written.
+
 ## Installation
 
 Add `phoenix_kit_emails` to your dependencies in `mix.exs`:
@@ -156,6 +183,28 @@ logs = Emails.list_logs(%{status: "sent", page: 1})
 # Get a specific log
 log = Emails.get_log!(log_uuid)
 ```
+
+### Template editor
+
+A language with no text is not stored: the editor shows an untranslated language
+as an empty field (the preview still shows the fallback a reader would get), and
+an empty language is dropped on save. A template needs text in at least one
+language, not in every enabled one.
+
+`metadata` submitted to `Templates.update_template/3` is merged into the stored
+metadata, so keys such as `cloned_from` survive an edit — and a key can no longer
+be removed through that function. A submitted `source_module` must be one of
+`Template.valid_source_modules/0`; a clone keeps its source's metadata as stored.
+
+`created_by_user_uuid` and `updated_by_user_uuid` are no longer read from the
+attrs, under any key type. Pass `created_by_user_uuid:` as an option to
+`Templates.create_template/2` and `Templates.clone_template/4`, and
+`updated_by_user_uuid:` to `Templates.update_template/3`. The admin pages do
+this with the signed-in user.
+
+When the enabled languages carry a region (`en-US`) and a template is stored under
+the base code (`en`), the first `en-*` tab shows the `en` text; saving stores it
+under that tab's own code.
 
 ### Analytics
 
