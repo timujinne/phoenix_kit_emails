@@ -24,6 +24,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
       assert Dictionaries.size(:not_fake) == 0
     end
 
+    test "the lists for flags and SMTP phrases ship empty" do
+      for name <- [:typos, :fake, :curse, :smtp_grey, :smtp_quota, :smtp_block] do
+        assert Dictionaries.size(name) == 0, "#{name} should ship empty"
+      end
+    end
+
     test "valid_tld?/1" do
       assert Dictionaries.valid_tld?("com")
       assert Dictionaries.valid_tld?("EE")
@@ -148,6 +154,88 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
         end)
 
       assert log =~ "cannot read"
+    end
+  end
+
+  describe "a Kellerman-style directory, as shipped by the vendor" do
+    @describetag :tmp_dir
+
+    # CRLF line endings, mixed case, a trailing space, TLDs with a leading dot:
+    # the shape of the original files. Fixture content only, written here.
+    setup %{tmp_dir: dir} do
+      crlf = fn lines -> Enum.join(lines, "\r\n") <> "\r\n" end
+
+      files = %{
+        "DEA_Sorted.txt" => ["fixture-throwaway.example", "Other-Fixture-Dead.TEST"],
+        "FreeEmail_Sorted.txt" => ["fixture-free.example"],
+        "TopLevelDomains.txt" => [".fixturetld", ".xn--fixture"],
+        "Typos_Sorted.txt" => ["@gmai.example", "@gmial.example"],
+        "FakeAddresses_Sorted.txt" => ["@fixture-fake.example", "nobodyhome@", "x@y.example"],
+        "CurseWords_Sorted.txt" => ["blorp", "rude word"],
+        "Greylisting_Sorted.txt" => ["Try Again Later", "please wait "],
+        "MailboxQuota_Sorted.txt" => ["over quota"],
+        "Blocking_Sorted.txt" => ["Relay access denied", "5 7 1"]
+      }
+
+      for {name, lines} <- files, do: File.write!(Path.join(dir, name), crlf.(lines))
+
+      Application.put_env(:phoenix_kit_emails, :verification_lists_dir, dir)
+      Dictionaries.reload()
+      :ok
+    end
+
+    test "disposable, free and TLD lists are read under their Kellerman names" do
+      assert Dictionaries.disposable?("fixture-throwaway.example")
+      assert Dictionaries.disposable?("other-fixture-dead.test")
+      assert Dictionaries.free?("fixture-free.example")
+      assert Dictionaries.valid_tld?("fixturetld")
+      assert Dictionaries.valid_tld?("xn--fixture")
+      refute Dictionaries.valid_tld?(".fixturetld")
+    end
+
+    test "CRLF leaves no stray carriage return in an entry" do
+      assert Dictionaries.disposable?("fixture-throwaway.example")
+      refute Dictionaries.disposable?("fixture-throwaway.example\r")
+      refute Dictionaries.listed?(:fake, "nobodyhome@\r")
+    end
+
+    test "the flag lists are loaded, entries lowercased" do
+      assert Dictionaries.size(:typos) == 2
+      assert Dictionaries.size(:fake) == 3
+      assert Dictionaries.size(:curse) == 2
+      assert Dictionaries.listed?(:typos, "@gmai.example")
+      assert Dictionaries.listed?(:fake, "nobodyhome@")
+      assert Dictionaries.listed?(:curse, "rude word")
+      assert Dictionaries.listed?(:curse, "Rude Word")
+      refute Dictionaries.listed?(:curse, "rude")
+    end
+
+    test "the SMTP phrase lists are exposed, trimmed and lowercased" do
+      assert Dictionaries.phrases(:smtp_grey) == ["please wait", "try again later"]
+      assert Dictionaries.phrases(:smtp_quota) == ["over quota"]
+      assert Dictionaries.phrases(:smtp_block) == ["5 7 1", "relay access denied"]
+    end
+
+    test "our own file names work too, next to the Kellerman ones", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "typos.txt"), "@own-typo.example\n")
+      File.write!(Path.join(dir, "disposable.txt"), "own-dead.example\n")
+      File.write!(Path.join(dir, "smtp_block.txt"), "own phrase\n")
+      Dictionaries.reload()
+
+      assert Dictionaries.listed?(:typos, "@own-typo.example")
+      assert Dictionaries.listed?(:typos, "@gmai.example")
+      assert Dictionaries.disposable?("own-dead.example")
+      assert Dictionaries.disposable?("fixture-throwaway.example")
+      assert "own phrase" in Dictionaries.phrases(:smtp_block)
+      assert "relay access denied" in Dictionaries.phrases(:smtp_block)
+    end
+
+    test "a leading dot and a byte-order mark are tolerated in our own file too", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "tlds.txt"), "\uFEFF.dotted\r\n.another\r\n")
+      Dictionaries.reload()
+
+      assert Dictionaries.valid_tld?("dotted")
+      assert Dictionaries.valid_tld?("another")
     end
   end
 

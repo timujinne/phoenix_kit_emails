@@ -5,15 +5,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
 
   ## Files
 
-  `priv/email_verification/` ships five lists, one entry per line, `#` starts a
-  comment, matching is case-insensitive:
+  `priv/email_verification/` ships one file per list, one entry per line, `#`
+  starts a comment, matching is case-insensitive. Line endings may be LF or CRLF.
 
     * `disposable.txt` - throw-away domains; a listed domain covers its subdomains
     * `free.txt` - free mailbox providers; `name.*` matches `name.<tld>` and
       `name.<co|com|org|...>.<tld>`
-    * `tlds.txt` - valid top-level domains
+    * `tlds.txt` - valid top-level domains (a leading dot is ignored)
     * `role_prefixes.txt` - shared-mailbox local parts (`info`, `sales`, ...)
-    * `not_fake.txt` - whitelist: domains never treated as disposable
+    * `not_fake.txt` - whitelist: domains never treated as disposable or fake
+    * `typos.txt`, `fake.txt` - address patterns for the typo and fake flags, see
+      `Verification.Flags` (shipped empty)
+    * `curse.txt` - words for the curse flag (shipped empty)
+    * `smtp_greylist.txt`, `smtp_quota.txt`, `smtp_block.txt` - phrases for
+      classifying an SMTP reply; loaded and exposed by `phrases/1`, unused until
+      the SMTP stage (shipped empty)
 
   Where each came from is in `priv/email_verification/SOURCES.md`.
 
@@ -21,19 +27,47 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
 
   If `Config.lists_dir/0` names a directory, any file there with one of the
   names above is **merged on top** of the shipped one (union, never replace).
-  That is how a host adds lists it may not redistribute. A file missing from the
-  directory is skipped; a directory that does not exist, or a file that exists
-  but cannot be read, is skipped with a logged warning. The lists are read once
-  per VM: call `reload/0` after changing the directory or its files. If the
-  settings store cannot be read at the first lookup the shipped lists are used
-  for 30 seconds and the directory is looked up again after that.
+  That is how a host adds lists it may not redistribute.
+
+  The directory may also hold the LetsExtract/Kellerman files under their own
+  names, as they are (CRLF, TLDs with a leading dot): `DEA_Sorted.txt`
+  (disposable), `FreeEmail_Sorted.txt` (free), `TopLevelDomains.txt` (tlds),
+  `Typos_Sorted.txt`, `FakeAddresses_Sorted.txt`, `CurseWords_Sorted.txt`,
+  `Greylisting_Sorted.txt`, `MailboxQuota_Sorted.txt` and `Blocking_Sorted.txt`
+  (the three SMTP phrase lists). Our own name and the Kellerman one can both be
+  present; they are unioned.
+
+  A file missing from the directory is skipped; a directory that does not exist,
+  or a file that exists but cannot be read, is skipped with a logged warning. The
+  lists are read once per VM: call `reload/0` after changing the directory or its
+  files. If the settings store cannot be read at the first lookup the shipped
+  lists are used for 30 seconds and the directory is looked up again after that.
   """
 
   require Logger
 
   alias PhoenixKit.Modules.Emails.Verification.Config
 
-  @names [:disposable, :free, :tlds, :role_prefixes, :not_fake]
+  # kind => file names. The first is ours (shipped in priv, and looked up in the
+  # external directory); the rest are the Kellerman names, external only.
+  @sources %{
+    disposable: ["disposable.txt", "DEA_Sorted.txt"],
+    free: ["free.txt", "FreeEmail_Sorted.txt"],
+    tlds: ["tlds.txt", "TopLevelDomains.txt"],
+    role_prefixes: ["role_prefixes.txt"],
+    not_fake: ["not_fake.txt"],
+    typos: ["typos.txt", "Typos_Sorted.txt"],
+    fake: ["fake.txt", "FakeAddresses_Sorted.txt"],
+    curse: ["curse.txt", "CurseWords_Sorted.txt"],
+    smtp_grey: ["smtp_greylist.txt", "Greylisting_Sorted.txt"],
+    smtp_quota: ["smtp_quota.txt", "MailboxQuota_Sorted.txt"],
+    smtp_block: ["smtp_block.txt", "Blocking_Sorted.txt"]
+  }
+  @names Map.keys(@sources)
+  # Lists of domains: an entry may be written with a leading dot (".aaa").
+  @domain_lists [:disposable, :free, :tlds, :not_fake]
+  @phrase_lists [:smtp_grey, :smtp_quota, :smtp_block]
+  @second_levels ~w(co com org net ac or ne gov edu)
   @key {__MODULE__, :snapshot}
   @retry_ms 30_000
 
@@ -67,6 +101,27 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
     base = local |> String.downcase() |> String.split("+", parts: 2) |> hd()
     MapSet.member?(set(:role_prefixes), base)
   end
+
+  @doc """
+  `true` when `entry` is a line of the list `name` (case-insensitive, otherwise
+  exact). The flags use it for address patterns such as `@domain.com`.
+  """
+  @spec listed?(atom(), String.t()) :: boolean()
+  def listed?(name, entry) when name in @names,
+    do: MapSet.member?(set(name), String.downcase(entry))
+
+  @doc """
+  The phrases of an SMTP reply list (`:smtp_grey`, `:smtp_quota`, `:smtp_block`),
+  sorted, lowercase. Loaded for the SMTP stage; nothing reads them yet.
+  """
+  @spec phrases(:smtp_grey | :smtp_quota | :smtp_block) :: [String.t()]
+  def phrases(name) when name in @phrase_lists, do: name |> set() |> Enum.sort()
+
+  @doc false
+  # `co`, `com`, `org`, ... - the generic label that may sit between a name and a
+  # country TLD (`name.co.uk`).
+  @spec generic_second_level?(String.t()) :: boolean()
+  def generic_second_level?(label), do: label in @second_levels
 
   @doc "Forgets every loaded list; the next lookup reads the files again."
   @spec reload() :: :ok
@@ -147,8 +202,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
   # "yahoo." matches yahoo.com and yahoo.co.uk, but neither yahoo.evil.com nor
   # yahoo.a.b.com: what follows the prefix is a TLD, optionally behind a
   # generic second-level label (co, com, org, ...).
-  @second_levels ~w(co com org net ac or ne gov edu)
-
   defp wildcard_match?(prefix, domain) do
     if String.starts_with?(domain, prefix) do
       domain
@@ -178,11 +231,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
   end
 
   defp load(name, dir) do
-    file = Atom.to_string(name) <> ".txt"
+    [own | others] = Map.fetch!(@sources, name)
 
-    [shipped_path(file), dir && Path.join(dir, file)]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.flat_map(&read_lines/1)
+    [shipped_path(own) | if(dir, do: Enum.map([own | others], &Path.join(dir, &1)), else: [])]
+    |> Enum.flat_map(&read_lines(&1, name))
     |> MapSet.new()
   end
 
@@ -192,10 +244,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
 
   # A file absent from an existing directory is normal (a host may supply only
   # some lists); any other failure to read is not, and is said out loud.
-  defp read_lines(path) do
+  defp read_lines(path, name) do
     case File.read(path) do
       {:ok, content} ->
-        parse(content)
+        parse(content, name)
 
       {:error, :enoent} ->
         []
@@ -210,10 +262,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
     end
   end
 
-  defp parse(content) do
+  # LF or CRLF; a byte-order mark and the dot of ".aaa" are dropped.
+  defp parse(content, name) do
     content
+    |> String.trim_leading("\uFEFF")
     |> String.split(["\r\n", "\n"])
-    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+    |> Enum.map(&(&1 |> String.trim() |> String.downcase() |> entry(name)))
     |> Enum.reject(&(&1 == "" or String.starts_with?(&1, "#")))
   end
+
+  defp entry(line, name) when name in @domain_lists, do: String.trim_leading(line, ".")
+  defp entry(line, _name), do: line
 end
