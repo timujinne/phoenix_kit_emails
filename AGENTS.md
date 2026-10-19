@@ -66,6 +66,26 @@ Core offers every outgoing message to `Provider.maybe_enqueue/2` (optional `Phoe
 
 Callers that route through an explicitly chosen integration (`Mailer.deliver_via_integration/3` with a non-default uuid) must pass `queue: false` — the job re-sends through `deliver_email/2`, which resolves the *default* transport.
 
+### Email Verification
+
+Checks whether addresses are deliverable without sending anything. Public API is `PhoenixKit.Modules.Emails.Verification` (callers pass plain lists of addresses; the engine knows nothing about who owns them): `verify/2`, `results_for/1`, `statuses_for/1` (status/reason/level only, no step log — use it to filter large audiences), `summary/1`, and the batch calls `start_batch/4`, `get_batch/1`, `list_batches/2`, `latest_batch/2`, `cancel_batch/1`, `subscribe_batch/1`, `queue_configured?/0`. Spec: `docs/superpowers/specs/2026-10-19-email-verification.md`.
+
+1. **Pipeline** (`Verification.Pipeline`) — normalise (+`+tag` strip) → syntax → fake/curse/typo flags → TLD list → disposable list → free/role flags → DNS MX → SMTP (off by default, no client yet). The first final outcome stops the run; flags never change a status. Without SMTP a passing address is `not_sure`/`smtp_disabled` at level `mx`; `valid` only ever comes from SMTP
+2. **DNS** (`Resolver` behaviour, `Resolver.Inet` on `:inet_res`) — names are queried absolute (trailing dot), a negative answer is confirmed by a second query before it is cached or becomes `invalid`/`no_mx`, MX hosts that are not host names are dropped, and `email_verify_dns_timeout_ms` is the deadline of one query. Transient failures are `temp`/`dns_error` and never cached. `Hijack` probes a nonexistent name to subtract a DNS-hijacking resolver's address from the implicit-MX fallback; an unanswered probe makes that result uncacheable
+3. **Batches** — `start_batch/4` stores a `Batch` and enqueues a `BatchStartWorker` (lays out items), which enqueues one `VerifyEmailWorker` per address; counters move in SQL, progress is broadcast on `batch_topic/1`. `dns_error`/`greylist` verdicts are snoozed (`Retry`); an address whose job fails for good is counted `temp` and gets a `temp` row (`Batches.give_up/2`). Error logs mask the local part (`j***@domain`)
+
+Tables (migration chain V4, `Emails.Migrations`): `phoenix_kit_email_verifications` (latest verdict per address), `phoenix_kit_email_verify_domains` (per-domain MX/catch-all/greylist cache), `phoenix_kit_email_verify_batches`, `phoenix_kit_email_verify_batch_items`.
+
+**Oban queue** — jobs run on `:email_verification` (`Emails.oban_queues/0` declares it, limit 5). A host whose Oban config predates it must add it by hand or the jobs sit in `available` forever:
+
+```elixir
+config :my_app, Oban, queues: [email_verification: 5, ...]
+```
+
+**Word lists** — shipped in `priv/email_verification/*.txt` (some empty: `typos`, `fake`, `curse`, `smtp_*`; provenance in `SOURCES.md`). A host can merge more on top from an external directory (`email_verify_lists_dir` setting or `config :phoenix_kit_emails, :verification_lists_dir`, the app env wins); the LetsExtract/Kellerman files are accepted under their own names (`DEA_Sorted.txt`, `FakeAddresses_Sorted.txt`, ...). Lists load once per VM — `Dictionaries.reload/0` after a change. Never commit third-party lists
+
+**Tests** — `FakeResolver`/`FakeSmtp` in `test/support`; nothing in `Verification` may open a socket (`no_network_test.exs`). Live DNS tests are tagged `:external` and excluded by default (`mix test --include external`)
+
 ### How It Works
 
 1. Parent app adds this as a dependency in `mix.exs`
@@ -102,6 +122,16 @@ All stored via PhoenixKit Settings with module `"email_system"`:
 - `sqs_polling_interval_ms` — polling interval
 - `email_queue_enabled` — hand outgoing mail to the `:emails` Oban queue (default: **true**, but inert unless the host declared the queue)
 - `email_queue_auth_mail` — queue authentication mail too (default: false)
+- `email_verify_enabled` — email verification feature switch (default: true)
+- `email_verify_smtp_enabled` — run the SMTP step (default: false; no client exists yet)
+- `email_verify_ttl_mx_hours` / `email_verify_ttl_no_mx_hours` — cached MX / "no MX" answer (default: 24 / 24)
+- `email_verify_ttl_catch_all_days` / `email_verify_ttl_grey_hours` — cached catch-all / greylist facts (SMTP stage; default: 7 / 24)
+- `email_verify_ttl_result_days` — a stored verdict is reused this long (default: 30)
+- `email_verify_dns_timeout_ms` — deadline of one DNS query (default: 3000)
+- `email_verify_disposable_status` — status of a disposable-domain address: `invalid` (default) or `temp`; applied on read to stored verdicts too
+- `email_verify_dns_max_attempts` — batch attempts on a transient DNS failure (default: 3)
+- `email_verify_grey_retry_minutes` / `email_verify_grey_max_attempts` — greylist retry wait and attempts (default: 15 / 3)
+- `email_verify_lists_dir` — optional external word-list directory
 
 ### File Layout
 
@@ -129,6 +159,7 @@ lib/
     ├── sqs_polling_job.ex           # Oban-based SQS polling
     ├── sqs_polling_manager.ex       # Oban polling lifecycle
     ├── supervisor.ex                # OTP Supervisor for SQS pipeline
+    ├── verification.ex              # Email verification API; engine in verification/
     ├── table_columns.ex             # Column definitions for admin tables
     ├── paths.ex                     # Centralized URL path helpers
     ├── utils.ex                     # Shared utilities
