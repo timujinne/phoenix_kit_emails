@@ -241,6 +241,22 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
       assert %{fake: true} = run("asdfgh+tag@good-fixture.org")
     end
 
+    test "the stripped form must pass the syntax check too" do
+      result = run("user.+tag@good-fixture.org")
+
+      assert {result.status, result.reason, result.level} == {"invalid", "syntax", "syntax"}
+
+      assert %{"detail" => "local_dots", "outcome" => "fail"} =
+               Enum.find(result.log, &(&1["step"] == "syntax"))
+
+      assert FakeResolver.calls() == []
+      assert result.email == "user.+tag@good-fixture.org"
+    end
+
+    test "a tag after a clean local part still passes" do
+      assert run("user.name+tag@good-fixture.org").status == "not_sure"
+    end
+
     test "the SMTP client is asked about the stripped address" do
       Settings.update_boolean_setting_with_module(
         "email_verify_smtp_enabled",

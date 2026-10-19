@@ -18,7 +18,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   `user+tag@domain` is checked as `user@domain`: the flags, the role check and
   the SMTP client see the address without its tag, the result is stored under
   the address as given, and the `normalize` log line says what it was checked as
-  (`"checked_as"`). The syntax check looks at the address as given.
+  (`"checked_as"`). The syntax check looks at both: the address as given, and
+  what is left after the tag is cut (`user.+tag` leaves `user.`, which is not an
+  address).
 
   The marks step comes right after the syntax check so that the flags are set
   whatever happens later (a typo domain usually ends at `no_mx`). They never
@@ -89,10 +91,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   end
 
   defp step(:syntax, %{parts: %{local: local, domain: domain}} = state) do
-    case Syntax.check(local, domain) do
-      :ok ->
-        {:cont, %{state | result: %{state.result | domain: domain}}, %{}}
-
+    with :ok <- Syntax.check(local, domain),
+         :ok <- Syntax.check(state.check_local, domain) do
+      {:cont, %{state | result: %{state.result | domain: domain}}, %{}}
+    else
       {:error, detail} ->
         {:halt, invalid(state, "syntax", "syntax"), %{"detail" => Atom.to_string(detail)}}
     end
