@@ -40,7 +40,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.FlagsTest do
             "ghjkl@good-fixture.org",
             "qwerty@good-fixture.org",
             "bcdfghjk@good-fixture.org",
-            "xkcd@good-fixture.org",
+            "bcdfghj@good-fixture.org",
+            "bcd.fgh.jk@good-fixture.org",
+            "bc.df.gh@good-fixture.org",
             "a.b.c.d.e@good-fixture.org",
             "john.paul.george.ringo.yoko@good-fixture.org",
             "qrstvwxzbcdfgh.john@good-fixture.org"
@@ -50,10 +52,33 @@ defmodule PhoenixKit.Modules.Emails.Verification.FlagsTest do
     end
 
     test "flags a throw-away second-level label of the domain" do
-      assert fake?("john@hjj.dk")
       assert fake?("john@12345.dk")
       assert fake?("john@bbbb.dk")
-      assert fake?("john@mail.hjj.co.uk")
+      assert fake?("john@bcdfghj.dk")
+      assert fake?("john@mail.bcdfghj.co.uk")
+    end
+
+    test "short consonant-only names are initials, not throw-aways (ANALYSIS section 3)" do
+      for address <- [
+            "aha@hjj.dk",
+            "skf.cz@good-fixture.org",
+            "hjj@good-fixture.org",
+            "bbc@good-fixture.org",
+            "xkcd@good-fixture.org",
+            "bcdklm@good-fixture.org",
+            "bc.df@good-fixture.org",
+            "john@hjj.dk",
+            "john@skf.cz",
+            "john@bbc.co.uk",
+            "john@mail.hjj.co.uk"
+          ] do
+        refute fake?(address), "#{address} should not look fake"
+      end
+    end
+
+    test "nine non-vowels in a row are fake even with vowels around them" do
+      assert fake?("qrstvwxzb.john@good-fixture.org")
+      refute fake?("qrstvwx.john@good-fixture.org")
     end
 
     test "leaves ordinary addresses alone" do
@@ -76,7 +101,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.FlagsTest do
     test "a Dr./Jr./Sr. prefix does not count towards the initials rule" do
       refute fake?("dr.a.b.c.dee@good-fixture.org")
       refute fake?("jr.a.b.c.dee@good-fixture.org")
+      refute fake?("sr.a.b.c.dee@good-fixture.org")
       assert fake?("x.a.b.c.dee@good-fixture.org")
+      assert fake?("dr.a.b.c.d.dee@good-fixture.org")
+    end
+
+    test "four dots make an address fake whatever stands between them" do
+      assert fake?("a.b.c.d.e@good-fixture.org")
+      assert fake?("a1.b2.c3.d4.e5@good-fixture.org")
+      refute fake?("a.b.c.dee@good-fixture.org")
     end
 
     test "is case-insensitive" do

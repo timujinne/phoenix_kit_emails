@@ -22,14 +22,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.Flags do
     * the second-level label of the domain looks throw-away - unless the domain
       is a known free provider, whose name is not ours to judge.
 
-  A name (dots removed) looks throw-away when it is digits only, one letter
-  repeated, has the same letter three times in a row, contains a keyboard run
-  (`asdf`, `qwer`, `ghjkl`, ...), has no vowel (`aeiouy`) and three or more
-  characters, or has nine or more characters in a row without a vowel. The local
-  part is also fake with four or more dots, or when it starts with four or more
-  one-word segments each followed by a dot (`a.b.c.d.e`); a `dr`, `jr` or `sr`
-  segment is not counted. This follows the heuristic recovered from the original
-  tool; where its description was loose the thresholds above are our reading.
+  A name looks throw-away when it is digits only, one letter repeated, has the
+  same letter three times in a row, contains a keyboard run (`asdf`, `qwer`,
+  `ghjkl`, ...), or has no vowel (`aeiouy`) and is long enough: seven or more
+  characters (dots removed) or eight or more (dots counted), or has nine or more
+  characters in a row without a vowel (dots removed). The local part is also fake
+  with four or more dots (`a.b.c.d.e`, the "initials with dots" pattern
+  `^([a-z]+\.){4,}`, which the dot count includes); a `dr`, `jr` or `sr` segment
+  is not counted.
+
+  The thresholds follow section 3 of the analysis of the original tool. A short
+  name without vowels is deliberately *not* fake: `hjj`, `skf` or `bbc` are
+  legitimate initials, and the analysis lists exactly those as the false
+  positives of the older "three or more characters" rule. Where the analysis was
+  loose (whether the eight-character rule counts the dots) this is our reading.
 
   ## curse
 
@@ -98,10 +104,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Flags do
 
   defp throwaway_local?(local) do
     segments = local |> String.split(".") |> Enum.reject(&(&1 in @titles))
-    initials = Enum.join(segments, ".")
 
-    throwaway_name?(Enum.join(segments)) or length(segments) > 4 or
-      Regex.match?(~r/\A([a-z]+\.){4,}/, initials)
+    throwaway_name?(Enum.join(segments)) or vowelless?(Enum.join(segments, "."), 8) or
+      length(segments) > 4
   end
 
   # An internationalised label (punycode) has no vowels to count.
@@ -133,7 +138,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Flags do
       Regex.match?(~r/\A(.)\1+\z/, name) or
       Regex.match?(~r/([a-z])\1\1/, name) or
       Enum.any?(@keyboard_runs, &String.contains?(name, &1)) or
-      (String.length(name) >= 3 and not Regex.match?(~r/[aeiouy]/, name)) or
+      vowelless?(name, 7) or
       Regex.match?(~r/[^aeiouy]{9,}/, name)
   end
+
+  defp vowelless?(name, min_length),
+    do: String.length(name) >= min_length and not Regex.match?(~r/[aeiouy]/, name)
 end
