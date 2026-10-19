@@ -69,7 +69,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineFlagsTest do
     assert bad_tld.fake
 
     disposable = run("blorp@mailinator.com")
-    assert {disposable.status, disposable.reason} == {"invalid", "disposable"}
+    assert {disposable.status, disposable.reason} == {"temp", "disposable"}
     assert disposable.curse
   end
 

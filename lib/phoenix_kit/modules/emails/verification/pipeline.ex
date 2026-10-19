@@ -8,7 +8,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   | 2 | syntax | invalid `syntax` |
   | 3 | marks: fake / curse / typo flags | - |
   | 4 | TLD list | invalid `bad_tld` |
-  | 5 | disposable list | `email_verify_disposable_status`: invalid (default) or temp, `disposable` |
+  | 5 | disposable list | `email_verify_disposable_status`: temp (default) or invalid, `disposable` |
   | 6 | free / role flags | - |
   | 7 | DNS MX (cache, then resolver) | invalid `no_mx`; temp `dns_error` |
   | 8 | SMTP, only when enabled | whatever the client says |

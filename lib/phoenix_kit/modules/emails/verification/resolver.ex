@@ -32,6 +32,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
   @callback lookup_addresses(domain(), timeout_ms :: pos_integer()) ::
               {:ok, [:inet.ip_address()]} | {:error, error()}
 
+  @max_confirm_pause_ms 2_000
+
   @host_label ~r/\A[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\z/
 
   @doc """
@@ -47,7 +49,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
   address fallback is asked a second time and the second answer is the one
   returned: a resolver that lies once - a flapping forwarder, a lost reply taken
   for "no such name" - must not condemn a domain, and a domain that is
-  condemned is cached for a day. If the second query fails transiently the
+  condemned is cached for a day. The second query is made after a short pause
+  (`:confirm_pause_ms`) so that the hiccup is less likely to repeat. If the second query fails transiently the
   result is that transient error. Positive answers, a null MX and transient
   errors cost one query. So a nonexistent domain costs two, a domain with an
   address only three (two MX queries, one address query).
@@ -58,7 +61,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
   answer is as good as none: `{:error, :servfail}`.
 
   Options: `:resolver` (module, default `Config.resolver/0`), `:timeout`
-  (milliseconds, default `Config.dns_timeout_ms/0`), `:hijack_ips` (addresses
+  (milliseconds, default `Config.dns_timeout_ms/0`), `:confirm_pause_ms`
+  (milliseconds, default `Config.confirm_pause_ms/0`, at most 2000), `:hijack_ips` (addresses
   to ignore in the fallback, or a zero-arity function returning them that is
   called only if the fallback is reached; default `[]`, see `Verification.Hijack`).
   An address answer made only of those addresses counts as no address at all.
@@ -71,7 +75,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
     resolver = Keyword.get_lazy(opts, :resolver, &Config.resolver/0)
     timeout = Keyword.get_lazy(opts, :timeout, &Config.dns_timeout_ms/0)
 
-    case confirmed(fn -> resolver.lookup_mx(domain, timeout) end) do
+    pause = confirm_pause(opts)
+
+    case confirmed(fn -> resolver.lookup_mx(domain, timeout) end, pause) do
       {:ok, records} -> from_mx(records)
       {:error, :no_records} -> implicit_mx(resolver, domain, timeout, opts)
       {:error, reason} -> {:error, reason}
@@ -79,10 +85,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
   end
 
   # The second answer replaces the first, whatever it is.
-  defp confirmed(lookup) do
+  defp confirmed(lookup, pause) do
     case lookup.() do
-      {:error, negative} when negative in [:nxdomain, :no_records] -> lookup.()
-      answer -> answer
+      {:error, negative} when negative in [:nxdomain, :no_records] ->
+        if pause > 0, do: Process.sleep(pause)
+        lookup.()
+
+      answer ->
+        answer
+    end
+  end
+
+  defp confirm_pause(opts) do
+    case Keyword.get_lazy(opts, :confirm_pause_ms, &Config.confirm_pause_ms/0) do
+      ms when is_integer(ms) and ms > 0 -> min(ms, @max_confirm_pause_ms)
+      _ -> 0
     end
   end
 
@@ -107,7 +124,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
   end
 
   defp implicit_mx(resolver, domain, timeout, opts) do
-    case confirmed(fn -> resolver.lookup_addresses(domain, timeout) end) do
+    case confirmed(fn -> resolver.lookup_addresses(domain, timeout) end, confirm_pause(opts)) do
       {:ok, []} -> {:error, :no_records}
       {:ok, ips} -> implicit_mx_from(ips, domain, hijack_ips(opts))
       {:error, reason} -> {:error, reason}

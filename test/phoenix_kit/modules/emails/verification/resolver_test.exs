@@ -107,6 +107,30 @@ defmodule PhoenixKit.Modules.Emails.Verification.ResolverTest do
       end
     end
 
+    test "the confirmation waits the configured pause, a first answer that needs none does not" do
+      FakeResolver.put("gone.example", mx: {:error, :nxdomain})
+      FakeResolver.put("fine.example", mx: {:ok, [%{host: "mx.fine.example", pref: 5}]})
+      FakeResolver.put("flaky.example", mx: {:error, :timeout})
+
+      elapsed = fn domain, pause ->
+        {micros, _} =
+          :timer.tc(fn ->
+            Resolver.resolve(domain,
+              resolver: FakeResolver,
+              timeout: 100,
+              confirm_pause_ms: pause
+            )
+          end)
+
+        div(micros, 1_000)
+      end
+
+      assert elapsed.("gone.example", 80) >= 80
+      assert elapsed.("gone.example", 0) < 80
+      assert elapsed.("fine.example", 400) < 400
+      assert elapsed.("flaky.example", 400) < 400
+    end
+
     test "a first attempt that fails transiently is returned as it is, not retried into nxdomain" do
       FakeResolver.put("flaky.example", mx: [{:error, :timeout}, {:error, :nxdomain}])
       assert {:error, :timeout} = resolve("flaky.example")

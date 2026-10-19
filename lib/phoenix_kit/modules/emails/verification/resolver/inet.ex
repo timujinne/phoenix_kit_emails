@@ -22,7 +22,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver.Inet do
   `Resolver.resolve/2` asks a negative answer a second time and the pipeline's
   anti-hijack probe is one more `lookup_addresses/2`, so the worst case for one
   domain with the default 3 s is: MX 2 x 3 s, addresses 2 x 2 x 3 s, probe 2 x 3 s
-  = 24 s; a nonexistent domain answered promptly costs two round trips.
+  = 24 s, plus the two confirmation pauses (`Config.confirm_pause_ms/0`, 300 ms
+  by default); a nonexistent domain answered promptly costs two round trips and
+  one pause.
   """
 
   @behaviour PhoenixKit.Modules.Emails.Verification.Resolver

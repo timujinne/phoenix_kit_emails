@@ -64,7 +64,7 @@ defmodule PhoenixKit.Modules.Emails.VerificationTest do
 
     test "stores invalid verdicts too, including malformed input" do
       assert {:ok, %Result{status: "invalid", reason: "syntax"}} = verify("not an email")
-      assert {:ok, %Result{status: "invalid", reason: "disposable"}} = verify("x@mailinator.com")
+      assert {:ok, %Result{status: "temp", reason: "disposable"}} = verify("x@mailinator.com")
 
       assert Repo.get_by!(Result, email: "not an email").level == "syntax"
       assert Repo.get_by!(Result, email: "x@mailinator.com").disposable
@@ -257,40 +257,45 @@ defmodule PhoenixKit.Modules.Emails.VerificationTest do
           "email_system"
         )
 
-    test "invalid by default" do
-      assert %{"john@mailinator.com" => %{status: "invalid", reason: "disposable"}} =
+    test "a disposable verdict is a temp one, yet it is served from the cache" do
+      assert {:ok, %Result{status: "temp", reason: "disposable", source: "cache"}} =
+               verify("john@mailinator.com")
+    end
+
+    test "temp by default" do
+      assert %{"john@mailinator.com" => %{status: "temp", reason: "disposable"}} =
                Verification.statuses_for(["john@mailinator.com"])
     end
 
     test "results_for, statuses_for, summary and a cached verify all re-map it" do
-      disposable_status("temp")
+      disposable_status("invalid")
       email = "john@mailinator.com"
 
-      assert %{^email => %Result{status: "temp", reason: "disposable"}} =
+      assert %{^email => %Result{status: "invalid", reason: "disposable"}} =
                Verification.results_for([email])
 
-      assert %{^email => %{status: "temp"}} = Verification.statuses_for([email])
-      assert %{temp: 1, invalid: 0} = Verification.summary([email])
-      assert {:ok, %Result{status: "temp", source: "cache"}} = verify(email)
+      assert %{^email => %{status: "invalid"}} = Verification.statuses_for([email])
+      assert %{invalid: 1, temp: 0} = Verification.summary([email])
+      assert {:ok, %Result{status: "invalid", source: "cache"}} = verify(email)
     end
 
-    test "a verdict stored as temp comes back invalid when the setting is back to invalid" do
-      disposable_status("temp")
-      verify("jane@mailinator.com", force: true)
-
-      assert %{status: "temp"} =
-               Verification.statuses_for(["jane@mailinator.com"])["jane@mailinator.com"]
-
+    test "a verdict stored as invalid comes back temp when the setting is back to temp" do
       disposable_status("invalid")
+      verify("jane@mailinator.com", force: true)
 
       assert %{status: "invalid"} =
                Verification.statuses_for(["jane@mailinator.com"])["jane@mailinator.com"]
 
-      assert {:ok, %Result{status: "invalid"}} = verify("jane@mailinator.com")
+      disposable_status("temp")
+
+      assert %{status: "temp"} =
+               Verification.statuses_for(["jane@mailinator.com"])["jane@mailinator.com"]
+
+      assert {:ok, %Result{status: "temp"}} = verify("jane@mailinator.com")
     end
 
     test "other reasons are left alone" do
-      disposable_status("temp")
+      disposable_status("invalid")
       verify("a@fixture.org")
       assert %{status: "not_sure"} = Verification.statuses_for(["a@fixture.org"])["a@fixture.org"]
     end

@@ -326,6 +326,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   defp mask(_email), do: "***"
 
+  @address ~r/[^\s<>()"',;=]+@[^\s<>()"',;=]+/
+
+  @doc false
+  # Masks every address in a free-text message (an exception message may quote
+  # the rows of a failed insert), the way `give_up/2` masks its own address.
+  @spec mask_addresses(String.t()) :: String.t()
+  def mask_addresses(message) when is_binary(message),
+    do: Regex.replace(@address, message, &mask/1)
+
   defp finish_item(batch_uuid, email, now) do
     from(i in BatchItem,
       where: i.batch_uuid == ^batch_uuid and i.email == ^email and i.state == "pending"

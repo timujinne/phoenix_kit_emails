@@ -21,8 +21,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
       included (default `3000`); the worst case for one domain is eight times that,
       see `Verification.Resolver.Inet`
     * `email_verify_disposable_status` - the status of an address on a disposable
-      domain: `"invalid"` (default) or `"temp"` (what LetsExtract does); any other
-      value counts as `"invalid"`
+      domain: `"temp"` (default, what LetsExtract does) or `"invalid"`; any other
+      value counts as `"temp"`. The `disposable` flag is set either way
     * `email_verify_dns_max_attempts` - how many times a batch job tries an address
       whose DNS lookup failed transiently before keeping the `temp` verdict (default `3`)
     * `email_verify_grey_retry_minutes` - least wait before a greylisted address is
@@ -37,6 +37,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `:verification_resolver` - a `Verification.Resolver` module (default `Resolver.Inet`)
     * `:verification_smtp` - a `Verification.Smtp` module (default `Smtp.Disabled`)
     * `:verification_lists_dir` - external dictionary directory; wins over the setting
+    * `:verification_confirm_pause_ms` - the pause before a negative DNS answer is
+      asked a second time, in milliseconds (default `300`, at most `2000`, `0`
+      switches it off; the test config sets `0`)
   """
 
   alias PhoenixKit.Modules.Emails.Verification.Resolver
@@ -46,6 +49,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @type ttl_kind :: :mx | :no_mx | :catch_all | :grey | :result
 
   @default_dns_timeout_ms 3_000
+  @default_confirm_pause_ms 300
+  @max_confirm_pause_ms 2_000
 
   @doc "Whether the verification feature is switched on (default `true`)."
   @spec enabled?() :: boolean()
@@ -72,21 +77,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   def ttl_seconds(:result), do: days("email_verify_ttl_result_days", 30)
 
   @doc """
-  The status a disposable-domain address gets: `"invalid"` (the default) or
-  `"temp"`, from `email_verify_disposable_status` (case and surrounding spaces
-  ignored; anything unrecognised, or an unreadable store, is `"invalid"`).
+  The status a disposable-domain address gets: `"temp"` (the default) or
+  `"invalid"`, from `email_verify_disposable_status` (case and surrounding spaces
+  ignored; anything unrecognised, or an unreadable store, is `"temp"`).
   """
   @spec disposable_status() :: String.t()
   def disposable_status do
     case Settings.get_setting("email_verify_disposable_status") do
       value when is_binary(value) ->
-        if value |> String.trim() |> String.downcase() == "temp", do: "temp", else: "invalid"
+        if value |> String.trim() |> String.downcase() == "invalid", do: "invalid", else: "temp"
 
       _ ->
-        "invalid"
+        "temp"
     end
   rescue
-    _ -> "invalid"
+    _ -> "temp"
   end
 
   @doc "How many attempts a batch job makes on an address whose DNS lookup fails transiently."
@@ -105,6 +110,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @spec dns_timeout_ms() :: pos_integer()
   def dns_timeout_ms do
     positive_integer("email_verify_dns_timeout_ms", @default_dns_timeout_ms)
+  end
+
+  @doc """
+  How long, in milliseconds, the resolver waits before it asks a negative DNS
+  answer a second time: from the application env, `300` by default, never more
+  than `2000`. A value that is not a non-negative integer is the default.
+  """
+  @spec confirm_pause_ms() :: non_neg_integer()
+  def confirm_pause_ms do
+    case Application.get_env(:phoenix_kit_emails, :verification_confirm_pause_ms) do
+      ms when is_integer(ms) and ms >= 0 -> min(ms, @max_confirm_pause_ms)
+      _ -> @default_confirm_pause_ms
+    end
   end
 
   @doc "The DNS resolver implementation."

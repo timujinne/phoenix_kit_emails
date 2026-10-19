@@ -71,3 +71,6 @@ config :phoenix_kit,
 # `Req.Test.stub/2` inside each test) actually varies.
 config :phoenix_kit_emails,
   brevo_client_req_options: [plug: {Req.Test, PhoenixKit.Modules.Emails.BrevoPollingJobTest.Stub}]
+
+# No pause before a negative DNS answer is confirmed: tests script the answers.
+config :phoenix_kit_emails, verification_confirm_pause_ms: 0

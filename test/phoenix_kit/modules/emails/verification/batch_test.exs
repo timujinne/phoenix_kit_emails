@@ -529,6 +529,42 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
     end
   end
 
+  describe "mask_addresses/1" do
+    test "masks every address in a message the way the other batch logs do" do
+      message =
+        "ERROR 23505: Key (email)=(john.smith@fixture.org) conflicts with <ann@x.example>, b@y.example."
+
+      masked = Batches.mask_addresses(message)
+
+      assert masked =~ "(j***@fixture.org)"
+      assert masked =~ "<a***@x.example>"
+      assert masked =~ "b***@y.example."
+      refute masked =~ "john"
+      refute masked =~ "ann@"
+    end
+
+    test "leaves a message without an address alone" do
+      assert Batches.mask_addresses("connection closed") == "connection closed"
+    end
+
+    test "the start worker logs a failed last attempt without a raw address" do
+      batch = start(["john.smith@fixture.org", "b\0@fixture.org"])
+
+      args = %{
+        "batch_uuid" => batch.uuid,
+        "emails" => ["john.smith@fixture.org", "b\0@fixture.org"]
+      }
+
+      log =
+        ExUnit.CaptureLog.capture_log([level: :error], fn ->
+          assert_raise Postgrex.Error, fn -> perform_job(BatchStartWorker, args, attempt: 3) end
+        end)
+
+      assert log =~ "could not be laid out"
+      refute log =~ "john.smith"
+    end
+  end
+
   describe "total" do
     test "follows the items when the database folds case differently from Elixir" do
       # citext lower-cases "İ" to "i"; String.downcase/1 does not.

@@ -88,7 +88,8 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   Verifies one address synchronously and stores the verdict.
 
   A stored verdict younger than `email_verify_ttl_result_days` is returned as is
-  (`source: "cache"`) - except a `"temp"` one, which is always re-run. The MX
+  (`source: "cache"`) - except a `"temp"` one, which is always re-run; a
+  `"disposable"` verdict is final whatever status the setting gives it. The MX
   answer is cached per domain either way.
 
   Options: `:force` (re-run even if a stored verdict is fresh), `:resolver` and
@@ -209,12 +210,12 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   @spec get_batch(term()) :: Batch.t() | nil
   defdelegate get_batch(uuid), to: Batches, as: :get
 
-  @doc "The batches of one source, newest first."
-  @spec list_batches(String.t(), term()) :: [Batch.t()]
+  @doc "The batches of one source, newest first; `[]` for a source type that is not text."
+  @spec list_batches(term(), term()) :: [Batch.t()]
   defdelegate list_batches(source_type, source_ref), to: Batches, as: :list
 
-  @doc "The newest batch of one source, or `nil`."
-  @spec latest_batch(String.t(), term()) :: Batch.t() | nil
+  @doc "The newest batch of one source, or `nil` (also for a source type that is not text)."
+  @spec latest_batch(term(), term()) :: Batch.t() | nil
   defdelegate latest_batch(source_type, source_ref), to: Batches, as: :latest
 
   @doc """
@@ -285,12 +286,17 @@ defmodule PhoenixKit.Modules.Emails.Verification do
     with false <- Keyword.get(opts, :force, false),
          key when is_binary(key) <- Normalizer.storage_key(email),
          [row] <- fetch_rows([key]),
-         true <- row.status != "temp" and fresh?(row) do
+         true <- final?(row) and fresh?(row) do
       current(%{row | source: "cache"}, Config.disposable_status())
     else
       _ -> nil
     end
   end
+
+  # A "temp" verdict is "try again later" - except a disposable domain's, which
+  # is temp by policy and will not change.
+  defp final?(%Result{status: "temp", reason: reason}), do: reason == "disposable"
+  defp final?(%Result{}), do: true
 
   defp fresh?(%Result{checked_at: %DateTime{} = at}) do
     DateTime.diff(PhoenixKit.Utils.Date.utc_now(), at, :second) < Config.ttl_seconds(:result)

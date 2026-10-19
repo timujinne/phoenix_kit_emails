@@ -40,7 +40,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchStartWorker do
 
     Logger.error(
       "[Emails.Verification] batch #{uuid} could not be laid out, cancelling it: " <>
-        Exception.message(error)
+        Batches.mask_addresses(Exception.message(error))
     )
 
     Batches.abandon(uuid)

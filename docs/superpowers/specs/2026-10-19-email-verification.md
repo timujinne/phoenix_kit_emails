@@ -48,7 +48,7 @@ syntax → словари → DNS MX → SMTP RCPT (+ catch-all) и показы
 | 1 | Нормализация: trim, нижний регистр домена (IDN → punycode), local-part как есть | — |
 | 2 | Syntax (RFC 5321/5322 упрощённо: длины 64/254, точки, допустимые символы) | Invalid `syntax` |
 | 3 | TLD по списку IANA | Invalid `bad_tld` |
-| 4 | DEA (одноразовые домены) | `email_verify_disposable_status`: Invalid `disposable` (дефолт) или Temp `disposable` (как LetsExtract, ANALYSIS §7) |
+| 4 | DEA (одноразовые домены) | `email_verify_disposable_status`: Temp `disposable` (дефолт, как в LetsExtract, ANALYSIS §7; решение владельца Q8) или Invalid `disposable`; флаг `disposable` ставится в обоих случаях |
 | 5 | Флаги без вердикта: `free` (gmail.com…), `role` (info@, sales@…), `fake`, `curse`, `typo` (шаг `marks` сразу после syntax, чтобы флаги ставились при любом исходе) | — |
 | 6 | DNS MX (кэш → `:inet_res`); нет MX → A/AAAA (implicit MX, RFC 5321 §5.1) | нет ни MX, ни A: Invalid `no_mx`; SERVFAIL/таймаут: Temp `dns_error` |
 | 7 | SMTP RCPT — **только при `email_verify_smtp_enabled = true`** (дефолт ВЫКЛ) | см. ниже |
@@ -62,7 +62,7 @@ syntax → словари → DNS MX → SMTP RCPT (+ catch-all) и показы
 его адреса вычитаются из A-ответов домена. `fake`/`curse`/`typo` — флаги без вердикта
 (владелец: «Fake Pattern и Curse Words — не вердикт»), хранятся булевыми колонками
 `fake`, `curse`, `typo` в `phoenix_kit_email_verifications`, нигде не показываются и
-статус не меняют.
+статус не меняют (решение владельца Q9: только флаги, никогда не вердикт).
 
 Без SMTP (этап 1, дефолт): прошедший шаги 1–6 адрес получает `not_sure` с
 `level = "mx"` (домен принимает почту, ящик не проверен). `valid` выдаёт только SMTP.

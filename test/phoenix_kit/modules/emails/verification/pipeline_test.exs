@@ -36,9 +36,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
       assert FakeResolver.calls() == []
     end
 
-    test "a disposable domain is invalid and flagged" do
+    test "a disposable domain is temp and flagged" do
       result = run("john@mailinator.com")
-      assert {result.status, result.reason, result.level} == {"invalid", "disposable", "dict"}
+      assert {result.status, result.reason, result.level} == {"temp", "disposable", "dict"}
       assert result.disposable
       assert FakeResolver.calls() == []
     end
@@ -277,27 +277,27 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
       Settings.update_setting_with_module("email_verify_disposable_status", value, "email_system")
     end
 
-    test "defaults to invalid" do
-      assert Config.disposable_status() == "invalid"
-      assert %{status: "invalid", reason: "disposable"} = run("john@mailinator.com")
+    test "defaults to temp" do
+      assert Config.disposable_status() == "temp"
+      assert %{status: "temp", reason: "disposable"} = run("john@mailinator.com")
     end
 
-    test "temp makes a disposable domain temp, the reason and flag stay" do
-      set_disposable_status("temp")
+    test "invalid makes a disposable domain invalid, the reason and flag stay" do
+      set_disposable_status("invalid")
       result = run("john@mailinator.com")
 
-      assert {result.status, result.reason, result.level} == {"temp", "disposable", "dict"}
+      assert {result.status, result.reason, result.level} == {"invalid", "disposable", "dict"}
       assert result.disposable
       assert FakeResolver.calls() == []
     end
 
-    test "case and surrounding spaces are ignored; an unknown value falls back to invalid" do
-      set_disposable_status(" TEMP ")
-      assert Config.disposable_status() == "temp"
+    test "case and surrounding spaces are ignored; an unknown value falls back to temp" do
+      set_disposable_status(" INVALID ")
+      assert Config.disposable_status() == "invalid"
 
-      for value <- ["invalid", "bogus", ""] do
+      for value <- ["temp", "bogus", ""] do
         set_disposable_status(value)
-        assert run("john@mailinator.com").status == "invalid", "setting #{inspect(value)}"
+        assert run("john@mailinator.com").status == "temp", "setting #{inspect(value)}"
       end
     end
   end
