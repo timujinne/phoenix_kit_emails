@@ -8,7 +8,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Result do
     * `status` - `"valid" | "invalid" | "temp" | "not_sure"`. Only an SMTP probe
       can produce `"valid"`.
     * `reason` - why: `"syntax"`, `"bad_tld"`, `"disposable"`, `"no_mx"`,
-      `"dns_error"`, `"smtp_disabled"`, `"smtp_unavailable"`, ...
+      `"dns_error"`, `"smtp_disabled"`, `"smtp_unavailable"`,
+      `"job_failed"` (a batch job gave up on the address; `level` is `nil`), ...
     * `level` - how far the pipeline got: `"syntax" | "dict" | "mx" | "smtp"`.
       An address that passed every step without SMTP is `"not_sure"` at `"mx"`:
       the domain takes mail, the mailbox is unchecked.

@@ -62,6 +62,8 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   # A re-run overwrites every verdict field in place; the address is the key.
   @updated_on_conflict List.delete(@persisted, :email)
 
+  @type status_info :: %{status: String.t(), reason: String.t() | nil, level: String.t() | nil}
+
   @type summary :: %{
           valid: non_neg_integer(),
           invalid: non_neg_integer(),
@@ -108,16 +110,21 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   The stored verdicts for `emails`, keyed by the address as given.
   Addresses never verified, blank, or not storable (see
   `Normalizer.storage_key/1`) are absent.
+
+  A verdict with the reason `"disposable"` carries the status of the current
+  `email_verify_disposable_status` setting, not the one it was stored with: the
+  setting is a policy, and changing it must not leave old verdicts behind.
   """
   @spec results_for([term()]) :: %{String.t() => Result.t()}
   def results_for(emails) do
     keyed = keyed(emails)
+    disposable = Config.disposable_status()
 
     by_key =
       keyed
       |> keys()
       |> fetch_rows()
-      |> Map.new(&{String.downcase(&1.email), %{&1 | source: "cache"}})
+      |> Map.new(&{String.downcase(&1.email), current(%{&1 | source: "cache"}, disposable)})
 
     for {email, key} <- keyed, result = by_key[String.downcase(key)], into: %{} do
       {email, result}
@@ -125,23 +132,48 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   end
 
   @doc """
+  What `results_for/1` knows about each address, without the step log: a map
+  `%{status:, reason:, level:}` (strings, as in `Verification.Result`) per address
+  as given. For filtering and counting a large audience, where loading every
+  verdict's `log` jsonb would be a waste.
+
+  Absent addresses and the `"disposable"` re-mapping are as in `results_for/1`.
+  """
+  @spec statuses_for([term()]) :: %{term() => status_info()}
+  def statuses_for(emails) do
+    keyed = emails |> Enum.uniq() |> keyed()
+    disposable = Config.disposable_status()
+
+    by_key =
+      keyed
+      |> keys()
+      |> fetch_statuses()
+      |> Map.new(fn {email, info} -> {String.downcase(email), current(info, disposable)} end)
+
+    for {email, key} <- keyed, info = by_key[String.downcase(key)], into: %{} do
+      {email, info}
+    end
+  end
+
+  @doc """
   Counts `emails` by stored status. `unchecked` are the ones with no verdict.
   An address listed twice counts twice.
 
-  Reads only the status column, not the verdicts' step logs.
+  Built on `statuses_for/1`: it reads no step logs, and each address is
+  normalised once.
   """
   @spec summary([term()]) :: summary()
   def summary(emails) do
-    statuses =
-      emails
-      |> keyed()
-      |> keys()
-      |> fetch_statuses()
-      |> Map.new(fn {email, status} -> {String.downcase(email), status} end)
+    statuses = statuses_for(emails)
 
     counts =
       emails
-      |> Enum.map(&status_of(statuses, &1))
+      |> Enum.map(fn email ->
+        case statuses do
+          %{^email => %{status: status}} -> String.to_existing_atom(status)
+          _ -> :unchecked
+        end
+      end)
       |> Enum.frequencies()
 
     for status <- [:valid, :invalid, :temp, :not_sure, :unchecked], into: %{} do
@@ -245,21 +277,16 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   defp keys(keyed), do: keyed |> Enum.map(fn {_email, key} -> key end) |> Enum.uniq()
 
-  defp status_of(statuses, email) do
-    with key when is_binary(key) <- Normalizer.storage_key(email),
-         status when is_binary(status) <- Map.get(statuses, String.downcase(key)) do
-      String.to_existing_atom(status)
-    else
-      _ -> :unchecked
-    end
-  end
+  # The disposable status is a policy, applied when a verdict is read.
+  defp current(%{reason: "disposable"} = verdict, disposable), do: %{verdict | status: disposable}
+  defp current(verdict, _disposable), do: verdict
 
   defp stored_fresh(email, opts) do
     with false <- Keyword.get(opts, :force, false),
          key when is_binary(key) <- Normalizer.storage_key(email),
          [row] <- fetch_rows([key]),
          true <- row.status != "temp" and fresh?(row) do
-      %{row | source: "cache"}
+      current(%{row | source: "cache"}, Config.disposable_status())
     else
       _ -> nil
     end
@@ -283,9 +310,44 @@ defmodule PhoenixKit.Modules.Emails.Verification do
     repo().all(
       from(r in Result,
         where: fragment("? = ANY(?::citext[])", r.email, ^keys),
-        select: {r.email, r.status}
+        select: {r.email, %{status: r.status, reason: r.reason, level: r.level}}
       )
     )
+  end
+
+  @doc false
+  # The verdict of an address its batch job gave up on (`Batches.give_up/2`): a
+  # `"temp"` row, so that `summary/1` and `results_for/1` agree with the batch's
+  # own counts. A `"temp"` verdict already stored keeps its reason (usually
+  # `"dns_error"`, which says more than anything we could write here); anything
+  # else, being older than the failure, is replaced.
+  @spec record_gave_up(term()) :: :ok | {:error, Ecto.Changeset.t()}
+  def record_gave_up(email) do
+    with key when is_binary(key) <- Normalizer.storage_key(email),
+         false <- match?([%Result{status: "temp"}], fetch_rows([key])),
+         {:ok, _stored} <- persist(gave_up(key)) do
+      :ok
+    else
+      {:error, _changeset} = error -> error
+      _stored_or_unstorable -> :ok
+    end
+  end
+
+  defp gave_up(key) do
+    domain =
+      case Normalizer.normalize(key) do
+        {:ok, %{domain: domain}} -> domain
+        {:error, _} -> nil
+      end
+
+    %Result{
+      email: key,
+      domain: domain,
+      status: "temp",
+      reason: "job_failed",
+      log: [%{"step" => "batch", "outcome" => "gave_up", "ms" => 0.0}],
+      checked_at: PhoenixKit.Utils.Date.utc_now()
+    }
   end
 
   # A blank input has nothing to key a row on: report it, store nothing.

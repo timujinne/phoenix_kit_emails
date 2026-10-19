@@ -205,6 +205,97 @@ defmodule PhoenixKit.Modules.Emails.VerificationTest do
     end
   end
 
+  describe "statuses_for/1" do
+    test "returns status, reason and level only, keyed by the address as given" do
+      verify("a@fixture.org")
+      verify("junk")
+
+      statuses =
+        Verification.statuses_for(["A@Fixture.ORG", "junk", "unknown@fixture.org", nil, "  "])
+
+      assert statuses == %{
+               "A@Fixture.ORG" => %{status: "not_sure", reason: "smtp_disabled", level: "mx"},
+               "junk" => %{status: "invalid", reason: "syntax", level: "syntax"}
+             }
+    end
+
+    test "agrees with results_for/1 and does not need the step logs" do
+      emails = ["a@fixture.org", "b@fixture.org", "never@fixture.org"]
+      for email <- emails, do: verify(email)
+
+      from_results =
+        Map.new(Verification.results_for(emails), fn {email, r} ->
+          {email, Map.take(r, [:status, :reason, :level])}
+        end)
+
+      assert Verification.statuses_for(emails) == from_results
+      assert from_results |> Map.values() |> Enum.all?(&(map_size(&1) == 3))
+    end
+
+    test "empty and unstorable input" do
+      assert Verification.statuses_for([]) == %{}
+      assert Verification.statuses_for([nil, <<0xFF>>, "a\0b@x.org", 5]) == %{}
+    end
+
+    test "a listed-twice address is one key" do
+      verify("a@fixture.org")
+      assert map_size(Verification.statuses_for(["a@fixture.org", "a@fixture.org"])) == 1
+    end
+  end
+
+  describe "a stored disposable verdict follows the current setting" do
+    setup do
+      verify("john@mailinator.com")
+      :ok
+    end
+
+    defp disposable_status(value),
+      do:
+        Settings.update_setting_with_module(
+          "email_verify_disposable_status",
+          value,
+          "email_system"
+        )
+
+    test "invalid by default" do
+      assert %{"john@mailinator.com" => %{status: "invalid", reason: "disposable"}} =
+               Verification.statuses_for(["john@mailinator.com"])
+    end
+
+    test "results_for, statuses_for, summary and a cached verify all re-map it" do
+      disposable_status("temp")
+      email = "john@mailinator.com"
+
+      assert %{^email => %Result{status: "temp", reason: "disposable"}} =
+               Verification.results_for([email])
+
+      assert %{^email => %{status: "temp"}} = Verification.statuses_for([email])
+      assert %{temp: 1, invalid: 0} = Verification.summary([email])
+      assert {:ok, %Result{status: "temp", source: "cache"}} = verify(email)
+    end
+
+    test "a verdict stored as temp comes back invalid when the setting is back to invalid" do
+      disposable_status("temp")
+      verify("jane@mailinator.com", force: true)
+
+      assert %{status: "temp"} =
+               Verification.statuses_for(["jane@mailinator.com"])["jane@mailinator.com"]
+
+      disposable_status("invalid")
+
+      assert %{status: "invalid"} =
+               Verification.statuses_for(["jane@mailinator.com"])["jane@mailinator.com"]
+
+      assert {:ok, %Result{status: "invalid"}} = verify("jane@mailinator.com")
+    end
+
+    test "other reasons are left alone" do
+      disposable_status("temp")
+      verify("a@fixture.org")
+      assert %{status: "not_sure"} = Verification.statuses_for(["a@fixture.org"])["a@fixture.org"]
+    end
+  end
+
   describe "summary/1" do
     test "counts by status; addresses with no verdict are unchecked" do
       FakeResolver.put("dead-fixture.org", mx: {:error, :nxdomain})
