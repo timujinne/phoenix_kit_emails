@@ -46,7 +46,9 @@ repo_available =
       false
   end
 
-exclude = if repo_available, do: [], else: [:integration]
+# `:external` tests talk to the real network (live DNS). Opt in with
+# `mix test --include external`.
+exclude = if repo_available, do: [:external], else: [:external, :integration]
 
 if Code.ensure_loaded?(PhoenixKit.Dashboard.Tab) and
      function_exported?(PhoenixKit.Dashboard.Tab, :localized_label, 1) do
