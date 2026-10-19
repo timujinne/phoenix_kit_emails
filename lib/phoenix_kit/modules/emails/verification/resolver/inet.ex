@@ -2,9 +2,27 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver.Inet do
   @moduledoc """
   `Verification.Resolver` backed by OTP's `:inet_res`.
 
-  `:inet_res.lookup/4` flattens every failure to `[]`; `:inet_res.resolve/4` is
+  `:inet_res.lookup/4` flattens every failure to `[]`; `:inet_res.resolve/5` is
   used instead because the pipeline has to tell "this domain has no mail
-  server" (final) from "the resolver did not answer" (try again later).
+  server" (negative) from "the resolver did not answer" (try again later).
+
+  ## Absolute names
+
+  Every name is queried with a trailing dot (`"gmail.com."`), so a `search`
+  domain in the host's `resolv.conf` can never be appended to it - a container
+  with `search something.ts.net` must not turn a lookup of `gmail.com` into one
+  of `gmail.com.something.ts.net` and bring back that name's NXDOMAIN.
+
+  ## Time
+
+  `timeout_ms` is one deadline for a whole query, retransmissions and every name
+  server included (`:inet_res.resolve/5`'s overall `Timeout`); inside it the
+  query is sent twice. `lookup_mx/2` is therefore at most `timeout_ms`, and
+  `lookup_addresses/2` at most twice that (A, then AAAA when A found nothing).
+  `Resolver.resolve/2` asks a negative answer a second time and the pipeline's
+  anti-hijack probe is one more `lookup_addresses/2`, so the worst case for one
+  domain with the default 3 s is: MX 2 x 3 s, addresses 2 x 2 x 3 s, probe 2 x 3 s
+  = 24 s; a nonexistent domain answered promptly costs two round trips.
   """
 
   @behaviour PhoenixKit.Modules.Emails.Verification.Resolver
@@ -36,11 +54,26 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver.Inet do
   end
 
   defp query(domain, type, timeout_ms) do
-    case :inet_res.resolve(String.to_charlist(domain), :in, type, timeout: timeout_ms, retry: 1) do
+    {name, class, type, opts, deadline} = query_args(domain, type, timeout_ms)
+
+    case :inet_res.resolve(name, class, type, opts, deadline) do
       {:ok, message} -> {:ok, message}
       {:error, reason} -> {:error, classify_error(reason)}
     end
   end
+
+  @doc false
+  # The arguments of `:inet_res.resolve/5`: `timeout` is the first retransmission
+  # interval (the second one doubles it), `retry` the number of rounds, and the
+  # last element the overall deadline that cuts them all short.
+  @spec query_args(String.t(), atom(), pos_integer()) :: tuple()
+  def query_args(domain, type, timeout_ms) do
+    {absolute_name(domain), :in, type, [timeout: timeout_ms, retry: 2], timeout_ms}
+  end
+
+  @doc false
+  @spec absolute_name(String.t()) :: charlist()
+  def absolute_name(domain), do: String.to_charlist(String.trim_trailing(domain, ".") <> ".")
 
   @doc false
   # Maps the shapes `:inet_res.resolve/4` reports to this behaviour's errors.

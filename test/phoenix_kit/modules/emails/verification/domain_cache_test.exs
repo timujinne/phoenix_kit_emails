@@ -39,6 +39,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.DomainCacheTest do
     end
   end
 
+  test "never stores a resolution marked uncacheable" do
+    now = UtilsDate.utc_now()
+    uncertain = %{hosts: [%{host: "a-only.example", pref: 0}], implicit: true, cacheable: false}
+    assert :ok = DomainCache.store_mx("a-only.example", {:ok, uncertain}, now)
+    assert :miss = DomainCache.fetch_mx("a-only.example", now)
+  end
+
   test "never stores a transient failure" do
     now = UtilsDate.utc_now()
 

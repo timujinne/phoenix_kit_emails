@@ -127,12 +127,53 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
       FakeResolver.put("gone-fixture.org", mx: {:error, :nxdomain})
       run("a@gone-fixture.org")
       run("b@gone-fixture.org")
-      assert FakeResolver.calls() == [{:mx, "gone-fixture.org"}]
+      # asked twice (the first nxdomain is confirmed), then served from the cache
+      assert FakeResolver.calls() == List.duplicate({:mx, "gone-fixture.org"}, 2)
 
       FakeResolver.put("flaky-fixture.org", mx: {:error, :timeout})
       run("a@flaky-fixture.org")
       run("b@flaky-fixture.org")
       assert Enum.count(FakeResolver.calls(), &(&1 == {:mx, "flaky-fixture.org"})) == 2
+    end
+
+    test "a first nxdomain that is not confirmed does not make the address invalid" do
+      FakeResolver.put("good-fixture.org", mx: [{:error, :nxdomain}, @mx])
+      result = run("john@good-fixture.org")
+      assert {result.status, result.reason} == {"not_sure", "smtp_disabled"}
+
+      assert {:hit, {:ok, _}} =
+               DomainCache.fetch_mx("good-fixture.org", PhoenixKit.Utils.Date.utc_now())
+    end
+
+    test "a first nxdomain whose confirmation fails is temp dns_error, and nothing is cached" do
+      FakeResolver.put("good-fixture.org", mx: [{:error, :nxdomain}, {:error, :timeout}])
+      result = run("john@good-fixture.org")
+
+      assert {result.status, result.reason, result.level} == {"temp", "dns_error", "mx"}
+      assert :miss = DomainCache.fetch_mx("good-fixture.org", PhoenixKit.Utils.Date.utc_now())
+    end
+
+    test "a confirmed nxdomain is invalid no_mx and cached" do
+      FakeResolver.put("good-fixture.org", mx: [{:error, :nxdomain}, {:error, :nxdomain}])
+      result = run("john@good-fixture.org")
+
+      assert {result.status, result.reason, result.level} == {"invalid", "no_mx", "mx"}
+
+      assert {:hit, {:error, :nxdomain}} =
+               DomainCache.fetch_mx("good-fixture.org", PhoenixKit.Utils.Date.utc_now())
+    end
+
+    test "MX hosts that are not host names never reach the verdict" do
+      FakeResolver.put("good-fixture.org",
+        mx: {:ok, [%{host: "bad\0host.example", pref: 1}, %{host: "mx.good.example", pref: 5}]}
+      )
+
+      result = run("john@good-fixture.org")
+      assert {result.status, result.mx} == {"not_sure", "mx.good.example"}
+
+      FakeResolver.put("other-fixture.org", mx: {:ok, [%{host: "bad\0host.example", pref: 1}]})
+      other = run("john@other-fixture.org")
+      assert {other.status, other.reason} == {"temp", "dns_error"}
     end
 
     test "a stale cache row is re-resolved" do

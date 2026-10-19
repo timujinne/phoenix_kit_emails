@@ -58,10 +58,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.DomainCache do
   end
 
   @doc """
-  Remembers a definitive MX answer. Transient errors are ignored.
+  Remembers a definitive MX answer. Transient errors are ignored, and so is a
+  resolution marked `cacheable: false` (an implicit MX accepted while the
+  anti-hijack probe was unanswered, see `Verification.Hijack`).
   """
   @spec store_mx(String.t(), {:ok, Resolver.resolution()} | {:error, term()}, DateTime.t()) ::
           :ok
+  def store_mx(_domain, {:ok, %{cacheable: false}}, _now), do: :ok
+
   def store_mx(domain, {:ok, resolution}, now) do
     upsert(domain, %{
       mx: %{

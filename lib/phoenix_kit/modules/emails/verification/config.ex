@@ -17,7 +17,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `email_verify_ttl_catch_all_days` - cached catch-all probe (default `7`)
     * `email_verify_ttl_grey_hours` - cached greylist marker (default `24`)
     * `email_verify_ttl_result_days` - a stored verdict is reused this long (default `30`)
-    * `email_verify_dns_timeout_ms` - per DNS query (default `3000`)
+    * `email_verify_dns_timeout_ms` - the deadline of one DNS query, retransmissions
+      included (default `3000`); the worst case for one domain is eight times that,
+      see `Verification.Resolver.Inet`
     * `email_verify_disposable_status` - the status of an address on a disposable
       domain: `"invalid"` (default) or `"temp"` (what LetsExtract does); any other
       value counts as `"invalid"`
@@ -99,7 +101,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @spec grey_retry_minutes() :: pos_integer()
   def grey_retry_minutes, do: positive_integer("email_verify_grey_retry_minutes", 15)
 
-  @doc "Timeout of one DNS query, in milliseconds."
+  @doc "The deadline of one DNS query (all its retransmissions), in milliseconds."
   @spec dns_timeout_ms() :: pos_integer()
   def dns_timeout_ms do
     positive_integer("email_verify_dns_timeout_ms", @default_dns_timeout_ms)

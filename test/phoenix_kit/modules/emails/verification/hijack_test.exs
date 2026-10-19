@@ -8,6 +8,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.HijackTest do
 
   use PhoenixKitEmails.DataCase, async: false
 
+  alias PhoenixKit.Modules.Emails.Verification.DomainCache
   alias PhoenixKit.Modules.Emails.Verification.Hijack
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
   alias PhoenixKit.Modules.Emails.Verification.Resolver
@@ -64,39 +65,42 @@ defmodule PhoenixKit.Modules.Emails.Verification.HijackTest do
   describe "Hijack.ips/1" do
     test "the addresses a nonexistent probe domain resolves to" do
       FakeResolver.put(@probe, addr: {:ok, [@portal]})
-      assert probe() == [@portal]
+      assert probe() == {:ok, [@portal]}
     end
 
     test "an honest NXDOMAIN means no hijack" do
-      assert probe() == []
+      assert probe() == {:ok, []}
     end
 
     test "the answer is cached per VM: the resolver is asked once" do
       FakeResolver.put(@probe, addr: {:ok, [@portal]})
-      assert probe() == [@portal]
-      assert probe() == [@portal]
+      assert probe() == {:ok, [@portal]}
+      assert probe() == {:ok, [@portal]}
       assert FakeResolver.calls() == [{:addr, @probe}]
     end
 
     test "an honest answer is cached too" do
-      assert probe() == []
-      assert probe() == []
+      assert probe() == {:ok, []}
+      assert probe() == {:ok, []}
       assert length(FakeResolver.calls()) == 1
     end
 
-    test "a transient failure is not remembered, and counts as no hijack" do
-      FakeResolver.put(@probe, addr: {:error, :timeout})
-      assert probe() == []
+    test "a transient failure is not remembered, and is reported as unknown" do
+      for reason <- [:timeout, :servfail] do
+        FakeResolver.put(@probe, addr: {:error, reason})
+        assert probe() == :error
+      end
+
       FakeResolver.put(@probe, addr: {:ok, [@portal]})
-      assert probe() == [@portal]
+      assert probe() == {:ok, [@portal]}
     end
 
     test "reset/0 forgets the answer" do
       FakeResolver.put(@probe, addr: {:ok, [@portal]})
-      assert probe() == [@portal]
+      assert probe() == {:ok, [@portal]}
       Hijack.reset()
       FakeResolver.put(@probe, addr: {:error, :nxdomain})
-      assert probe() == []
+      assert probe() == {:ok, []}
     end
 
     test "the default probe name is a fresh name under a real TLD" do
@@ -108,6 +112,36 @@ defmodule PhoenixKit.Modules.Emails.Verification.HijackTest do
   describe "in the pipeline" do
     defp run(email),
       do: Pipeline.run(email, resolver: FakeResolver, hijack_probe: @probe)
+
+    defp cached?(domain),
+      do: match?({:hit, _}, DomainCache.fetch_mx(domain, PhoenixKit.Utils.Date.utc_now()))
+
+    test "an implicit MX is cached when the probe found no hijack" do
+      FakeResolver.put("a-only-fixture.org", mx: {:error, :no_records}, addr: {:ok, [@real]})
+      assert run("john@a-only-fixture.org").status == "not_sure"
+      assert cached?("a-only-fixture.org")
+    end
+
+    test "an implicit MX found while the probe was unanswered is used but not cached" do
+      FakeResolver.put(@probe, addr: {:error, :timeout})
+      FakeResolver.put("a-only-fixture.org", mx: {:error, :no_records}, addr: {:ok, [@real]})
+
+      result = run("john@a-only-fixture.org")
+      assert {result.status, result.reason} == {"not_sure", "smtp_disabled"}
+      refute cached?("a-only-fixture.org")
+
+      # The next address asks again - and, the probe now answering, caches.
+      FakeResolver.put(@probe, addr: {:error, :nxdomain})
+      assert run("mary@a-only-fixture.org").status == "not_sure"
+      assert cached?("a-only-fixture.org")
+    end
+
+    test "real MX records are cached whatever the probe says" do
+      FakeResolver.put(@probe, addr: {:error, :timeout})
+      FakeResolver.put("good-fixture.org", mx: {:ok, [%{host: "mx.good.example", pref: 10}]})
+      run("john@good-fixture.org")
+      assert cached?("good-fixture.org")
+    end
 
     test "a hijacked NXDOMAIN does not look like a mail server" do
       FakeResolver.put(@probe, addr: {:ok, [@portal]})
