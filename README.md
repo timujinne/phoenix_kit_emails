@@ -324,6 +324,21 @@ lib/
 | `phoenix_kit_email_events` | Delivery/bounce/complaint/open/click events |
 | `phoenix_kit_email_templates` | Reusable email templates |
 
+## Address verification
+
+`PhoenixKit.Modules.Emails.Verification` checks e-mail addresses (syntax, word
+lists, DNS MX) and stores one verdict per address; `Verification.start_batch/4`
+verifies a whole list in the background, with progress on a PubSub topic. Batches
+run on the Oban queue `email_verification`, which the host's Oban config must
+declare (core adds it on install/update; otherwise add it by hand):
+
+```elixir
+config :my_app, Oban, queues: [email_verification: 5, ...]
+```
+
+`Verification.queue_configured?/0` tells whether it is there. The SMTP step is off
+by default and has no client in this release.
+
 ## Development
 
 ```bash

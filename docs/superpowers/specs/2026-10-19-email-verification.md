@@ -138,7 +138,14 @@ TTL — настройки (`email_verify_ttl_mx_hours=24`, `…_catch_all_days=
   `verifications`, item, счётчики пакета (атомарный `UPDATE … SET processed = processed + 1`),
   шлёт PubSub `email_verify:batch:<uuid>` для прогресса в LiveView.
 - Retry / greylist: `temp greylist` → `{:snooze, 15–30 мин}` (настройка), до N попыток,
-  потом остаётся `temp`. Таймаут SMTP → backoff 30 с → 60 с → `not_sure`.
+  потом остаётся `temp`. Реализовано (этап 1) как `Verification.Retry`: `dns_error` →
+  snooze 60 с, 120 с, ... (до 15 мин), до `email_verify_dns_max_attempts` (3) попыток;
+  `greylist` → snooze от `email_verify_grey_retry_minutes` (15) до удвоенного значения, до
+  `email_verify_grey_max_attempts` (3) попыток; путь greylist достижим только из
+  SMTP-результата. Число снузов = `meta["snoozed"]` задания. `Oban.insert_all` не проверяет
+  `unique`, поэтому `BatchStartWorker` сам пропускает адреса, у которых уже есть
+  незавершённое задание. Сообщение прогресса: `{:email_verify_batch, %{uuid, state, processed,
+  total, counts}}`, `state` = `running | done | cancelled`. Таймаут SMTP → backoff 30 с → 60 с → `not_sure`.
 - Троттлинг (только SMTP): перед соединением — `SELECT … FOR UPDATE` строки домена;
   если `now - last_smtp_at < email_verify_domain_interval_s` (60) или `paused_until > now`
   → `{:snooze, остаток}`. 2+ блоков за час → `paused_until = now + 1 ч`, лог-предупреждение
