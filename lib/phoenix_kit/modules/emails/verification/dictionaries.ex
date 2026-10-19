@@ -21,14 +21,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
 
   If `Config.lists_dir/0` names a directory, any file there with one of the
   names above is **merged on top** of the shipped one (union, never replace).
-  That is how a host adds lists it may not redistribute. A file that is missing
-  or unreadable is skipped. The lists are read once per VM: call `reload/0`
-  after changing the directory or its files.
+  That is how a host adds lists it may not redistribute. A file missing from the
+  directory is skipped; a directory that does not exist, or a file that exists
+  but cannot be read, is skipped with a logged warning. The lists are read once
+  per VM: call `reload/0` after changing the directory or its files. If the
+  settings store cannot be read at the first lookup the shipped lists are used
+  for 30 seconds and the directory is looked up again after that.
   """
+
+  require Logger
 
   alias PhoenixKit.Modules.Emails.Verification.Config
 
   @names [:disposable, :free, :tlds, :role_prefixes, :not_fake]
+  @key {__MODULE__, :snapshot}
+  @retry_ms 30_000
 
   @doc "`true` when `tld` (without the dot) is in the IANA list."
   @spec valid_tld?(String.t()) :: boolean()
@@ -64,46 +71,77 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
   @doc "Forgets every loaded list; the next lookup reads the files again."
   @spec reload() :: :ok
   def reload do
-    Enum.each(@names ++ [:free_patterns], &:persistent_term.erase({__MODULE__, &1}))
+    :persistent_term.erase(@key)
+    :ok
   end
 
   @doc "Number of entries in the list `name` (shipped + external)."
   @spec size(atom()) :: non_neg_integer()
   def size(name) when name in @names, do: name |> set() |> MapSet.size()
 
-  defp set(name) do
-    key = {__MODULE__, name}
+  defp set(name), do: Map.fetch!(snapshot(), name)
 
-    case :persistent_term.get(key, nil) do
-      nil -> load_and_store(key, name)
-      set -> set
+  defp free_patterns, do: Map.fetch!(snapshot(), :free_patterns)
+
+  # All five lists and the split free patterns, built together so that a lookup
+  # never mixes two generations of files.
+  defp snapshot do
+    case :persistent_term.get(@key, nil) do
+      %{} = snapshot -> snapshot
+      {:partial, snapshot, retry_at} -> partial_or_reload(snapshot, retry_at)
+      nil -> load_snapshot()
     end
   end
 
-  defp load_and_store(key, name) do
-    set = load(name)
-    :persistent_term.put(key, set)
-    set
+  defp partial_or_reload(snapshot, retry_at) do
+    if System.monotonic_time(:millisecond) < retry_at, do: snapshot, else: load_snapshot()
   end
 
-  defp free_patterns do
-    key = {__MODULE__, :free_patterns}
+  # When the settings store cannot be read, the external directory is unknown.
+  # The shipped lists are used meanwhile, but only for a short while: caching
+  # that forever would silently drop the host's private lists.
+  defp load_snapshot do
+    {dir, trusted?} =
+      case Config.lists_dir_lookup() do
+        {:ok, dir} -> {dir, true}
+        :error -> {nil, false}
+      end
 
-    case :persistent_term.get(key, nil) do
-      nil ->
-        patterns =
-          set(:free)
-          |> Enum.split_with(&(not String.ends_with?(&1, ".*")))
-          |> then(fn {exact, wild} ->
-            {MapSet.new(exact), Enum.map(wild, &String.trim_trailing(&1, "*"))}
-          end)
+    warn_unless_directory(dir)
+    lists = Map.new(@names, &{&1, load(&1, dir)})
+    snapshot = Map.put(lists, :free_patterns, split_free(lists.free))
 
-        :persistent_term.put(key, patterns)
-        patterns
+    if trusted? do
+      :persistent_term.put(@key, snapshot)
+    else
+      Logger.warning(
+        "Email verification: settings unreadable, using the shipped word lists only " <>
+          "(retry in #{@retry_ms} ms)"
+      )
 
-      patterns ->
-        patterns
+      retry_at = System.monotonic_time(:millisecond) + @retry_ms
+      :persistent_term.put(@key, {:partial, snapshot, retry_at})
     end
+
+    snapshot
+  end
+
+  defp split_free(free) do
+    {exact, wild} = Enum.split_with(free, &(not String.ends_with?(&1, ".*")))
+    {MapSet.new(exact), Enum.map(wild, &String.trim_trailing(&1, "*"))}
+  end
+
+  defp warn_unless_directory(nil), do: :ok
+
+  defp warn_unless_directory(dir) do
+    unless File.dir?(dir) do
+      Logger.warning(
+        "Email verification: lists directory #{inspect(dir)} does not exist or is not a " <>
+          "directory; its lists are NOT applied"
+      )
+    end
+
+    :ok
   end
 
   # "yahoo." matches yahoo.com and yahoo.co.uk, but neither yahoo.evil.com nor
@@ -139,10 +177,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
     for n <- 0..(length(labels) - 2)//1, do: labels |> Enum.drop(n) |> Enum.join(".")
   end
 
-  defp load(name) do
+  defp load(name, dir) do
     file = Atom.to_string(name) <> ".txt"
 
-    [shipped_path(file), external_path(file)]
+    [shipped_path(file), dir && Path.join(dir, file)]
     |> Enum.reject(&is_nil/1)
     |> Enum.flat_map(&read_lines/1)
     |> MapSet.new()
@@ -152,17 +190,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
     Path.join([Application.app_dir(:phoenix_kit_emails), "priv", "email_verification", file])
   end
 
-  defp external_path(file) do
-    case Config.lists_dir() do
-      nil -> nil
-      dir -> Path.join(dir, file)
-    end
-  end
-
+  # A file absent from an existing directory is normal (a host may supply only
+  # some lists); any other failure to read is not, and is said out loud.
   defp read_lines(path) do
     case File.read(path) do
-      {:ok, content} -> parse(content)
-      {:error, _} -> []
+      {:ok, content} ->
+        parse(content)
+
+      {:error, :enoent} ->
+        []
+
+      {:error, reason} ->
+        Logger.warning(
+          "Email verification: cannot read #{inspect(path)} (#{:file.format_error(reason)}); " <>
+            "skipped"
+        )
+
+        []
     end
   end
 

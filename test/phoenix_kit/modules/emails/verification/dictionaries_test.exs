@@ -2,6 +2,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
   # persistent_term and the app env are global.
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureLog
+
   alias PhoenixKit.Modules.Emails.Verification.Dictionaries
 
   setup do
@@ -108,11 +110,44 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
       assert Dictionaries.disposable?("guerrillamail.com")
     end
 
-    test "a missing directory or file is skipped", %{tmp_dir: dir} do
+    test "a missing directory is skipped, with a warning", %{tmp_dir: dir} do
       Application.put_env(:phoenix_kit_emails, :verification_lists_dir, Path.join(dir, "nope"))
-      Dictionaries.reload()
 
-      assert Dictionaries.disposable?("mailinator.com")
+      log =
+        capture_log(fn ->
+          Dictionaries.reload()
+          assert Dictionaries.disposable?("mailinator.com")
+        end)
+
+      assert log =~ "does not exist"
+      assert log =~ "NOT applied"
+    end
+
+    test "a file missing from an existing directory is skipped quietly", %{tmp_dir: dir} do
+      File.write!(Path.join(dir, "role_prefixes.txt"), "kitchen\n")
+      Application.put_env(:phoenix_kit_emails, :verification_lists_dir, dir)
+
+      log =
+        capture_log(fn ->
+          Dictionaries.reload()
+          assert Dictionaries.role?("kitchen")
+          assert Dictionaries.disposable?("mailinator.com")
+        end)
+
+      refute log =~ "Email verification"
+    end
+
+    test "a file that exists but cannot be read is skipped, with a warning", %{tmp_dir: dir} do
+      File.mkdir_p!(Path.join(dir, "disposable.txt"))
+      Application.put_env(:phoenix_kit_emails, :verification_lists_dir, dir)
+
+      log =
+        capture_log(fn ->
+          Dictionaries.reload()
+          assert Dictionaries.disposable?("mailinator.com")
+        end)
+
+      assert log =~ "cannot read"
     end
   end
 

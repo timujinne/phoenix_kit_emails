@@ -80,19 +80,32 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @doc "The external dictionary directory, or `nil`."
   @spec lists_dir() :: String.t() | nil
   def lists_dir do
+    case lists_dir_lookup() do
+      {:ok, dir} -> dir
+      :error -> nil
+    end
+  end
+
+  @doc """
+  Like `lists_dir/0`, but says when the answer is not trustworthy: `:error`
+  means the settings store could not be read (the database is not ready yet),
+  which is not the same as "no directory configured" (`{:ok, nil}`).
+  """
+  @spec lists_dir_lookup() :: {:ok, String.t() | nil} | :error
+  def lists_dir_lookup do
     case Application.get_env(:phoenix_kit_emails, :verification_lists_dir) do
-      dir when is_binary(dir) and dir != "" -> dir
+      dir when is_binary(dir) and dir != "" -> {:ok, dir}
       _ -> setting_dir()
     end
   end
 
   defp setting_dir do
     case Settings.get_setting("email_verify_lists_dir") do
-      dir when is_binary(dir) and dir != "" -> dir
-      _ -> nil
+      dir when is_binary(dir) and dir != "" -> {:ok, dir}
+      _ -> {:ok, nil}
     end
   rescue
-    _ -> nil
+    _ -> :error
   end
 
   defp hours(key, default), do: positive_integer(key, default) * 3_600

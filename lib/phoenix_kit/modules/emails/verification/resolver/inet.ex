@@ -19,16 +19,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver.Inet do
     end
   end
 
+  # AAAA is asked only when A found nothing: one address is enough for the
+  # implicit-MX fallback, and every extra query is another timeout to wait for.
   @impl true
   def lookup_addresses(domain, timeout_ms) do
-    results = [
-      address_query(domain, :a, timeout_ms),
-      address_query(domain, :aaaa, timeout_ms)
-    ]
+    case address_query(domain, :a, timeout_ms) do
+      {:ok, _ips} = found ->
+        found
 
-    case for({:ok, ips} <- results, ip <- ips, do: ip) do
-      [] -> {:error, results |> Enum.map(fn {:error, reason} -> reason end) |> final_error()}
-      ips -> {:ok, ips}
+      {:error, a_error} ->
+        case address_query(domain, :aaaa, timeout_ms) do
+          {:ok, _ips} = found -> found
+          {:error, aaaa_error} -> {:error, final_error([a_error, aaaa_error])}
+        end
     end
   end
 
