@@ -1,0 +1,202 @@
+defmodule PhoenixKit.Modules.Emails.VerificationTest do
+  use PhoenixKitEmails.DataCase, async: true
+
+  import Ecto.Query
+
+  alias PhoenixKit.Modules.Emails.Verification
+  alias PhoenixKit.Modules.Emails.Verification.Result
+  alias PhoenixKit.Settings
+  alias PhoenixKitEmails.Test.FakeResolver
+  alias PhoenixKitEmails.Test.Repo
+
+  @mx {:ok, [%{host: "mx.fixture.org", pref: 10}]}
+
+  defp verify(email, opts \\ []) do
+    Verification.verify(email, Keyword.put_new(opts, :resolver, FakeResolver))
+  end
+
+  defp row_count, do: Repo.aggregate(Result, :count)
+
+  setup do
+    FakeResolver.put("fixture.org", mx: @mx)
+    :ok
+  end
+
+  describe "enabled?/0" do
+    test "defaults to true, with no SMTP involved" do
+      assert Verification.enabled?()
+      refute Settings.get_boolean_setting("email_verify_smtp_enabled", false)
+    end
+
+    test "follows email_verify_enabled, and not email_verify_smtp_enabled" do
+      Settings.update_boolean_setting_with_module("email_verify_enabled", false, "email_system")
+      refute Verification.enabled?()
+
+      Settings.update_boolean_setting_with_module("email_verify_enabled", true, "email_system")
+
+      Settings.update_boolean_setting_with_module(
+        "email_verify_smtp_enabled",
+        false,
+        "email_system"
+      )
+
+      assert Verification.enabled?()
+    end
+  end
+
+  describe "verify/2" do
+    test "returns the verdict and stores it" do
+      assert {:ok, %Result{} = result} = verify("John@Fixture.org")
+
+      assert {result.status, result.reason, result.level} == {"not_sure", "smtp_disabled", "mx"}
+      assert result.source == "direct"
+      assert result.attempts == 1
+      assert result.uuid
+
+      stored = Repo.get_by!(Result, email: "john@fixture.org")
+      assert stored.uuid == result.uuid
+      assert stored.email == "John@fixture.org"
+      assert stored.domain == "fixture.org"
+      assert stored.mx == "mx.fixture.org"
+      assert stored.checked_at == result.checked_at
+      assert is_list(stored.log) and Enum.any?(stored.log, &(&1["step"] == "mx"))
+    end
+
+    test "stores invalid verdicts too, including malformed input" do
+      assert {:ok, %Result{status: "invalid", reason: "syntax"}} = verify("not an email")
+      assert {:ok, %Result{status: "invalid", reason: "disposable"}} = verify("x@mailinator.com")
+
+      assert Repo.get_by!(Result, email: "not an email").level == "syntax"
+      assert Repo.get_by!(Result, email: "x@mailinator.com").disposable
+    end
+
+    test "blank input is reported but not stored" do
+      before = row_count()
+      assert {:ok, %Result{status: "invalid", reason: "syntax", email: nil}} = verify("  ")
+      assert {:ok, %Result{status: "invalid"}} = verify(nil)
+      assert row_count() == before
+    end
+
+    test "a fresh stored verdict is returned as a cache hit, without running the pipeline" do
+      {:ok, first} = verify("a@fixture.org")
+      FakeResolver.put("fixture.org", mx: {:error, :nxdomain})
+
+      assert {:ok, second} = verify("A@FIXTURE.ORG")
+      assert second.source == "cache"
+      assert second.uuid == first.uuid
+      assert second.status == "not_sure"
+      assert second.checked_at == first.checked_at
+
+      assert FakeResolver.calls() == [{:mx, "fixture.org"}]
+      assert row_count() == 1
+    end
+
+    test "case differences in the address are one row" do
+      verify("Jane@fixture.org")
+      verify("jane@FIXTURE.org", force: true)
+
+      assert Repo.aggregate(from(r in Result, where: r.domain == "fixture.org"), :count) == 1
+    end
+
+    test "an expired verdict is re-run and the row updated in place" do
+      {:ok, first} = verify("old@fixture.org")
+      age(first.uuid, days: 31)
+      FakeResolver.put("fixture.org", mx: {:error, :nxdomain})
+      Repo.delete_all(PhoenixKit.Modules.Emails.Verification.DomainCache)
+
+      assert {:ok, second} = verify("old@fixture.org")
+      assert second.source == "direct"
+      assert second.uuid == first.uuid
+      assert {second.status, second.reason} == {"invalid", "no_mx"}
+      assert second.attempts == 2
+      assert row_count() == 1
+    end
+
+    test "the result TTL is a setting" do
+      {:ok, first} = verify("ttl@fixture.org")
+      age(first.uuid, days: 3)
+      assert {:ok, %{source: "cache"}} = verify("ttl@fixture.org")
+
+      Settings.update_setting_with_module("email_verify_ttl_result_days", "2", "email_system")
+      assert {:ok, %{source: "direct"}} = verify("ttl@fixture.org")
+    end
+
+    test "force: true re-runs a fresh verdict" do
+      {:ok, _} = verify("force@fixture.org")
+      assert {:ok, %{source: "direct", attempts: 2}} = verify("force@fixture.org", force: true)
+    end
+
+    test "a temp verdict is never served from the cache" do
+      FakeResolver.put("flaky-fixture.org", mx: {:error, :timeout})
+      assert {:ok, %{status: "temp", source: "direct"}} = verify("a@flaky-fixture.org")
+
+      FakeResolver.put("flaky-fixture.org", mx: @mx)
+
+      assert {:ok, %{status: "not_sure", source: "direct", attempts: 2}} =
+               verify("a@flaky-fixture.org")
+    end
+  end
+
+  describe "results_for/1" do
+    test "returns stored verdicts keyed by the address as given" do
+      verify("a@fixture.org")
+      verify("junk")
+
+      results =
+        Verification.results_for(["A@Fixture.ORG", "junk", "unknown@fixture.org", nil, "  "])
+
+      assert Map.keys(results) |> Enum.sort() == ["A@Fixture.ORG", "junk"]
+      assert %Result{status: "not_sure", source: "cache"} = results["A@Fixture.ORG"]
+      assert %Result{status: "invalid", reason: "syntax"} = results["junk"]
+    end
+
+    test "an empty list is an empty map" do
+      assert Verification.results_for([]) == %{}
+    end
+
+    test "handles a few thousand addresses in one go" do
+      emails = for i <- 1..3_000, do: "user#{i}@fixture.org"
+      assert Verification.results_for(emails) == %{}
+      verify("user77@fixture.org")
+      assert Map.keys(Verification.results_for(emails)) == ["user77@fixture.org"]
+    end
+  end
+
+  describe "summary/1" do
+    test "counts by status; addresses with no verdict are unchecked" do
+      FakeResolver.put("dead-fixture.org", mx: {:error, :nxdomain})
+      FakeResolver.put("flaky-fixture.org", mx: {:error, :servfail})
+
+      for email <- ["a@fixture.org", "b@fixture.org", "x@dead-fixture.org", "x@flaky-fixture.org"],
+          do: verify(email)
+
+      summary =
+        Verification.summary([
+          "a@fixture.org",
+          "b@fixture.org",
+          "x@dead-fixture.org",
+          "x@flaky-fixture.org",
+          "never@fixture.org",
+          "never2@fixture.org"
+        ])
+
+      assert summary == %{valid: 0, invalid: 1, temp: 1, not_sure: 2, unchecked: 2}
+    end
+
+    test "an empty list is all zeroes" do
+      assert Verification.summary([]) == %{
+               valid: 0,
+               invalid: 0,
+               temp: 0,
+               not_sure: 0,
+               unchecked: 0
+             }
+    end
+  end
+
+  # Pretends the stored verdict was made `days` ago.
+  defp age(uuid, days: days) do
+    past = DateTime.add(PhoenixKit.Utils.Date.utc_now(), -days * 86_400, :second)
+    Repo.update_all(from(r in Result, where: r.uuid == ^uuid), set: [checked_at: past])
+  end
+end
