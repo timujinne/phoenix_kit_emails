@@ -18,7 +18,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   `max_attempts` covers real failures only (the database, a crash). When the last
   one fails too, the address is counted as `"temp"` (`Batches.give_up/2`) before
   the error goes back to Oban, so the batch still reaches `processed == total`.
-  No verdict is stored for such an address.
+  A `"temp"` verdict is stored for such an address as well (reason `"job_failed"`,
+  or the reason of the `"temp"` verdict it already had, e.g. `"dns_error"`), so
+  that `Verification.summary/1` agrees with the batch's counts.
 
   At most one job per batch and address exists at a time (`unique` on both args,
   across every incomplete state).

@@ -38,6 +38,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   import Ecto.Query
   require Logger
 
+  alias PhoenixKit.Modules.Emails.Verification
   alias PhoenixKit.Modules.Emails.Verification.Batch
   alias PhoenixKit.Modules.Emails.Verification.BatchItem
   alias PhoenixKit.Modules.Emails.Verification.BatchStartWorker
@@ -272,11 +273,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   @doc """
   Counts an item whose job has failed for good as `"temp"` - no verdict was reached,
-  and the batch must not wait for it forever. Never raises: when even this fails
-  (the database is down) it is logged and the batch is left as it is.
+  and the batch must not wait for it forever - and stores the same `"temp"`
+  verdict for the address (`Verification.record_gave_up/1`), so that
+  `Verification.summary/1` and the batch's own counts agree. Never raises: when
+  even this fails (the database is down) it is logged, with the local part of the
+  address masked, and the batch is left as it is.
   """
   @spec give_up(String.t(), String.t()) :: :ok
   def give_up(batch_uuid, email) do
+    store_verdict(batch_uuid, email)
+
     case record_result(batch_uuid, email, "temp") do
       {:ok, _batch} -> :ok
       {:error, _already_done_or_closed} -> :ok
@@ -284,12 +290,41 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   rescue
     error ->
       Logger.error(
-        "[Emails.Verification] could not count #{email} of batch #{batch_uuid} after its last attempt: " <>
-          Exception.message(error)
+        "[Emails.Verification] could not count #{mask(email)} of batch #{batch_uuid} after its last attempt: " <>
+          scrub(Exception.message(error), email)
       )
 
       :ok
   end
+
+  # Counting must not depend on this write.
+  defp store_verdict(batch_uuid, email) do
+    Verification.record_gave_up(email)
+  rescue
+    error ->
+      Logger.error(
+        "[Emails.Verification] could not store the verdict of #{mask(email)} of batch #{batch_uuid}: " <>
+          scrub(Exception.message(error), email)
+      )
+  end
+
+  # The message of a database error may quote the address (a query, a constraint
+  # detail): it gets the same masking as the address itself.
+  defp scrub(message, email) when is_binary(email) and email != "",
+    do: String.replace(message, email, mask(email))
+
+  defp scrub(message, _email), do: message
+
+  # `john.smith@example.com` -> `j***@example.com`: enough to tell a log line from
+  # another, not enough to leak the address.
+  defp mask(email) when is_binary(email) do
+    case String.split(email, "@") do
+      [local, domain] when local != "" -> String.first(local) <> "***@" <> domain
+      _ -> "***"
+    end
+  end
+
+  defp mask(_email), do: "***"
 
   defp finish_item(batch_uuid, email, now) do
     from(i in BatchItem,
@@ -351,8 +386,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   def get(_uuid), do: nil
 
-  @spec list(String.t(), term()) :: [Batch.t()]
+  @spec list(term(), term()) :: [Batch.t()]
   def list(source_type, source_ref) do
+    if Batch.storable?(source_type), do: query_list(source_type, source_ref), else: []
+  end
+
+  defp query_list(source_type, source_ref) do
     from(b in Batch,
       where: b.source_type == ^source_type,
       order_by: [desc: b.inserted_at, desc: b.uuid]
@@ -361,8 +400,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     |> repo().all()
   end
 
-  @spec latest(String.t(), term()) :: Batch.t() | nil
+  @spec latest(term(), term()) :: Batch.t() | nil
   def latest(source_type, source_ref) do
+    if Batch.storable?(source_type), do: query_latest(source_type, source_ref)
+  end
+
+  defp query_latest(source_type, source_ref) do
     from(b in Batch,
       where: b.source_type == ^source_type,
       order_by: [desc: b.inserted_at, desc: b.uuid],

@@ -9,6 +9,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Verification
   alias PhoenixKit.Modules.Emails.Verification.Batch
+  alias PhoenixKit.Modules.Emails.Verification.Batches
   alias PhoenixKit.Modules.Emails.Verification.BatchItem
   alias PhoenixKit.Modules.Emails.Verification.BatchStartWorker
   alias PhoenixKit.Modules.Emails.Verification.Result
@@ -449,6 +450,58 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
       assert Enum.find(items(batch), &(&1.email == "john@fixture.org")).state == "done"
     end
 
+    test "the address that was given up on has a temp row, so the summary agrees with the batch",
+         %{batch: batch} do
+      :ok = perform_verify(batch, "broken")
+
+      assert_raise RuntimeError, fn -> perform_verify_attempt(batch, "john@fixture.org", 3) end
+
+      emails = ["john@fixture.org", "broken"]
+      assert %{temp: 1, invalid: 1, unchecked: 0} = Verification.summary(emails)
+      assert reload(batch).counts == %{"invalid" => 1, "temp" => 1}
+
+      assert %Result{status: "temp", reason: "job_failed", source: "cache"} =
+               Verification.results_for(emails)["john@fixture.org"]
+
+      assert %{status: "temp", reason: "job_failed"} =
+               Verification.statuses_for(emails)["john@fixture.org"]
+    end
+
+    test "a verdict that already says temp keeps its reason", %{batch: batch} do
+      FakeResolver.put("flaky-fixture.org", mx: {:error, :servfail})
+
+      {:ok, %Result{reason: "dns_error"}} =
+        Verification.verify("a@flaky-fixture.org", resolver: FakeResolver)
+
+      :ok = Batches.give_up(batch.uuid, "a@flaky-fixture.org")
+
+      assert %Result{status: "temp", reason: "dns_error", attempts: 1} =
+               Verification.results_for(["a@flaky-fixture.org"])["a@flaky-fixture.org"]
+    end
+
+    test "an older verdict of another status is replaced, as the batch counted temp",
+         %{batch: batch} do
+      {:ok, %Result{status: "not_sure"}} =
+        Verification.verify("john@fixture.org", resolver: FakeResolver)
+
+      :ok = Batches.give_up(batch.uuid, "john@fixture.org")
+
+      assert %Result{status: "temp", reason: "job_failed"} =
+               Verification.results_for(["john@fixture.org"])["john@fixture.org"]
+    end
+
+    test "logs mask the local part of the address", %{batch: batch} do
+      log =
+        ExUnit.CaptureLog.capture_log([level: :error], fn ->
+          assert :ok = Batches.give_up("not-a-uuid", "john.smith@fixture.org")
+        end)
+
+      assert log =~ "j***@fixture.org"
+      refute log =~ "john"
+      refute log =~ "smith"
+      assert batch.uuid
+    end
+
     test "draining the queue through every retry still finishes the batch", %{batch: batch} do
       Oban.drain_queue(queue: :email_verification, with_scheduled: true, with_recursion: true)
 
@@ -680,6 +733,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
 
       assert Verification.list_batches("crm_list", "nope") == []
       assert Verification.latest_batch("crm_list", "nope") == nil
+    end
+
+    test "list_batches/2 and latest_batch/2 answer [] / nil for a source type that is not text" do
+      start(["a@fixture.org"])
+
+      for bad <- [nil, :manual, 42, %{}, ["manual"], <<0xFF>>, "man\0ual"] do
+        assert Verification.list_batches(bad, "ref-1") == [], "list_batches(#{inspect(bad)})"
+        assert Verification.latest_batch(bad, "ref-1") == nil, "latest_batch(#{inspect(bad)})"
+      end
+
+      assert Verification.list_batches("manual", <<0xFF>>) == []
+      assert Verification.latest_batch("manual", {:not, :text}) == nil
+      assert [_] = Verification.list_batches("manual", "ref-1")
     end
   end
 
