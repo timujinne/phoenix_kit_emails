@@ -59,6 +59,13 @@ syntax → словари → DNS MX → SMTP RCPT (+ catch-all) и показы
 `level = "mx"` (домен принимает почту, ящик не проверен). `valid` выдаёт только SMTP.
 В UI: «Домен OK (без SMTP)». См. вопрос владельцу Q3.
 
+Коды `reason` для этого случая (реализация этапа 1):
+- `smtp_disabled` - флаг `email_verify_smtp_enabled` выключен, шаг SMTP пропущен
+  (`status = not_sure`, `level = "mx"`). Метка «Домен OK (без SMTP)» = `level "mx"` + `smtp_disabled`.
+- `smtp_unavailable` - флаг включён, но настроенный клиент - заглушка `Smtp.Disabled`
+  (`not_sure`, `level = "mx"`).
+- `smtp_error` - клиент вернул иную ошибку (`not_sure`, `level = "mx"`).
+
 SMTP (этап 2, за флагом): HELO = FQDN из настройки, MAIL FROM из настройки,
 RCPT TO адреса; классификация по коду: 250 → valid; 550/551/553 «user unknown» → invalid;
 450/451/452 + greylist-маркеры → temp (отложенный повтор); 421/554 «blocked/spam» →

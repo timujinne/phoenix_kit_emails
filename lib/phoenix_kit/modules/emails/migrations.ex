@@ -6,12 +6,14 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   `current_version/0` + `migrated_version_runtime/1` + idempotent `up/1` +
   version-aware `down/1`. `PhoenixKit.Modules.Legal.Migrations` is the
   reference implementation this chain is shaped after — same situation, and
-  V1 here is the same kind of step: an ADOPTION, not a create.
+  V1 here is the same kind of step: an ADOPTION, not a create (V4 is the
+  first real create).
 
   ## Ownership history — read before touching
 
-  Every table this chain names was created by core, back when email
-  tracking still lived inside core, and today ships in core's squashed
+  Every ADOPTED table (V1 to V3; V4 adds tables of its own, below) was
+  created by core, back when email tracking still lived inside core, and
+  today ships in core's squashed
   V135 baseline (plus later deltas — see "Where the DDL comes from"). When
   the module was extracted into this package the tables stayed in core's
   chain, exactly as `phoenix_kit_consent_logs` did for
@@ -122,11 +124,14 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   nothing to reconcile: plain `CREATE TABLE IF NOT EXISTS` with the primary key
   and the one foreign key inline, `CREATE INDEX IF NOT EXISTS` through the same
   soft-failure wrapper as every other index here, and `CREATE EXTENSION IF NOT
-  EXISTS citext` (core's baseline already installs it; this keeps the chain
-  self-sufficient once core stops shipping module tables). They are NOT in
-  core's `ExpectedSchema` manifest and must not be added to it - they are
-  module-owned, so `mix phoenix_kit.repair` neither knows nor touches them.
-  Nothing in an existing table changes.
+  EXISTS citext` (core's baseline already installs it). The `uuid` defaults call
+  the prefix-local `uuid_generate_v7()` that core installs into every schema it
+  migrates; V4, like the adopted `phoenix_kit_email_templates` default, relies
+  on core having run first and does not create that function (unlike
+  `phoenix_kit_newsletters`, which can be the first module to touch a schema).
+  They are NOT in core's `ExpectedSchema` manifest and must not be added to
+  it - they are module-owned, so `mix phoenix_kit.repair` neither knows nor
+  touches them. Nothing in an existing table changes.
 
   `down/1` leaves them standing, like everything else here.
 

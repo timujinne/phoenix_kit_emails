@@ -5,7 +5,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationV4TablesTest do
   changes nothing.
   """
 
-  use PhoenixKitEmails.DataCase, async: true
+  use PhoenixKitEmails.DataCase, async: false
 
   alias PhoenixKit.Modules.Emails.Migrations
   alias PhoenixKitEmails.Test.Repo
