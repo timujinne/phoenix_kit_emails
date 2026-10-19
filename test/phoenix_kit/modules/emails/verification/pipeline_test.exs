@@ -32,7 +32,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
     test "an unknown top-level domain is invalid, at the dictionary level" do
       result = run("john@good-fixture.invalidtld")
       assert {result.status, result.reason, result.level} == {"invalid", "bad_tld", "dict"}
-      assert steps(result) == ["normalize", "syntax", "tld"]
+      assert steps(result) == ["normalize", "syntax", "marks", "tld"]
       assert FakeResolver.calls() == []
     end
 
@@ -65,9 +65,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
       FakeResolver.put("good-fixture.org", mx: @mx)
       result = run("john@good-fixture.org")
 
-      assert steps(result) == ~w(normalize syntax tld disposable flags mx smtp)
+      assert steps(result) == ~w(normalize syntax marks tld disposable flags mx smtp)
       assert Enum.all?(result.log, &(is_float(&1["ms"]) and &1["ms"] >= 0))
-      assert Enum.map(result.log, & &1["outcome"]) == ~w(ok ok ok ok ok ok skipped)
+      assert Enum.map(result.log, & &1["outcome"]) == ~w(ok ok ok ok ok ok ok skipped)
 
       mx_line = Enum.find(result.log, &(&1["step"] == "mx"))
       assert %{"hosts" => 1, "implicit" => false, "source" => "dns"} = mx_line
@@ -164,6 +164,84 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
 
     test "flags never decide the verdict" do
       assert run("info@gmail.com").status == run("john@good-fixture.org").status
+    end
+  end
+
+  describe "alias strip" do
+    setup do
+      FakeResolver.put("good-fixture.org", mx: @mx)
+      :ok
+    end
+
+    defp normalize_line(result), do: Enum.find(result.log, &(&1["step"] == "normalize"))
+
+    test "user+tag@domain is checked as user@domain, stored under the address as given" do
+      result = run("John+News@Good-Fixture.org")
+
+      assert result.email == "John+News@good-fixture.org"
+      assert normalize_line(result)["checked_as"] == "John@good-fixture.org"
+      assert result.status == "not_sure"
+    end
+
+    test "an address without a tag logs no stripped form" do
+      refute Map.has_key?(normalize_line(run("john@good-fixture.org")), "checked_as")
+    end
+
+    test "a tag with no user in front of it is left alone; an empty tag is dropped" do
+      refute Map.has_key?(normalize_line(run("+tag@good-fixture.org")), "checked_as")
+
+      assert normalize_line(run("john+@good-fixture.org"))["checked_as"] ==
+               "john@good-fixture.org"
+    end
+
+    test "only the first + splits, and the stripped form is what the dictionaries see" do
+      assert normalize_line(run("a+b+c@good-fixture.org"))["checked_as"] == "a@good-fixture.org"
+      assert %{role: true} = run("info+q3@good-fixture.org")
+      assert %{fake: true} = run("asdfgh+tag@good-fixture.org")
+    end
+
+    test "the SMTP client is asked about the stripped address" do
+      Settings.update_boolean_setting_with_module(
+        "email_verify_smtp_enabled",
+        true,
+        "email_system"
+      )
+
+      FakeSmtp.put({:ok, %{status: :invalid, reason: "user_unknown", catch_all: false}})
+      result = run("john+tag@good-fixture.org", smtp: FakeSmtp)
+
+      assert FakeSmtp.calls() == [{"john@good-fixture.org", ["mx.good.example"]}]
+      assert result.email == "john+tag@good-fixture.org"
+    end
+  end
+
+  describe "the disposable status setting" do
+    defp set_disposable_status(value) do
+      Settings.update_setting_with_module("email_verify_disposable_status", value, "email_system")
+    end
+
+    test "defaults to invalid" do
+      assert Config.disposable_status() == "invalid"
+      assert %{status: "invalid", reason: "disposable"} = run("john@mailinator.com")
+    end
+
+    test "temp makes a disposable domain temp, the reason and flag stay" do
+      set_disposable_status("temp")
+      result = run("john@mailinator.com")
+
+      assert {result.status, result.reason, result.level} == {"temp", "disposable", "dict"}
+      assert result.disposable
+      assert FakeResolver.calls() == []
+    end
+
+    test "case and surrounding spaces are ignored; an unknown value falls back to invalid" do
+      set_disposable_status(" TEMP ")
+      assert Config.disposable_status() == "temp"
+
+      for value <- ["invalid", "bogus", ""] do
+        set_disposable_status(value)
+        assert run("john@mailinator.com").status == "invalid", "setting #{inspect(value)}"
+      end
     end
   end
 

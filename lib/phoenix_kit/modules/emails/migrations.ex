@@ -110,7 +110,9 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   `docs/superpowers/specs/2026-10-19-email-verification.md`, section 5.
 
     * `phoenix_kit_email_verifications` - the latest verdict per address
-      (`email` is `citext`, unique).
+      (`email` is `citext`, unique). Besides the verdict it keeps the flags
+      `free`, `role`, `disposable`, `fake`, `curse` and `typo` as plain boolean
+      columns, so a later UI can filter on them.
     * `phoenix_kit_email_verify_domains` - per-domain cache and state; every
       cached fact carries its own timestamp, hence its own TTL.
     * `phoenix_kit_email_verify_batches` and
@@ -594,6 +596,9 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
        "free" boolean DEFAULT false NOT NULL,
        "role" boolean DEFAULT false NOT NULL,
        "disposable" boolean DEFAULT false NOT NULL,
+       "fake" boolean DEFAULT false NOT NULL,
+       "curse" boolean DEFAULT false NOT NULL,
+       "typo" boolean DEFAULT false NOT NULL,
        "mx" character varying(255),
        "log" jsonb DEFAULT '[]'::jsonb NOT NULL,
        "attempts" integer DEFAULT 1 NOT NULL,

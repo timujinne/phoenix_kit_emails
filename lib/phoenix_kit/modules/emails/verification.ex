@@ -35,6 +35,9 @@ defmodule PhoenixKit.Modules.Emails.Verification do
     :free,
     :role,
     :disposable,
+    :fake,
+    :curse,
+    :typo,
     :mx,
     :log,
     :checked_at

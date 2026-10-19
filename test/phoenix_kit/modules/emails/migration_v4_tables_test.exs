@@ -31,12 +31,15 @@ defmodule PhoenixKit.Modules.Emails.MigrationV4TablesTest do
     columns = columns("phoenix_kit_email_verifications")
 
     expected =
-      ~w(uuid email domain status reason level catch_all free role disposable mx log attempts checked_at inserted_at updated_at)
+      ~w(uuid email domain status reason level catch_all free role disposable fake curse typo mx log attempts checked_at inserted_at updated_at)
 
     assert Map.keys(columns) |> Enum.sort() == Enum.sort(expected)
     assert {"citext", false} = columns["email"]
     assert {"jsonb", false} = columns["log"]
     assert {"bool", true} = columns["catch_all"]
+    assert {"bool", false} = columns["fake"]
+    assert {"bool", false} = columns["curse"]
+    assert {"bool", false} = columns["typo"]
     assert {"timestamptz", true} = columns["checked_at"]
   end
 

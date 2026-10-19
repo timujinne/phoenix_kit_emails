@@ -4,15 +4,25 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
 
   | # | Step | Final outcome |
   |---|------|---------------|
-  | 1 | normalise | invalid `syntax` |
+  | 1 | normalise (and `+tag` strip) | invalid `syntax` |
   | 2 | syntax | invalid `syntax` |
-  | 3 | TLD list | invalid `bad_tld` |
-  | 4 | disposable list | invalid `disposable` |
-  | 5 | free / role flags | - |
-  | 6 | DNS MX (cache, then resolver) | invalid `no_mx`; temp `dns_error` |
-  | 7 | SMTP, only when enabled | whatever the client says |
+  | 3 | marks: fake / curse / typo flags | - |
+  | 4 | TLD list | invalid `bad_tld` |
+  | 5 | disposable list | `email_verify_disposable_status`: invalid (default) or temp, `disposable` |
+  | 6 | free / role flags | - |
+  | 7 | DNS MX (cache, then resolver) | invalid `no_mx`; temp `dns_error` |
+  | 8 | SMTP, only when enabled | whatever the client says |
 
-  The first final outcome stops the run. An address that gets through every
+  The first final outcome stops the run.
+
+  `user+tag@domain` is checked as `user@domain`: the flags, the role check and
+  the SMTP client see the address without its tag, the result is stored under
+  the address as given, and the `normalize` log line says what it was checked as
+  (`"checked_as"`). The syntax check looks at the address as given.
+
+  The marks step comes right after the syntax check so that the flags are set
+  whatever happens later (a typo domain usually ends at `no_mx`). They never
+  change a status. An address that gets through every
   step without an SMTP verdict is `not_sure`: `smtp_disabled` when the SMTP
   step is switched off (the domain takes mail, the mailbox is unchecked) or
   `smtp_unavailable` when it is on but the configured client cannot probe.
@@ -21,19 +31,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   the result's `log`. This module only reads: it persists nothing but the MX
   answer, which goes into `DomainCache`.
 
-  Options: `:resolver` and `:smtp` override the configured implementations.
+  Options: `:resolver` and `:smtp` override the configured implementations;
+  `:hijack_probe` names the domain `Hijack` resolves to detect a hijacking
+  resolver (for tests).
   """
 
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Dictionaries
   alias PhoenixKit.Modules.Emails.Verification.DomainCache
+  alias PhoenixKit.Modules.Emails.Verification.Flags
+  alias PhoenixKit.Modules.Emails.Verification.Hijack
   alias PhoenixKit.Modules.Emails.Verification.Normalizer
   alias PhoenixKit.Modules.Emails.Verification.Resolver
   alias PhoenixKit.Modules.Emails.Verification.Result
   alias PhoenixKit.Modules.Emails.Verification.Syntax
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
-  @steps [:normalize, :syntax, :tld, :disposable, :flags, :mx, :smtp]
+  @steps [:normalize, :syntax, :marks, :tld, :disposable, :flags, :mx, :smtp]
 
   @spec run(term(), keyword()) :: Result.t()
   def run(input, opts \\ []) do
@@ -43,6 +57,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
       result: %Result{},
       log: [],
       parts: nil,
+      check_local: nil,
       key: nil,
       hosts: []
     }
@@ -64,7 +79,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
 
     case normalized do
       {:ok, parts} ->
-        {:cont, %{state | parts: parts, result: %{state.result | email: parts.email}}, %{}}
+        check_local = strip_alias(parts.local)
+        state = %{state | parts: parts, check_local: check_local}
+        {:cont, %{state | result: %{state.result | email: parts.email}}, checked_as(state)}
 
       {:error, error} ->
         {:halt, invalid(state, "syntax", "syntax"), %{"detail" => Atom.to_string(error)}}
@@ -81,6 +98,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
     end
   end
 
+  defp step(:marks, %{parts: %{domain: domain}} = state) do
+    flags = Flags.compute(state.check_local, domain)
+
+    {:cont, %{state | result: struct!(state.result, flags)},
+     Map.new(flags, fn {flag, value} -> {Atom.to_string(flag), value} end)}
+  end
+
   defp step(:tld, %{parts: %{domain: domain}} = state) do
     tld = domain |> String.split(".") |> List.last()
 
@@ -93,16 +117,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
 
   defp step(:disposable, %{parts: %{domain: domain}} = state) do
     if Dictionaries.disposable?(domain) do
-      state = invalid(state, "disposable", "dict")
+      state = finalise(state, Config.disposable_status(), "disposable", "dict")
       {:halt, put_in(state.result.disposable, true), %{}}
     else
       {:cont, state, %{}}
     end
   end
 
-  defp step(:flags, %{parts: %{local: local, domain: domain}} = state) do
+  defp step(:flags, %{parts: %{domain: domain}} = state) do
     free = Dictionaries.free?(domain)
-    role = Dictionaries.role?(local)
+    role = Dictionaries.role?(state.check_local)
 
     {:cont, %{state | result: %{state.result | free: free, role: role}},
      %{"free" => free, "role" => role}}
@@ -131,7 +155,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   defp step(:smtp, state) do
     if Config.smtp_enabled?() do
       client = Keyword.get_lazy(state.opts, :smtp, &Config.smtp_client/0)
-      {:cont, smtp_verdict(client.verify(state.result.email, state.hosts, []), state), %{}}
+      email = state.check_local <> "@" <> state.parts.domain
+      {:cont, smtp_verdict(client.verify(email, state.hosts, []), state), %{}}
     else
       {:skip, finalise(state, "not_sure", "smtp_disabled", "mx"), %{}}
     end
@@ -150,6 +175,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
 
   ## --- Helpers ---
 
+  # Everything from the first "+" is a tag - unless nothing would be left.
+  defp strip_alias(local) do
+    case String.split(local, "+", parts: 2) do
+      [base, _tag] when base != "" -> base
+      _ -> local
+    end
+  end
+
+  defp checked_as(%{check_local: local, parts: %{local: local}}), do: %{}
+
+  defp checked_as(%{check_local: local, parts: %{domain: domain}}),
+    do: %{"checked_as" => local <> "@" <> domain}
+
   defp resolve_mx(domain, opts) do
     now = UtilsDate.utc_now()
 
@@ -158,10 +196,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
         {resolution, "cache"}
 
       :miss ->
-        resolution = Resolver.resolve(domain, Keyword.take(opts, [:resolver]))
+        resolution = Resolver.resolve(domain, resolver_opts(opts))
         :ok = DomainCache.store_mx(domain, resolution, now)
         {resolution, "dns"}
     end
+  end
+
+  # The anti-hijack list is a closure: the probe is made only if the MX answer
+  # turns out empty and the address fallback is reached.
+  defp resolver_opts(opts) do
+    resolver = Keyword.get_lazy(opts, :resolver, &Config.resolver/0)
+    hijack_opts = [resolver: resolver] ++ for({:hijack_probe, name} <- opts, do: {:probe, name})
+    [resolver: resolver, hijack_ips: fn -> Hijack.ips(hijack_opts) end]
   end
 
   defp invalid(state, reason, level), do: finalise(state, "invalid", reason, level)

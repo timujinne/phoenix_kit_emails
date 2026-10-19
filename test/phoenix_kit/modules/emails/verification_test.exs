@@ -70,6 +70,29 @@ defmodule PhoenixKit.Modules.Emails.VerificationTest do
       assert Repo.get_by!(Result, email: "x@mailinator.com").disposable
     end
 
+    test "the fake flag is stored and read back; it does not change the verdict" do
+      assert {:ok, plain} = verify("john@fixture.org")
+      assert {:ok, flagged} = verify("asdfgh@fixture.org")
+
+      assert {flagged.status, flagged.reason} == {plain.status, plain.reason}
+      assert %Result{fake: false, curse: false, typo: false} = plain
+      assert %Result{fake: true, curse: false, typo: false} = flagged
+
+      stored = Repo.get_by!(Result, email: "asdfgh@fixture.org")
+      assert %Result{fake: true, curse: false, typo: false} = stored
+
+      assert %{"asdfgh@fixture.org" => %Result{fake: true, source: "cache"}} =
+               Verification.results_for(["asdfgh@fixture.org"])
+    end
+
+    test "a re-run overwrites the flags with the new ones" do
+      assert {:ok, %Result{fake: true}} = verify("asdfgh@fixture.org")
+      Repo.update_all(Result, set: [fake: false])
+      assert {:ok, %Result{fake: false}} = verify("asdfgh@fixture.org")
+      assert {:ok, %Result{fake: true}} = verify("asdfgh@fixture.org", force: true)
+      assert Repo.get_by!(Result, email: "asdfgh@fixture.org").fake
+    end
+
     test "blank input is reported but not stored" do
       before = row_count()
       assert {:ok, %Result{status: "invalid", reason: "syntax", email: nil}} = verify("  ")

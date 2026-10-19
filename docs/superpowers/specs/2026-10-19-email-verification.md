@@ -48,12 +48,21 @@ syntax → словари → DNS MX → SMTP RCPT (+ catch-all) и показы
 | 1 | Нормализация: trim, нижний регистр домена (IDN → punycode), local-part как есть | — |
 | 2 | Syntax (RFC 5321/5322 упрощённо: длины 64/254, точки, допустимые символы) | Invalid `syntax` |
 | 3 | TLD по списку IANA | Invalid `bad_tld` |
-| 4 | DEA (одноразовые домены) | Invalid `disposable` |
-| 5 | Флаги без вердикта: `free` (gmail.com…), `role` (info@, sales@…) | — |
+| 4 | DEA (одноразовые домены) | `email_verify_disposable_status`: Invalid `disposable` (дефолт) или Temp `disposable` (как LetsExtract, ANALYSIS §7) |
+| 5 | Флаги без вердикта: `free` (gmail.com…), `role` (info@, sales@…), `fake`, `curse`, `typo` (шаг `marks` сразу после syntax, чтобы флаги ставились при любом исходе) | — |
 | 6 | DNS MX (кэш → `:inet_res`); нет MX → A/AAAA (implicit MX, RFC 5321 §5.1) | нет ни MX, ни A: Invalid `no_mx`; SERVFAIL/таймаут: Temp `dns_error` |
 | 7 | SMTP RCPT — **только при `email_verify_smtp_enabled = true`** (дефолт ВЫКЛ) | см. ниже |
 
 Статусы: `valid | invalid | temp | not_sure` + `catch_all :: boolean | nil`.
+
+Срез алиаса: `user+tag@domain` проверяется как `user@domain` (флаги, роль, SMTP-клиент);
+результат хранится под исходным нормализованным адресом, в `log` шага `normalize` —
+`"checked_as"`. Анти-DNS-hijack: при падении на implicit MX резолвится заведомо
+несуществующее имя (`<случайное>.com`, раз в час на VM и резолвер); если оно «существует»,
+его адреса вычитаются из A-ответов домена. `fake`/`curse`/`typo` — флаги без вердикта
+(владелец: «Fake Pattern и Curse Words — не вердикт»), хранятся булевыми колонками
+`fake`, `curse`, `typo` в `phoenix_kit_email_verifications`, нигде не показываются и
+статус не меняют.
 
 Без SMTP (этап 1, дефолт): прошедший шаги 1–6 адрес получает `not_sure` с
 `level = "mx"` (домен принимает почту, ящик не проверен). `valid` выдаёт только SMTP.
@@ -85,13 +94,18 @@ temp + блок-счётчик домена; таймаут → backoff. Catch-a
 - Источник: снапшоты Kellerman из прототипа Пая (если владелец даст — Q1); иначе
   открытые списки: `disposable-email-domains` (CC0), IANA `tlds-alpha-by-domain.txt`,
   собранный free-список. Обновление списков (cron) — этап 3.
-- Хост может дополнить своими списками через настройки (этап 3).
+- Хост может дополнить своими списками: каталог `email_verify_lists_dir` (или app env
+  `:verification_lists_dir`). Каталог Kellerman принимается как есть (CRLF, TLD с точкой,
+  имена `DEA_Sorted.txt`, `FreeEmail_Sorted.txt`, `TopLevelDomains.txt`, `Typos_Sorted.txt`,
+  `FakeAddresses_Sorted.txt`, `CurseWords_Sorted.txt`, `Greylisting_Sorted.txt`,
+  `MailboxQuota_Sorted.txt`, `Blocking_Sorted.txt`); последние три — фразы классификации
+  ответа SMTP для этапа 2, пока не используются. В git эти файлы не кладутся.
 
 ## 5. Данные (миграция Emails V4, только CREATE, ничего не меняет в существующих таблицах)
 
 `phoenix_kit_email_verifications` — последний результат по адресу:
 `uuid`, `email citext UNIQUE`, `domain`, `status`, `reason`, `level`, `catch_all`,
-`free`, `role`, `disposable`, `mx`, `log jsonb`, `attempts`, `checked_at`, timestamps.
+`free`, `role`, `disposable`, `fake`, `curse`, `typo`, `mx`, `log jsonb`, `attempts`, `checked_at`, timestamps.
 Индексы: `(status)`, `(domain)`.
 
 `phoenix_kit_email_verify_domains` — персистентный кэш и состояние домена (одна строка

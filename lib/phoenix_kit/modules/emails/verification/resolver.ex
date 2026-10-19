@@ -36,7 +36,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
   An RFC 7505 "null MX" (a lone `.`) means the domain accepts no mail.
 
   Options: `:resolver` (module, default `Config.resolver/0`), `:timeout`
-  (milliseconds, default `Config.dns_timeout_ms/0`).
+  (milliseconds, default `Config.dns_timeout_ms/0`), `:hijack_ips` (addresses
+  to ignore in the fallback, or a zero-arity function returning them that is
+  called only if the fallback is reached; default `[]`, see `Verification.Hijack`).
+  An address answer made only of those addresses counts as no address at all.
   """
   @spec resolve(domain(), keyword()) :: {:ok, resolution()} | {:error, resolve_error()}
   def resolve(domain, opts \\ []) do
@@ -45,7 +48,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
 
     case resolver.lookup_mx(domain, timeout) do
       {:ok, records} -> from_mx(records)
-      {:error, :no_records} -> implicit_mx(resolver, domain, timeout)
+      {:error, :no_records} -> implicit_mx(resolver, domain, timeout, opts)
       {:error, reason} -> {:error, reason}
     end
   end
@@ -63,12 +66,26 @@ defmodule PhoenixKit.Modules.Emails.Verification.Resolver do
     end
   end
 
-  defp implicit_mx(resolver, domain, timeout) do
+  defp implicit_mx(resolver, domain, timeout, opts) do
     case resolver.lookup_addresses(domain, timeout) do
-      {:ok, [_ | _]} -> {:ok, %{hosts: [%{host: domain, pref: 0}], implicit: true}}
-      {:ok, []} -> {:error, :no_records}
+      {:ok, ips} -> if genuine?(ips, opts), do: implicit(domain), else: {:error, :no_records}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp implicit(domain), do: {:ok, %{hosts: [%{host: domain, pref: 0}], implicit: true}}
+
+  # At least one address that is not the one a hijacking resolver hands out.
+  defp genuine?([], _opts), do: false
+
+  defp genuine?(ips, opts) do
+    hijack =
+      case Keyword.get(opts, :hijack_ips, []) do
+        fun when is_function(fun, 0) -> fun.()
+        list -> list
+      end
+
+    Enum.any?(ips, &(&1 not in hijack))
   end
 
   defp normalize_host(host) do

@@ -15,6 +15,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Result do
     * `catch_all` - `true`/`false` once an SMTP probe has said, otherwise `nil`.
     * `free`, `role`, `disposable` - flags; they never decide the verdict by
       themselves, except `disposable`, which is also the `"disposable"` reason.
+    * `fake`, `curse`, `typo` - flags that never decide anything (see
+      `Verification.Flags`); stored for a later UI, shown nowhere yet.
     * `mx` - the preferred mail host, when the domain resolved.
     * `log` - the steps that ran, each `%{"step", "outcome", "ms", ...}`.
     * `checked_at` - when the pipeline ran.
@@ -45,6 +47,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Result do
     field(:free, :boolean, default: false)
     field(:role, :boolean, default: false)
     field(:disposable, :boolean, default: false)
+    field(:fake, :boolean, default: false)
+    field(:curse, :boolean, default: false)
+    field(:typo, :boolean, default: false)
     field(:mx, :string)
     field(:log, JsonList, default: [])
     field(:attempts, :integer, default: 1)
@@ -62,7 +67,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Result do
   @spec levels() :: [String.t()]
   def levels, do: @levels
 
-  @fields ~w(email domain status reason level catch_all free role disposable mx log attempts checked_at)a
+  @fields ~w(email domain status reason level catch_all free role disposable fake curse typo mx log attempts checked_at)a
 
   @doc false
   def changeset(result, attrs) do

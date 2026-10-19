@@ -18,6 +18,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `email_verify_ttl_grey_hours` - cached greylist marker (default `24`)
     * `email_verify_ttl_result_days` - a stored verdict is reused this long (default `30`)
     * `email_verify_dns_timeout_ms` - per DNS query (default `3000`)
+    * `email_verify_disposable_status` - the status of an address on a disposable
+      domain: `"invalid"` (default) or `"temp"` (what LetsExtract does); any other
+      value counts as `"invalid"`
     * `email_verify_lists_dir` - optional external dictionary directory
 
   ## Application env (`:phoenix_kit_emails`)
@@ -58,6 +61,24 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   def ttl_seconds(:grey), do: hours("email_verify_ttl_grey_hours", 24)
   def ttl_seconds(:catch_all), do: days("email_verify_ttl_catch_all_days", 7)
   def ttl_seconds(:result), do: days("email_verify_ttl_result_days", 30)
+
+  @doc """
+  The status a disposable-domain address gets: `"invalid"` (the default) or
+  `"temp"`, from `email_verify_disposable_status` (case and surrounding spaces
+  ignored; anything unrecognised, or an unreadable store, is `"invalid"`).
+  """
+  @spec disposable_status() :: String.t()
+  def disposable_status do
+    case Settings.get_setting("email_verify_disposable_status") do
+      value when is_binary(value) ->
+        if value |> String.trim() |> String.downcase() == "temp", do: "temp", else: "invalid"
+
+      _ ->
+        "invalid"
+    end
+  rescue
+    _ -> "invalid"
+  end
 
   @doc "Timeout of one DNS query, in milliseconds."
   @spec dns_timeout_ms() :: pos_integer()

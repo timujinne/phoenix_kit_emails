@@ -744,6 +744,10 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       assert verifications =~ "\"email\" citext NOT NULL"
       assert verifications =~ "\"log\" jsonb DEFAULT '[]'::jsonb NOT NULL"
 
+      for flag <- ~w(fake curse typo) do
+        assert verifications =~ "\"#{flag}\" boolean DEFAULT false NOT NULL"
+      end
+
       assert Enum.any?(
                Migrations.up_statements(),
                &(&1 =~
