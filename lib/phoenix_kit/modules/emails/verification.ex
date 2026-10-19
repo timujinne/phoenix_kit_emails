@@ -25,6 +25,24 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
   alias PhoenixKit.Modules.Emails.Verification.Result
 
+  @persisted [
+    :email,
+    :domain,
+    :status,
+    :reason,
+    :level,
+    :catch_all,
+    :free,
+    :role,
+    :disposable,
+    :mx,
+    :log,
+    :checked_at
+  ]
+
+  # A re-run overwrites every verdict field in place; the address is the key.
+  @updated_on_conflict List.delete(@persisted, :email)
+
   @type summary :: %{
           valid: non_neg_integer(),
           invalid: non_neg_integer(),
@@ -54,6 +72,10 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   Options: `:force` (re-run even if a stored verdict is fresh), `:resolver` and
   `:smtp` (override the configured implementations).
+
+  This function does not consult `enabled?/0`: with `email_verify_enabled`
+  switched off it still runs and writes. Gating the feature is the caller's job
+  (hide the UI, don't enqueue the batch).
   """
   @spec verify(term(), keyword()) :: {:ok, Result.t()} | {:error, Ecto.Changeset.t()}
   def verify(email, opts \\ []) do
@@ -65,16 +87,16 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   @doc """
   The stored verdicts for `emails`, keyed by the address as given.
-  Addresses never verified are absent.
+  Addresses never verified, blank, or not storable (see
+  `Normalizer.storage_key/1`) are absent.
   """
   @spec results_for([term()]) :: %{String.t() => Result.t()}
   def results_for(emails) do
-    keyed = for email <- emails, key = Normalizer.storage_key(email), do: {email, key}
+    keyed = keyed(emails)
 
     by_key =
       keyed
-      |> Enum.map(fn {_email, key} -> key end)
-      |> Enum.uniq()
+      |> keys()
       |> fetch_rows()
       |> Map.new(&{String.downcase(&1.email), %{&1 | source: "cache"}})
 
@@ -86,11 +108,22 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   @doc """
   Counts `emails` by stored status. `unchecked` are the ones with no verdict.
   An address listed twice counts twice.
+
+  Reads only the status column, not the verdicts' step logs.
   """
   @spec summary([term()]) :: summary()
   def summary(emails) do
-    results = results_for(emails)
-    counts = emails |> Enum.map(&status_of(results, &1)) |> Enum.frequencies()
+    statuses =
+      emails
+      |> keyed()
+      |> keys()
+      |> fetch_statuses()
+      |> Map.new(fn {email, status} -> {String.downcase(email), status} end)
+
+    counts =
+      emails
+      |> Enum.map(&status_of(statuses, &1))
+      |> Enum.frequencies()
 
     for status <- [:valid, :invalid, :temp, :not_sure, :unchecked], into: %{} do
       {status, Map.get(counts, status, 0)}
@@ -99,10 +132,18 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   ## --- Internals ---
 
-  defp status_of(results, email) do
-    case Map.fetch(results, email) do
-      {:ok, %Result{status: status}} -> String.to_existing_atom(status)
-      :error -> :unchecked
+  defp keyed(emails) do
+    for email <- emails, key = Normalizer.storage_key(email), do: {email, key}
+  end
+
+  defp keys(keyed), do: keyed |> Enum.map(fn {_email, key} -> key end) |> Enum.uniq()
+
+  defp status_of(statuses, email) do
+    with key when is_binary(key) <- Normalizer.storage_key(email),
+         status when is_binary(status) <- Map.get(statuses, String.downcase(key)) do
+      String.to_existing_atom(status)
+    else
+      _ -> :unchecked
     end
   end
 
@@ -129,35 +170,30 @@ defmodule PhoenixKit.Modules.Emails.Verification do
     repo().all(from(r in Result, where: fragment("? = ANY(?::citext[])", r.email, ^keys)))
   end
 
+  defp fetch_statuses([]), do: []
+
+  defp fetch_statuses(keys) do
+    repo().all(
+      from(r in Result,
+        where: fragment("? = ANY(?::citext[])", r.email, ^keys),
+        select: {r.email, r.status}
+      )
+    )
+  end
+
   # A blank input has nothing to key a row on: report it, store nothing.
   defp persist(%Result{email: nil} = result), do: {:ok, result}
 
   defp persist(%Result{} = result) do
-    attrs = Map.take(result, [:email, :domain, :status, :reason, :level, :catch_all] ++ flags())
-    attrs = Map.merge(attrs, Map.take(result, [:mx, :log, :checked_at]))
+    changeset = Result.changeset(%Result{}, Map.take(result, @persisted))
 
-    changeset = Result.changeset(%Result{}, attrs)
+    overwrite =
+      result
+      |> Map.take(@updated_on_conflict)
+      |> Map.put(:updated_at, result.checked_at)
+      |> Enum.to_list()
 
-    on_conflict =
-      from(r in Result,
-        update: [
-          set: [
-            domain: ^result.domain,
-            status: ^result.status,
-            reason: ^result.reason,
-            level: ^result.level,
-            catch_all: ^result.catch_all,
-            free: ^result.free,
-            role: ^result.role,
-            disposable: ^result.disposable,
-            mx: ^result.mx,
-            log: ^result.log,
-            checked_at: ^result.checked_at,
-            updated_at: ^result.checked_at
-          ],
-          inc: [attempts: 1]
-        ]
-      )
+    on_conflict = from(r in Result, update: [set: ^overwrite, inc: [attempts: 1]])
 
     case repo().insert(changeset,
            on_conflict: on_conflict,
@@ -168,8 +204,6 @@ defmodule PhoenixKit.Modules.Emails.Verification do
       {:error, changeset} -> {:error, changeset}
     end
   end
-
-  defp flags, do: [:free, :role, :disposable]
 
   defp repo, do: PhoenixKit.RepoHelper.repo()
 end

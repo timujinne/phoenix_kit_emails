@@ -50,6 +50,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.NormalizerTest do
       assert Normalizer.storage_key(nil) == nil
     end
 
+    test "is nil for input a text column cannot hold: NUL bytes and invalid UTF-8" do
+      assert Normalizer.storage_key("a\0b@fixture.org") == nil
+      assert Normalizer.storage_key(<<"a", 0xFF, "@fixture.org">>) == nil
+      assert Normalizer.storage_key(<<0xFF, 0xFE, "xx">>) == nil
+      assert Normalizer.storage_key("\0") == nil
+    end
+
+    test "storage_key/2 reuses an earlier normalisation" do
+      input = " A@Example.COM "
+      assert Normalizer.storage_key(input, Normalizer.normalize(input)) == "A@example.com"
+      assert Normalizer.storage_key("junk", {:error, :bad_at}) == "junk"
+      assert Normalizer.storage_key(<<0xFF>>, {:error, :bad_at}) == nil
+    end
+
     test "is bounded" do
       assert String.length(Normalizer.storage_key(String.duplicate("a", 1000) <> "@x.com")) == 320
       assert String.length(Normalizer.storage_key(String.duplicate("a", 1000))) == 320

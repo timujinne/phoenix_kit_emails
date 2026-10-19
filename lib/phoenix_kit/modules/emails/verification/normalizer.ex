@@ -26,19 +26,35 @@ defmodule PhoenixKit.Modules.Emails.Verification.Normalizer do
   @doc """
   The key a result is stored and looked up under: the normalised address when
   there is one, otherwise the trimmed input (a malformed address still gets a
-  stored verdict), cut at 320 characters. `nil` for input that is not text or
-  is blank.
+  stored verdict), cut at 320 characters. `nil` for input that is not text, is
+  blank, or cannot be stored at all - invalid UTF-8 and NUL bytes, which
+  PostgreSQL rejects in a text column.
   """
   @spec storage_key(term()) :: String.t() | nil
   def storage_key(input) when is_binary(input) do
-    case normalize(input) do
-      {:ok, %{email: email}} -> String.slice(email, 0, 320)
-      {:error, :empty} -> nil
-      {:error, _} -> input |> String.trim() |> String.slice(0, 320)
-    end
+    if storable?(input), do: storage_key(input, normalize(input))
   end
 
   def storage_key(_input), do: nil
+
+  @doc """
+  `storage_key/1` for a caller that already ran `normalize/1` on `input`, so
+  the (IDN-converting) work is not done twice.
+  """
+  @spec storage_key(term(), {:ok, parts()} | {:error, error()}) :: String.t() | nil
+  def storage_key(input, normalized) when is_binary(input) do
+    if storable?(input) do
+      case normalized do
+        {:ok, %{email: email}} -> String.slice(email, 0, 320)
+        {:error, :empty} -> nil
+        {:error, _} -> input |> String.trim() |> String.slice(0, 320)
+      end
+    end
+  end
+
+  def storage_key(_input, _normalized), do: nil
+
+  defp storable?(input), do: String.valid?(input) and not String.contains?(input, <<0>>)
 
   defp split(""), do: {:error, :empty}
 

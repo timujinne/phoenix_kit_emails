@@ -37,7 +37,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
 
   @spec run(term(), keyword()) :: Result.t()
   def run(input, opts \\ []) do
-    state = %{input: input, opts: opts, result: %Result{}, log: [], parts: nil, hosts: []}
+    state = %{
+      input: input,
+      opts: opts,
+      result: %Result{},
+      log: [],
+      parts: nil,
+      key: nil,
+      hosts: []
+    }
 
     state =
       Enum.reduce_while(@steps, state, fn step, state ->
@@ -51,7 +59,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   ## --- Steps. Each returns `{:cont | :halt | :skip, state, log_extra}`. ---
 
   defp step(:normalize, state) do
-    case Normalizer.normalize(state.input) do
+    normalized = Normalizer.normalize(state.input)
+    state = %{state | key: Normalizer.storage_key(state.input, normalized)}
+
+    case normalized do
       {:ok, parts} ->
         {:cont, %{state | parts: parts, result: %{state.result | email: parts.email}}, %{}}
 
@@ -179,10 +190,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   defp outcome_label(:halt), do: "fail"
   defp outcome_label(:skip), do: "skipped"
 
-  defp finish(%{result: result, log: log, input: input}) do
+  # `key` is nil for input that cannot be stored (blank, NUL, invalid UTF-8):
+  # the verdict is reported, no row is written.
+  defp finish(%{result: result, log: log, key: key}) do
     %{
       result
-      | email: Normalizer.storage_key(input),
+      | email: key,
         log: Enum.reverse(log),
         checked_at: UtilsDate.utc_now(),
         source: "direct"

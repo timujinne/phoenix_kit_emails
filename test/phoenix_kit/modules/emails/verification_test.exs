@@ -77,6 +77,16 @@ defmodule PhoenixKit.Modules.Emails.VerificationTest do
       assert row_count() == before
     end
 
+    test "input a text column cannot hold is reported invalid and not stored, never a crash" do
+      before = row_count()
+
+      for bad <- ["a\0b@fixture.org", <<"a", 0xFF, "@fixture.org">>, <<0xFF, 0xFE, "xx">>] do
+        assert {:ok, %Result{status: "invalid", reason: "syntax", email: nil}} = verify(bad)
+      end
+
+      assert row_count() == before
+    end
+
     test "a fresh stored verdict is returned as a cache hit, without running the pipeline" do
       {:ok, first} = verify("a@fixture.org")
       FakeResolver.put("fixture.org", mx: {:error, :nxdomain})
@@ -148,6 +158,16 @@ defmodule PhoenixKit.Modules.Emails.VerificationTest do
       assert Map.keys(results) |> Enum.sort() == ["A@Fixture.ORG", "junk"]
       assert %Result{status: "not_sure", source: "cache"} = results["A@Fixture.ORG"]
       assert %Result{status: "invalid", reason: "syntax"} = results["junk"]
+    end
+
+    test "one unstorable address does not spoil the rest" do
+      verify("a@fixture.org")
+
+      results = Verification.results_for(["a@fixture.org", <<"a", 0xFF, "@x.org">>, "a\0b@x.org"])
+      assert Map.keys(results) == ["a@fixture.org"]
+
+      assert %{not_sure: 1, unchecked: 2} =
+               Verification.summary(["a@fixture.org", <<0xFF>>, "x\0@y.org"])
     end
 
     test "an empty list is an empty map" do
