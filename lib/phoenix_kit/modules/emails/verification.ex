@@ -14,12 +14,28 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   from an SMTP probe, which is off by default (`email_verify_smtp_enabled`) and,
   in this release, has no client behind it.
 
+  ## Batches
+
+  `start_batch/4` verifies a whole list in the background: it returns at once
+  and a `BatchStartWorker` lays the list out, then one `VerifyEmailWorker` per
+  address does the checking. Progress is broadcast on `batch_topic/1`; see
+  `Verification.Batches`. The workers run on the Oban queue
+  `:email_verification`, which this module declares through `oban_queues/0` (limit
+  5 = checks running at once, per node). A host whose Oban config predates that
+  has to add it by hand, or the jobs sit in `available` forever:
+
+      config :my_app, Oban, queues: [email_verification: 5, ...]
+
+  `queue_configured?/0` tells whether it is there, so a UI can warn.
+
   See `docs/superpowers/specs/2026-10-19-email-verification.md` and
   `Verification.Config` for the settings.
   """
 
   import Ecto.Query
 
+  alias PhoenixKit.Modules.Emails.Verification.Batch
+  alias PhoenixKit.Modules.Emails.Verification.Batches
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Normalizer
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
@@ -131,6 +147,81 @@ defmodule PhoenixKit.Modules.Emails.Verification do
     for status <- [:valid, :invalid, :temp, :not_sure, :unchecked], into: %{} do
       {status, Map.get(counts, status, 0)}
     end
+  end
+
+  @doc """
+  Starts verifying `emails` in the background and returns the stored batch.
+
+  The addresses are normalised and deduplicated (blank or unstorable entries are
+  dropped) and the batch is stored as `"queued"` with that `total`; a
+  `BatchStartWorker` does the rest. `source_type` is one of
+  `Batch.source_types/0`, `source_ref` the consumer's own handle (or `nil`).
+
+  Options: `:title`, `:created_by_uuid`.
+
+  `{:error, :no_emails}` when nothing storable is left, `{:error, changeset}` for
+  an unknown `source_type`. Like `verify/2` this does not consult `enabled?/0`.
+  """
+  @spec start_batch([term()], String.t(), term(), keyword()) ::
+          {:ok, Batch.t()} | {:error, :no_emails | Ecto.Changeset.t() | term()}
+  def start_batch(emails, source_type, source_ref, opts \\ []) when is_list(emails) do
+    Batches.start(emails, source_type, source_ref, opts)
+  end
+
+  @doc "The batch, or `nil` (also for something that is not a uuid)."
+  @spec get_batch(term()) :: Batch.t() | nil
+  defdelegate get_batch(uuid), to: Batches, as: :get
+
+  @doc "The batches of one source, newest first."
+  @spec list_batches(String.t(), term()) :: [Batch.t()]
+  defdelegate list_batches(source_type, source_ref), to: Batches, as: :list
+
+  @doc "The newest batch of one source, or `nil`."
+  @spec latest_batch(String.t(), term()) :: Batch.t() | nil
+  defdelegate latest_batch(source_type, source_ref), to: Batches, as: :latest
+
+  @doc """
+  Cancels a batch that is not finished: its state becomes `"cancelled"` and its
+  waiting jobs are cancelled. Addresses already verified keep their verdicts.
+
+  `{:error, :not_cancellable}` for a batch that is `"done"`, `{:error, :not_found}`
+  for an unknown one. Cancelling a cancelled batch is a no-op.
+  """
+  @spec cancel_batch(term()) :: {:ok, Batch.t()} | {:error, :not_found | :not_cancellable}
+  defdelegate cancel_batch(uuid), to: Batches, as: :cancel
+
+  @doc """
+  Subscribes the calling process to the batch's progress: messages
+  `{:email_verify_batch, %{uuid:, state:, processed:, total:, counts:}}`, the last
+  one with `state: "done"` (or `"cancelled"`).
+  """
+  @spec subscribe_batch(String.t()) :: :ok | {:error, term()}
+  defdelegate subscribe_batch(uuid), to: Batches, as: :subscribe
+
+  @doc "The PubSub topic of a batch: `\"email_verify:batch:<uuid>\"`."
+  @spec batch_topic(String.t()) :: String.t()
+  defdelegate batch_topic(uuid), to: Batches, as: :topic
+
+  @doc """
+  Whether the host's Oban config declares the `:email_verification` queue.
+
+  Without it batch jobs are stored and never run (`Oban.insert/1` accepts a job
+  for a queue nobody works), so a UI offering to verify a list should warn when
+  this is `false`. Reads the parent app's compile-time Oban config, like
+  `Emails.Queue.runnable?/0`; a queue map or an Oban started at runtime reads as
+  not configured.
+  """
+  @spec queue_configured?() :: boolean()
+  def queue_configured? do
+    PhoenixKit.Config.get_parent_app()
+    |> Application.get_env(Oban, [])
+    |> Keyword.get(:queues, [])
+    |> then(fn
+      queues when is_list(queues) -> Keyword.has_key?(queues, :email_verification)
+      _ -> false
+    end)
+  rescue
+    _ -> false
   end
 
   ## --- Internals ---

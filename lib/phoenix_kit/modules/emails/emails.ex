@@ -1076,6 +1076,14 @@ defmodule PhoenixKit.Modules.Emails do
   @impl PhoenixKit.Module
   def children, do: [PhoenixKit.Modules.Emails.Supervisor]
 
+  # The address-verification workers (`Verification.BatchStartWorker`,
+  # `Verification.VerifyEmailWorker`). The limit is how many addresses one node
+  # checks at once. Core writes it into a host's Oban config on install/update;
+  # a host that predates that adds the queue by hand
+  # (see `Verification.queue_configured?/0`).
+  @impl PhoenixKit.Module
+  def oban_queues, do: [email_verification: [limit: 5, kind: :batch]]
+
   @impl PhoenixKit.Module
   def migration_module, do: PhoenixKit.Modules.Emails.Migrations
 

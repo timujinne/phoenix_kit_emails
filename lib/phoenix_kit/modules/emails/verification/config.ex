@@ -21,6 +21,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `email_verify_disposable_status` - the status of an address on a disposable
       domain: `"invalid"` (default) or `"temp"` (what LetsExtract does); any other
       value counts as `"invalid"`
+    * `email_verify_dns_max_attempts` - how many times a batch job tries an address
+      whose DNS lookup failed transiently before keeping the `temp` verdict (default `3`)
+    * `email_verify_grey_retry_minutes` - least wait before a greylisted address is
+      tried again in a batch; the wait is picked between this and twice this
+      (default `15`)
+    * `email_verify_grey_max_attempts` - greylist attempts before the `temp` verdict
+      is kept (default `3`)
     * `email_verify_lists_dir` - optional external dictionary directory
 
   ## Application env (`:phoenix_kit_emails`)
@@ -79,6 +86,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   rescue
     _ -> "invalid"
   end
+
+  @doc "How many attempts a batch job makes on an address whose DNS lookup fails transiently."
+  @spec dns_max_attempts() :: pos_integer()
+  def dns_max_attempts, do: positive_integer("email_verify_dns_max_attempts", 3)
+
+  @doc "How many attempts a batch job makes on a greylisted address."
+  @spec grey_max_attempts() :: pos_integer()
+  def grey_max_attempts, do: positive_integer("email_verify_grey_max_attempts", 3)
+
+  @doc "The least wait, in minutes, before a greylisted address is tried again."
+  @spec grey_retry_minutes() :: pos_integer()
+  def grey_retry_minutes, do: positive_integer("email_verify_grey_retry_minutes", 15)
 
   @doc "Timeout of one DNS query, in milliseconds."
   @spec dns_timeout_ms() :: pos_integer()
