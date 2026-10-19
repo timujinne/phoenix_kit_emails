@@ -1078,10 +1078,13 @@ defmodule PhoenixKit.Modules.Emails do
 
   # The address-verification workers (`Verification.BatchStartWorker`,
   # `Verification.VerifyEmailWorker`). The limit is how many addresses one node
-  # checks at once. Core writes it into a host's Oban config on install/update;
-  # a host that predates that adds the queue by hand
-  # (see `Verification.queue_configured?/0`).
-  @impl PhoenixKit.Module
+  # checks at once. Core (2.28.0 and later) writes it into a host's Oban config
+  # on install/update; with an older core the host adds the queue by hand
+  # (see `Verification.queue_configured?/0`). The callback does not exist before
+  # 2.28.0, hence the conditional `@impl`.
+  if {:oban_queues, 0} in PhoenixKit.Module.behaviour_info(:callbacks),
+    do: @impl(PhoenixKit.Module)
+
   def oban_queues, do: [email_verification: [limit: 5, kind: :batch]]
 
   @impl PhoenixKit.Module

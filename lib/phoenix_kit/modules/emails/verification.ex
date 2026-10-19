@@ -155,15 +155,20 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   The addresses are normalised and deduplicated (blank or unstorable entries are
   dropped) and the batch is stored as `"queued"` with that `total`; a
   `BatchStartWorker` does the rest. `source_type` is one of
-  `Batch.source_types/0`, `source_ref` the consumer's own handle (or `nil`).
+  `Batch.source_types/0`, `source_ref` the consumer's own handle: text, an atom, an
+  integer (stored as text) or `nil`. At most `max_batch_size/0` distinct addresses.
 
   Options: `:title`, `:created_by_uuid`.
 
-  `{:error, :no_emails}` when nothing storable is left, `{:error, changeset}` for
-  an unknown `source_type`. Like `verify/2` this does not consult `enabled?/0`.
+  `{:error, :no_emails}` when nothing storable is left, `{:error, :too_many_emails}`
+  over the maximum, `{:error, changeset}` for an unknown `source_type` or a
+  `source_ref`/`title` that is not storable text, and `{:error, reason}` when the
+  batch could not be stored or its job not enqueued (no Oban instance, the database).
+  Like `verify/2` this does not consult `enabled?/0`.
   """
   @spec start_batch([term()], String.t(), term(), keyword()) ::
-          {:ok, Batch.t()} | {:error, :no_emails | Ecto.Changeset.t() | term()}
+          {:ok, Batch.t()}
+          | {:error, :no_emails | :too_many_emails | Ecto.Changeset.t() | term()}
   def start_batch(emails, source_type, source_ref, opts \\ []) when is_list(emails) do
     Batches.start(emails, source_type, source_ref, opts)
   end
@@ -194,9 +199,17 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   Subscribes the calling process to the batch's progress: messages
   `{:email_verify_batch, %{uuid:, state:, processed:, total:, counts:}}`, the last
   one with `state: "done"` (or `"cancelled"`).
+
+  Workers run in parallel, so messages can arrive out of order: ignore a snapshot
+  whose `processed` is lower than the one you already hold (or re-read the batch
+  with `get_batch/1` on every message).
   """
   @spec subscribe_batch(String.t()) :: :ok | {:error, term()}
   defdelegate subscribe_batch(uuid), to: Batches, as: :subscribe
+
+  @doc "The most distinct addresses one batch can hold; `start_batch/4` refuses more."
+  @spec max_batch_size() :: pos_integer()
+  defdelegate max_batch_size, to: Batches, as: :max_size
 
   @doc "The PubSub topic of a batch: `\"email_verify:batch:<uuid>\"`."
   @spec batch_topic(String.t()) :: String.t()

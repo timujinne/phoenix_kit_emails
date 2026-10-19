@@ -330,7 +330,8 @@ lib/
 lists, DNS MX) and stores one verdict per address; `Verification.start_batch/4`
 verifies a whole list in the background, with progress on a PubSub topic. Batches
 run on the Oban queue `email_verification`, which the host's Oban config must
-declare (core adds it on install/update; otherwise add it by hand):
+declare (core 2.28.0 and later adds it on install/update; with an older core, or
+an app that was set up before, add it by hand):
 
 ```elixir
 config :my_app, Oban, queues: [email_verification: 5, ...]

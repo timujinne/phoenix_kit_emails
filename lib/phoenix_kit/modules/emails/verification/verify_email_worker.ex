@@ -15,7 +15,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   of being counted: see `Verification.Retry`. Snoozing does not use up an Oban
   attempt; the number of snoozes (`meta["snoozed"]`) is what the retry limit
   counts. Once the limit is reached the `"temp"` verdict is kept and counted.
-  `max_attempts` covers real failures only (the database, a crash).
+  `max_attempts` covers real failures only (the database, a crash). When the last
+  one fails too, the address is counted as `"temp"` (`Batches.give_up/2`) before
+  the error goes back to Oban, so the batch still reaches `processed == total`.
+  No verdict is stored for such an address.
 
   At most one job per batch and address exists at a time (`unique` on both args,
   across every incomplete state).
@@ -33,7 +36,17 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   alias PhoenixKit.Modules.Emails.Verification.Retry
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"batch_uuid" => batch_uuid, "email" => email}} = job) do
+  def perform(%Oban.Job{args: %{"batch_uuid" => _, "email" => _}} = job) do
+    job |> run() |> settle(job)
+  rescue
+    error ->
+      settle({:error, error}, job)
+      reraise error, __STACKTRACE__
+  end
+
+  def perform(%Oban.Job{}), do: {:cancel, :malformed_args}
+
+  defp run(%Oban.Job{args: %{"batch_uuid" => batch_uuid, "email" => email}} = job) do
     with {:ok, _batch} <- open_batch(batch_uuid),
          {:ok, _item} <- pending_item(batch_uuid, email),
          {:ok, result} <- Verification.verify(email) do
@@ -52,7 +65,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
     end
   end
 
-  def perform(%Oban.Job{}), do: {:cancel, :malformed_args}
+  # A failure on the last attempt will not be retried: count the address now.
+  defp settle(
+         {:error, _reason} = error,
+         %Oban.Job{args: %{"batch_uuid" => batch_uuid, "email" => email}} = job
+       ) do
+    if job.attempt >= job.max_attempts, do: Batches.give_up(batch_uuid, email)
+    error
+  end
+
+  defp settle(outcome, _job), do: outcome
 
   defp open_batch(batch_uuid) do
     case Batches.get(batch_uuid) do

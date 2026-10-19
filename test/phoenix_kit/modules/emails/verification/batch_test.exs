@@ -57,6 +57,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
     perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email}, meta: meta)
   end
 
+  defp perform_verify_attempt(batch, email, attempt) do
+    perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email},
+      attempt: attempt
+    )
+  end
+
   defp errors_on(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
   end
@@ -397,6 +403,195 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
       assert :done = Retry.decide(%Result{status: "invalid", reason: "no_mx"}, 0)
       assert :done = Retry.decide(%Result{status: "not_sure", reason: "smtp_disabled"}, 0)
       assert :done = Retry.decide(temp("disposable"), 0)
+    end
+  end
+
+  describe "a job that fails for good" do
+    defmodule RaisingResolver do
+      @behaviour PhoenixKit.Modules.Emails.Verification.Resolver
+
+      @impl true
+      def lookup_mx(_domain, _timeout), do: raise("resolver is down")
+
+      @impl true
+      def lookup_addresses(_domain, _timeout), do: raise("resolver is down")
+    end
+
+    setup do
+      Application.put_env(:phoenix_kit_emails, :verification_resolver, RaisingResolver)
+      batch = start(["john@fixture.org", "broken"])
+      :ok = run_start_worker(batch)
+      {:ok, batch: batch}
+    end
+
+    test "an early failure leaves the item pending and the error to Oban", %{batch: batch} do
+      assert_raise RuntimeError, "resolver is down", fn ->
+        perform_verify_attempt(batch, "john@fixture.org", 2)
+      end
+
+      assert reload(batch).processed == 0
+      assert Enum.find(items(batch), &(&1.email == "john@fixture.org")).state == "pending"
+    end
+
+    test "the last attempt counts the address as temp, so the batch can still finish",
+         %{batch: batch} do
+      :ok = perform_verify(batch, "broken")
+
+      assert_raise RuntimeError, "resolver is down", fn ->
+        perform_verify_attempt(batch, "john@fixture.org", 3)
+      end
+
+      done = reload(batch)
+      assert done.state == "done"
+      assert done.processed == 2
+      assert done.counts == %{"invalid" => 1, "temp" => 1}
+      assert %DateTime{} = done.finished_at
+      assert Enum.find(items(batch), &(&1.email == "john@fixture.org")).state == "done"
+    end
+
+    test "draining the queue through every retry still finishes the batch", %{batch: batch} do
+      Oban.drain_queue(queue: :email_verification, with_scheduled: true, with_recursion: true)
+
+      done = reload(batch)
+      assert done.state == "done"
+      assert done.counts == %{"invalid" => 1, "temp" => 1}
+    end
+
+    test "a failure on the last attempt of a cancelled batch changes nothing", %{batch: batch} do
+      {:ok, _} = Verification.cancel_batch(batch.uuid)
+
+      assert {:cancel, :batch_cancelled} = perform_verify_attempt(batch, "john@fixture.org", 3)
+      assert reload(batch).processed == 0
+    end
+
+    test "the start worker cancels the batch when its last attempt fails" do
+      batch = start(["a@fixture.org", "b\0@fixture.org"])
+      args = %{"batch_uuid" => batch.uuid, "emails" => ["a@fixture.org", "b\0@fixture.org"]}
+
+      assert_raise Postgrex.Error, fn -> perform_job(BatchStartWorker, args, attempt: 2) end
+      assert reload(batch).state in ["queued", "running"]
+
+      assert_raise Postgrex.Error, fn -> perform_job(BatchStartWorker, args, attempt: 3) end
+      assert %Batch{state: "cancelled", finished_at: %DateTime{}} = reload(batch)
+    end
+  end
+
+  describe "total" do
+    test "follows the items when the database folds case differently from Elixir" do
+      # citext lower-cases "İ" to "i"; String.downcase/1 does not.
+      batch = start(["İ@fixture.org", "i@fixture.org"])
+      assert batch.total == 2
+
+      :ok = run_start_worker(batch)
+
+      assert length(items(batch)) == 1
+      assert reload(batch).total == 1
+      assert length(verify_jobs(batch)) == 1
+
+      [job] = verify_jobs(batch)
+      :ok = perform_job(VerifyEmailWorker, job.args)
+      assert reload(batch).state == "done"
+    end
+  end
+
+  describe "start_batch/4 input" do
+    test "a source_ref that is not text is refused, not raised on" do
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Verification.start_batch(["a@fixture.org"], "manual", {:a, 1})
+
+      assert %{source_ref: [_]} = errors_on(changeset)
+      assert Verification.list_batches("manual", {:a, 1}) == []
+      assert Verification.latest_batch("manual", %{}) == nil
+    end
+
+    test "an atom or integer source_ref is its text" do
+      assert {:ok, %Batch{source_ref: "list"}} =
+               Verification.start_batch(["a@fixture.org"], "manual", :list)
+
+      assert {:ok, %Batch{source_ref: "42"}} =
+               Verification.start_batch(["a@fixture.org"], "manual", 42)
+
+      assert [%Batch{source_ref: "42"}] = Verification.list_batches("manual", 42)
+    end
+
+    test "NUL bytes and invalid UTF-8 in title or source_ref are changeset errors" do
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Verification.start_batch(["a@fixture.org"], "manual", "r\0x", title: "t")
+
+      assert %{source_ref: [_]} = errors_on(changeset)
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Verification.start_batch(["a@fixture.org"], "manual", "r", title: "t\0")
+
+      assert %{title: [_]} = errors_on(changeset)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Verification.start_batch(["a@fixture.org"], "manual", "r", title: <<255>>)
+
+      assert Verification.list_batches("manual", "r\0x") == []
+      assert Verification.latest_batch("manual", <<255>>) == nil
+      assert Repo.aggregate(Batch, :count) == 0
+    end
+
+    test "a title that is not text is refused" do
+      assert {:error, %Ecto.Changeset{}} =
+               Verification.start_batch(["a@fixture.org"], "manual", nil, title: 5)
+    end
+
+    test "returns an error instead of raising when no Oban instance is running" do
+      stop_supervised!(Oban)
+
+      assert {:error, _reason} = Verification.start_batch(["a@fixture.org"], "manual", "ref")
+      assert Repo.aggregate(Batch, :count) == 0
+    end
+
+    test "refuses more than the documented maximum of distinct addresses" do
+      max = Verification.max_batch_size()
+      emails = for n <- 1..(max + 1), do: "user#{n}@fixture.org"
+
+      assert {:error, :too_many_emails} = Verification.start_batch(emails, "manual", nil)
+      assert Repo.aggregate(Batch, :count) == 0
+
+      # Duplicates do not count towards it.
+      assert {:ok, %Batch{total: ^max}} =
+               Verification.start_batch(
+                 Enum.take(emails, max) ++ ["USER1@fixture.org"],
+                 "manual",
+                 nil
+               )
+    end
+  end
+
+  describe "progress messages" do
+    alias PhoenixKit.Modules.Emails.Verification.Batches
+
+    test "a message carries the row as it is when it is sent" do
+      batch = start(["a@fixture.org", "b@fixture.org"])
+      :ok = run_start_worker(batch)
+      :ok = Verification.subscribe_batch(batch.uuid)
+
+      {1, _} =
+        Repo.update_all(from(b in Batch, where: b.uuid == ^batch.uuid),
+          set: [processed: 1, counts: %{"not_sure" => 1}]
+        )
+
+      :ok = Batches.broadcast(batch.uuid)
+
+      assert_receive {:email_verify_batch,
+                      %{state: "running", processed: 1, total: 2, counts: %{"not_sure" => 1}}}
+    end
+
+    test "the last message of a batch run job by job is its final state" do
+      batch = start(["a@fixture.org", "b@fixture.org", "c@fixture.org"])
+      :ok = run_start_worker(batch)
+      :ok = Verification.subscribe_batch(batch.uuid)
+
+      for email <- ["a@fixture.org", "b@fixture.org", "c@fixture.org"],
+          do: :ok = perform_verify(batch, email)
+
+      assert_receive {:email_verify_batch, %{processed: 1, state: "running"}}
+      assert_receive {:email_verify_batch, %{processed: 2, state: "running"}}
+      assert_receive {:email_verify_batch, %{processed: 3, state: "done"}}
     end
   end
 

@@ -19,7 +19,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
        makes the batch `"done"`.
 
   Every change is broadcast on `batch_topic/1` as
-  `{:email_verify_batch, %{uuid:, state:, processed:, total:, counts:}}`.
+  `{:email_verify_batch, %{uuid:, state:, processed:, total:, counts:}}`. The
+  message carries the row as it is when it is sent, but workers run in parallel and
+  messages from different workers can still arrive out of order: a consumer must
+  ignore a snapshot whose `processed` is lower than the one it holds (or re-read the
+  batch on every message). The batch's final message has state `"done"` or
+  `"cancelled"`.
+
+  A batch holds at most `max_size/0` distinct addresses.
 
   > #### The addresses wait in `oban_jobs` {: .warning}
   >
@@ -41,6 +48,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   @item_chunk 1_000
   @job_chunk 500
+  @max_size 100_000
 
   @type snapshot :: %{
           uuid: String.t(),
@@ -52,12 +60,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   ## --- Creating ---
 
+  @doc "The most distinct addresses one batch can hold."
+  @spec max_size() :: pos_integer()
+  def max_size, do: @max_size
+
   @spec start([term()], String.t(), term(), keyword()) ::
-          {:ok, Batch.t()} | {:error, :no_emails | Ecto.Changeset.t() | term()}
+          {:ok, Batch.t()}
+          | {:error, :no_emails | :too_many_emails | Ecto.Changeset.t() | term()}
   def start(emails, source_type, source_ref, opts) do
     case dedup(emails) do
       [] ->
         {:error, :no_emails}
+
+      keys when length(keys) > @max_size ->
+        {:error, :too_many_emails}
 
       keys ->
         changeset =
@@ -73,6 +89,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     end
   end
 
+  # Whatever goes wrong - the database, no Oban instance running - the caller gets
+  # an error tuple, and the transaction leaves no batch behind.
   defp insert_with_job(changeset, keys) do
     repo().transaction(fn ->
       with {:ok, batch} <- repo().insert(changeset),
@@ -82,6 +100,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
         {:error, reason} -> repo().rollback(reason)
       end
     end)
+  rescue
+    error ->
+      Logger.warning("[Emails.Verification] could not start a batch: #{Exception.message(error)}")
+      {:error, error}
+  catch
+    :exit, reason ->
+      Logger.warning("[Emails.Verification] could not start a batch: #{inspect(reason)}")
+      {:error, reason}
   end
 
   defp enqueue_start(batch, keys) do
@@ -104,22 +130,31 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     |> Enum.uniq_by(&String.downcase/1)
   end
 
-  defp ref(nil), do: nil
-  defp ref(ref), do: to_string(ref)
+  # Anything else is passed on as it is: the changeset refuses it, and a read
+  # for it finds nothing.
+  defp ref(ref) when is_atom(ref) and not is_nil(ref), do: Atom.to_string(ref)
+  defp ref(ref) when is_integer(ref), do: Integer.to_string(ref)
+  defp ref(ref), do: ref
 
   ## --- Laying out (BatchStartWorker) ---
 
   @doc """
   Marks the batch running, inserts an item per address (the ones already there
-  are left alone) and enqueues a `VerifyEmailWorker` for every item that is still
-  pending. Safe to run again after a partial failure.
+  are left alone), sets `total` to the number of items and enqueues a
+  `VerifyEmailWorker` for every item that is still pending. Safe to run again
+  after a partial failure.
+
+  The items are the truth about who is in the batch: the case-insensitive column
+  can merge addresses that `start/4` told apart, and `total` follows it - or
+  `processed` could never reach it.
   """
   @spec lay_out(Batch.t(), [String.t()]) :: :ok
   def lay_out(%Batch{uuid: uuid}, emails) do
     now = UtilsDate.utc_now()
 
-    from(b in Batch, where: b.uuid == ^uuid and b.state == "queued")
-    |> repo().update_all(set: [state: "running", started_at: now, updated_at: now])
+    {started, _} =
+      from(b in Batch, where: b.uuid == ^uuid and b.state == "queued")
+      |> repo().update_all(set: [state: "running", started_at: now, updated_at: now])
 
     emails
     |> Enum.chunk_every(@item_chunk)
@@ -132,11 +167,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
       )
     end)
 
-    queued = queued_emails(uuid)
+    sync_total(uuid, now)
 
     from(i in BatchItem, where: i.batch_uuid == ^uuid and i.state == "pending", select: i.email)
     |> repo().all()
-    |> Enum.reject(&MapSet.member?(queued, &1))
+    |> without_queued(uuid, started == 1)
     |> Enum.chunk_every(@job_chunk)
     |> Enum.each(fn chunk ->
       chunk
@@ -147,8 +182,26 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     broadcast(uuid)
   end
 
+  # The first run has no jobs yet, so there is nothing to look up.
+  defp without_queued(emails, _uuid, true), do: emails
+
+  defp without_queued(emails, uuid, false) do
+    queued = queued_emails(uuid)
+    Enum.reject(emails, &MapSet.member?(queued, &1))
+  end
+
+  defp sync_total(uuid, now) do
+    count = repo().aggregate(from(i in BatchItem, where: i.batch_uuid == ^uuid), :count)
+
+    from(b in Batch,
+      where: b.uuid == ^uuid and b.state in ["queued", "running"] and b.total != ^count
+    )
+    |> repo().update_all(set: [total: count, updated_at: now])
+  end
+
   # `Oban.insert_all/1` does not check `unique` (only `Oban.insert/1` does), so a
   # repeated run skips the addresses that still have a job by looking them up.
+  # Oban may live in another schema than the repo's default one.
   defp queued_emails(uuid) do
     worker = inspect(VerifyEmailWorker)
     states = :incomplete |> Oban.Job.unique_states() |> Enum.map(&Atom.to_string/1)
@@ -159,7 +212,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
           fragment("?->>'batch_uuid' = ?", j.args, ^uuid),
       select: fragment("?->>'email'", j.args)
     )
-    |> repo().all()
+    |> repo().all(prefix: Oban.config().prefix)
     |> MapSet.new()
   end
 
@@ -208,12 +261,34 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
     case outcome do
       {:ok, batch} ->
-        broadcast(batch)
+        # Read again: other workers have probably committed since this one did.
+        broadcast(batch.uuid)
         {:ok, batch}
 
       {:error, :rejected} ->
         {:error, rejection(batch_uuid, email)}
     end
+  end
+
+  @doc """
+  Counts an item whose job has failed for good as `"temp"` - no verdict was reached,
+  and the batch must not wait for it forever. Never raises: when even this fails
+  (the database is down) it is logged and the batch is left as it is.
+  """
+  @spec give_up(String.t(), String.t()) :: :ok
+  def give_up(batch_uuid, email) do
+    case record_result(batch_uuid, email, "temp") do
+      {:ok, _batch} -> :ok
+      {:error, _already_done_or_closed} -> :ok
+    end
+  rescue
+    error ->
+      Logger.error(
+        "[Emails.Verification] could not count #{email} of batch #{batch_uuid} after its last attempt: " <>
+          Exception.message(error)
+      )
+
+      :ok
   end
 
   defp finish_item(batch_uuid, email, now) do
@@ -244,9 +319,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
             fragment("CASE WHEN ? + 1 >= ? THEN 'done' ELSE ? END", b.processed, b.total, b.state),
           finished_at:
             fragment(
-              "CASE WHEN ? + 1 >= ? THEN date_trunc('second', now()) ELSE ? END",
+              "CASE WHEN ? + 1 >= ? THEN ? ELSE ? END",
               b.processed,
               b.total,
+              type(^now, :utc_datetime),
               b.finished_at
             ),
           updated_at: ^now
@@ -297,7 +373,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   end
 
   defp for_ref(query, nil), do: where(query, [b], is_nil(b.source_ref))
-  defp for_ref(query, ref), do: where(query, [b], b.source_ref == ^ref)
+
+  defp for_ref(query, ref) do
+    if Batch.storable?(ref),
+      do: where(query, [b], b.source_ref == ^ref),
+      else: where(query, [b], false)
+  end
 
   ## --- Cancelling ---
 
@@ -312,11 +393,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   end
 
   defp close(%Batch{uuid: uuid}) do
-    now = UtilsDate.utc_now()
-
-    from(b in Batch, where: b.uuid == ^uuid and b.state in ["queued", "running"], select: b)
-    |> repo().update_all(set: [state: "cancelled", finished_at: now, updated_at: now])
-    |> case do
+    case mark_cancelled(uuid) do
       {1, [batch]} ->
         cancel_jobs(uuid)
         broadcast(batch)
@@ -325,6 +402,27 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
       # The last job finished it between our read and our write.
       {0, _} ->
         cancel(uuid)
+    end
+  end
+
+  defp mark_cancelled(uuid) do
+    now = UtilsDate.utc_now()
+
+    from(b in Batch, where: b.uuid == ^uuid and b.state in ["queued", "running"], select: b)
+    |> repo().update_all(set: [state: "cancelled", finished_at: now, updated_at: now])
+  end
+
+  @doc """
+  Cancels a batch that can no longer be laid out, from inside its own
+  `BatchStartWorker`. Unlike `cancel/1` it leaves the jobs alone - cancelling the
+  executing job would kill the caller; the `VerifyEmailWorker` jobs that were
+  already enqueued turn themselves away on the cancelled batch.
+  """
+  @spec abandon(String.t()) :: :ok
+  def abandon(uuid) do
+    case mark_cancelled(uuid) do
+      {1, [batch]} -> broadcast(batch)
+      {0, _} -> :ok
     end
   end
 
@@ -383,6 +481,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
       %Batch{} = batch -> broadcast(batch)
       nil -> :ok
     end
+  rescue
+    _ -> :ok
   end
 
   @spec snapshot(Batch.t()) :: snapshot()

@@ -66,5 +66,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batch do
     |> validate_number(:total, greater_than: 0)
     |> validate_length(:source_ref, max: 255)
     |> validate_length(:title, max: 255)
+    |> validate_storable(:source_ref)
+    |> validate_storable(:title)
+  end
+
+  @doc false
+  # Text Postgres can hold: valid UTF-8 without a NUL byte.
+  @spec storable?(term()) :: boolean()
+  def storable?(value) when is_binary(value),
+    do: String.valid?(value) and not String.contains?(value, <<0>>)
+
+  def storable?(_value), do: false
+
+  defp validate_storable(changeset, field) do
+    validate_change(changeset, field, fn _field, value ->
+      if storable?(value), do: [], else: [{field, "contains characters that cannot be stored"}]
+    end)
   end
 end
