@@ -14,8 +14,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerKeysTest do
   alias PhoenixKit.API.Keys
   alias PhoenixKit.API.Keys.Key
   alias PhoenixKit.Modules.Emails.Verification.RunnerKeys
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Users.Auth.User
+  alias PhoenixKit.Users.Permissions
+  alias PhoenixKit.Users.Roles
   alias PhoenixKitEmails.Test.Repo
 
   @now ~U[2026-10-20 10:00:00Z]
@@ -131,12 +134,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerKeysTest do
 
     test "without the api permission nothing is created" do
       {:ok, role} =
-        PhoenixKit.Users.Roles.create_role(%{name: "NoApi#{System.unique_integer([:positive])}"})
+        Roles.create_role(%{name: "NoApi#{System.unique_integer([:positive])}"})
 
-      {:ok, _} = PhoenixKit.Users.Permissions.grant_permission(role.uuid, "emails")
+      {:ok, _} = Permissions.grant_permission(role.uuid, "emails")
 
       {:ok, user} =
-        PhoenixKit.Users.Auth.register_user(
+        Auth.register_user(
           %{
             email: "noapi#{System.unique_integer([:positive])}@hydroforce.ee",
             password: "ValidPassword123!"
@@ -144,7 +147,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerKeysTest do
           nil
         )
 
-      {:ok, _} = PhoenixKit.Users.Roles.assign_role(user, role.name)
+      {:ok, _} = Roles.assign_role(user, role.name)
 
       assert {:error, :forbidden} = RunnerKeys.issue(scope_of(user), @now)
       assert keys() == []

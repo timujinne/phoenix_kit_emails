@@ -79,3 +79,7 @@ config :phoenix_kit_emails, verification_confirm_pause_ms: 0
 # call itself, the answers come from the scripted fake (an unscripted domain is
 # `:nxdomain`). The one live-DNS test is tagged `:external`.
 config :phoenix_kit_emails, verification_resolver: PhoenixKitEmails.Test.FakeResolver
+
+# Users are registered for real in the tests of the API and the settings section (each
+# needs a password hash): the cheapest bcrypt cost keeps those tests fast.
+config :bcrypt_elixir, log_rounds: 4

@@ -12,6 +12,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetupTest do
 
   alias PhoenixKit.Modules.Emails.Verification.RunnerSetup
   alias PhoenixKit.Settings
+  alias PhoenixKit.Settings.History
+  alias PhoenixKit.Settings.Queries
 
   setup do
     setup_api()
@@ -79,7 +81,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetupTest do
       {:ok, _} = RunnerSetup.enable_machine_api(nil)
 
       assert %{module: "api"} =
-               PhoenixKit.Settings.Queries.get_setting_by_key("api_admin_enabled")
+               Queries.get_setting_by_key("api_admin_enabled")
     end
 
     test "records who did it" do
@@ -88,7 +90,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetupTest do
 
       {:ok, _} = RunnerSetup.enable_machine_api(user.uuid)
 
-      assert [latest | _] = PhoenixKit.Settings.History.list("api_admin_enabled")
+      assert [latest | _] = History.list("api_admin_enabled")
       assert latest.actor_uuid == user.uuid
     end
   end
