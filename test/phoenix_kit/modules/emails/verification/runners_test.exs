@@ -36,6 +36,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
     %{owner: owner, role: role, key: key, token: token, actor: actor}
   end
 
+  describe "runner_protocol_version/0" do
+    test "is a dotted version of its own, not the version of the package" do
+      assert Runners.runner_protocol_version() =~ ~r/\A\d+\.\d+\.\d+\z/
+
+      refute Runners.runner_protocol_version() ==
+               to_string(Application.spec(:phoenix_kit_emails, :vsn))
+    end
+  end
+
   describe "heartbeat/3" do
     test "creates the row on first contact and updates it after", %{actor: actor, key: key} do
       info = %{

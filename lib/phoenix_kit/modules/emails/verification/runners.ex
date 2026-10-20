@@ -30,6 +30,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   @topic "email_verify:runner"
   @broadcast_gap_s 5
   @online_factor 3
+  @runner_protocol_version "1.0.0"
 
   @type info :: %{
           optional(:name) => String.t() | nil,
@@ -42,6 +43,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   @doc "The API scope of the runner's key (`emails.smtp_runner:run`)."
   @spec scope() :: String.t()
   def scope, do: @scope
+
+  @doc """
+  The version of the protocol between this server and the runner script
+  (`priv/smtp_runner/pk-smtp-runner.ps1`): handed out as `min_version` in every claim
+  answer, and a runner older than it stops with "update the runner". Bumped only when
+  the script or the protocol changes in a way an old script cannot follow - never with
+  the package version. The script carries the same number and a test compares them.
+  """
+  @spec runner_protocol_version() :: String.t()
+  def runner_protocol_version, do: @runner_protocol_version
 
   ## --- PubSub ---
 

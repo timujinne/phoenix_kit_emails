@@ -24,6 +24,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
   alias PhoenixKit.Modules.Emails.Verification.DomainCache
   alias PhoenixKit.Modules.Emails.Verification.Result
   alias PhoenixKit.Modules.Emails.Verification.Runner
+  alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Verification.RunnerApi
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueueItem, as: Item
   alias PhoenixKit.Users.Permissions
@@ -180,7 +181,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
 
       assert body["seen_ip"] == "203.0.113.50"
       assert body["paused"] == nil
-      assert body["min_version"] == to_string(Application.spec(:phoenix_kit_emails, :vsn))
+      assert body["min_version"] == Runners.runner_protocol_version()
+      assert body["min_version"] == "1.0.0"
 
       assert body["settings"] == %{
                "mail_from" => "mail@hydroforce.ee",

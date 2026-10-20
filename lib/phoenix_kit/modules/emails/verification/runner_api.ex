@@ -25,7 +25,10 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
                           "connect_timeout_s", "read_timeout_s", "max_report",
                           "idle_poll_s", "selftest_host"},
           "paused" => nil | %{"reason", "until"},
-          "min_version" => "0.5.5"}
+          "min_version" => "1.0.0"}
+
+    `min_version` is the protocol version of the runner script
+    (`Verification.Runners.runner_protocol_version/0`), not the version of this package.
 
     `settings.mail_from` is `nil` when the site has no usable sender (the runner must
     not open a session), `helo` is `nil` for "work it out from your IP". Unless the mode
@@ -139,7 +142,7 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
          "seen_ip" => ctx.actor.ip,
          "settings" => settings(),
          "paused" => paused,
-         "min_version" => min_version()
+         "min_version" => Runners.runner_protocol_version()
        }}
     end
 
@@ -190,14 +193,6 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
         "idle_poll_s" => Config.idle_poll_s(),
         "selftest_host" => Runners.selftest_host()
       }
-    end
-
-    # The version of this package, which is also the version of the runner script it ships.
-    defp min_version do
-      case Application.spec(:phoenix_kit_emails, :vsn) do
-        nil -> "0.0.0"
-        vsn -> to_string(vsn)
-      end
     end
 
     defp runner_info(info) when is_map(info) do
