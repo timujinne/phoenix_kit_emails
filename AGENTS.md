@@ -127,7 +127,7 @@ All stored via PhoenixKit Settings with module `"email_system"`:
 - `email_queue_auth_mail` — queue authentication mail too (default: false)
 - `email_verify_enabled` — email verification feature switch (default: true)
 - `email_verify_smtp_mode` — `off` (default) / `runner` / `local`
-- `email_verify_smtp_mail_from` — override of the MAIL FROM address (empty by default: the site's sender, `Mailer.get_from_email/0`; placeholder addresses count as not configured and no session starts); `email_verify_smtp_helo` — EHLO name (empty = the runner's reverse DNS)
+- `email_verify_smtp_mail_from` — override of the MAIL FROM address (empty by default: the site's sender, `Mailer.get_from_email/0`; placeholder addresses count as not configured and no session starts); `email_verify_smtp_helo` — EHLO name (empty = the runner's reverse DNS; only a plain host name or an `[x.x.x.x]` literal is passed on, anything else reads as empty); the MAIL FROM handed out is normalised (ASCII, domain lowercase and punycode; a non-ASCII local part would need SMTPUTF8 and counts as not configured)
 - `email_verify_rcpt_per_session` / `email_verify_domain_interval_s` — addresses per session, seconds between sessions to one domain (default: 10 / 10)
 - `email_verify_smtp_lease_s` / `email_verify_smtp_max_attempts` — how long a runner holds a session, lost sessions before `smtp_unavailable` (default: 300 / 5)
 - `email_verify_smtp_connect_timeout_s` / `email_verify_smtp_read_timeout_s` / `email_verify_smtp_idle_poll_s` — handed to the runner (default: 20 / 30 / 30)

@@ -278,6 +278,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
       assert settings["selftest_host"] == "mx9.hydroforce.ee"
     end
 
+    test "a helo that is not a plain host name is not handed to the runner", %{token: token} do
+      put_setting("email_verify_smtp_helo", "mx.example.ee\r\nDATA")
+
+      assert {200, %{"settings" => settings}} = claim(token)
+      assert settings["helo"] == nil
+    end
+
     test "a paused runner is told why, with nothing leased", %{token: token, key: key} do
       queue(unique_domain(), ~w(a))
       assert {200, _} = claim(token, %{"max_sessions" => 0})

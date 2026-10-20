@@ -17,7 +17,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `email_verify_smtp_mail_from` - an override for the `MAIL FROM` address (empty
       by default: the site's sender address is used), see `smtp_mail_from/0`
     * `email_verify_smtp_helo` - the `EHLO` name; empty means "the reverse DNS of the
-      sending IP, found by the runner"
+      sending IP, found by the runner". Only a plain host name or an IPv4 address
+      literal is accepted, anything else counts as empty, see `smtp_helo/0`
     * `email_verify_rcpt_per_session` - addresses of one domain per SMTP session (default `10`)
     * `email_verify_domain_interval_s` - least gap between two sessions to one domain
       (default `10`)
@@ -175,9 +176,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     end
   end
 
-  @doc "The `EHLO` name override, or `nil` for \"the runner works it out from its IP\"."
+  @doc """
+  The `EHLO` name override, or `nil` for "the runner works it out from its IP".
+
+  The value is written into the SMTP dialogue by the runner, so only a plain host
+  name (letters, digits and hyphens in labels of 1 to 63 characters, dots between
+  them, 255 bytes at most) or an IPv4 address literal (`[203.0.113.9]`) passes;
+  anything else - a line break, a space, a control character - reads as `nil`.
+  """
   @spec smtp_helo() :: String.t() | nil
-  def smtp_helo, do: blank_to_nil(text_setting("email_verify_smtp_helo"))
+  def smtp_helo do
+    case blank_to_nil(text_setting("email_verify_smtp_helo")) do
+      nil -> nil
+      value -> if helo?(value), do: value, else: nil
+    end
+  end
 
   @doc "The host a runner's port 25 self-test is pointed at, if one is set (otherwise it is derived)."
   @spec smtp_selftest_host_setting() :: String.t() | nil
@@ -338,13 +351,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     _ -> nil
   end
 
+  # The normalised address (domain lowercase and in punycode), which is what goes
+  # into `MAIL FROM`. A local part with non-ASCII characters is refused by the syntax
+  # check: it would need SMTPUTF8.
   defp usable_sender(address) when is_binary(address) do
-    address = String.trim(address)
-
-    with {:ok, %{local: local, domain: domain}} <- Normalizer.normalize(address),
+    with {:ok, %{email: email, local: local, domain: domain}} <- Normalizer.normalize(address),
          :ok <- Syntax.check(local, domain),
          false <- placeholder_domain?(domain) do
-      {:ok, address}
+      {:ok, email}
     else
       _ -> :error
     end
@@ -355,6 +369,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   defp placeholder_domain?(domain) do
     not String.contains?(domain, ".") or
       Enum.any?(@placeholder_domains, &(domain == &1 or String.ends_with?(domain, "." <> &1)))
+  end
+
+  @helo_label ~r/\A[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\z/
+  @address_literal ~r/\A\[([0-9.]+)\]\z/
+
+  defp helo?(value) when byte_size(value) > 255, do: false
+
+  defp helo?(value) do
+    case Regex.run(@address_literal, value) do
+      [_, ip] -> match?({:ok, _}, :inet.parse_ipv4strict_address(String.to_charlist(ip)))
+      nil -> value |> String.split(".") |> Enum.all?(&Regex.match?(@helo_label, &1))
+    end
   end
 
   defp text_setting(key) do

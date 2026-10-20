@@ -115,6 +115,69 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
       put("from_email", "mail@myexample.com")
       assert Config.smtp_mail_from() == {"mail@myexample.com", :site_sender}
     end
+
+    test "the address is normalised: the domain lowercase, punycode, the local part as typed" do
+      put("from_email", "  Mail@HydroForce.EE ")
+      assert Config.smtp_mail_from() == {"Mail@hydroforce.ee", :site_sender}
+      assert Config.site_sender_address() == "Mail@hydroforce.ee"
+
+      put("email_verify_smtp_mail_from", "verify@München.DE")
+      assert Config.smtp_mail_from() == {"verify@xn--mnchen-3ya.de", :override}
+    end
+
+    test "a non-ASCII local part would need SMTPUTF8: not usable" do
+      put("from_email", "почта@hydroforce.ee")
+      assert Config.smtp_mail_from() == {nil, :none}
+      assert Config.site_sender_address() == nil
+
+      put("email_verify_smtp_mail_from", "büro@hydroforce.ee")
+      assert Config.smtp_mail_from() == {nil, :none}
+    end
+
+    test "a non-ASCII override falls back to the site sender" do
+      put("from_email", "mail@hydroforce.ee")
+      put("email_verify_smtp_mail_from", "büro@hydroforce.ee")
+      assert Config.smtp_mail_from() == {"mail@hydroforce.ee", :site_sender}
+    end
+  end
+
+  describe "smtp_helo/0" do
+    test "a host name or an address literal is passed on" do
+      for value <- ["mx.example.ee", "MX-1.Example.EE", "host", "a.b-c.d", "[203.0.113.9]"] do
+        put("email_verify_smtp_helo", value)
+        assert Config.smtp_helo() == value, inspect(value)
+      end
+    end
+
+    test "anything that is not a plain host name is automatic (nil)" do
+      too_long = String.duplicate("a.", 128) <> "ee"
+      long_label = String.duplicate("a", 64) <> ".ee"
+
+      for value <- [
+            "mx.example.ee\r\nDATA",
+            "mx.example.ee\nRCPT TO:<a@b.ee>",
+            "mx example.ee",
+            "mx\texample.ee",
+            "mx\u0001.example.ee",
+            "mx.example.ee>",
+            "-mx.example.ee",
+            "mx-.example.ee",
+            "mx..example.ee",
+            ".example.ee",
+            "mx_1.example.ee",
+            "münchen.de",
+            "[203.0.113.256]",
+            "[203.0.113.9",
+            "[203.0.113.9]x",
+            "[IPv4:203.0.113.9]",
+            "[not an ip]",
+            long_label,
+            too_long
+          ] do
+        put("email_verify_smtp_helo", value)
+        assert Config.smtp_helo() == nil, inspect(value)
+      end
+    end
   end
 
   describe "typed getters and their defaults" do
