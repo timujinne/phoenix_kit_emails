@@ -137,6 +137,26 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   `down/1` leaves them standing, like everything else here.
 
+  ## What V5 is
+
+  The storage of the SMTP stage (spec `docs/superpowers/specs/2026-10-20-smtp-runner.md`,
+  section 3.1), again only objects of this package:
+
+    * `phoenix_kit_email_verify_smtp_queue` - one row per address that waits for an
+      SMTP session. A unique partial index on `email` for the live states
+      (`queued`, `leased`) means two batches asking for the same address share one
+      row.
+    * `phoenix_kit_email_verify_runners` - one row per API key that has connected as a
+      runner. Besides the columns of the spec it keeps `fail_streak` and
+      `fail_domains`, the state of the runner autopause (consecutive failed sessions
+      and the domains they hit).
+    * `phoenix_kit_email_verify_batches.awaiting_smtp` - an added column on a V4 table:
+      how many items of the batch wait for their SMTP result.
+
+  `batch_items.state` gains the value `awaiting_smtp`; it is a plain string column,
+  so no DDL is involved. Nothing is dropped and no existing row changes. `down/1`
+  leaves all of it standing.
+
   ## Which tables, and which one is NOT here
 
   Adopted: `phoenix_kit_email_logs`, `phoenix_kit_email_events`,
@@ -296,7 +316,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   use Ecto.Migration
 
-  @current_version 4
+  @current_version 5
   @marker_prefix "pke_schema:"
   @version_table "phoenix_kit_email_logs"
 
@@ -536,7 +556,11 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     # tell "already uploaded" from "never seen", which is what makes the
     # archival job safe to re-run.
     {2, "phoenix_kit_email_logs", "\"archived_at\" timestamp with time zone"},
-    {2, "phoenix_kit_email_logs", "\"s3_key\" text"}
+    {2, "phoenix_kit_email_logs", "\"s3_key\" text"},
+    # V5. How many items of a batch wait for their SMTP result (batch item state
+    # `awaiting_smtp`). A counter and not a query: it is broadcast with every
+    # progress message of a batch of up to a hundred thousand addresses.
+    {5, "phoenix_kit_email_verify_batches", "\"awaiting_smtp\" integer DEFAULT 0 NOT NULL"}
   ]
 
   # `{version, statement}` — see `@owned_columns` for why the tag exists.
@@ -574,7 +598,27 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
        "ON #{@schema_token}.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, email)"},
     {4,
      "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batch_items_state_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, state)"}
+       "ON #{@schema_token}.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, state)"},
+    # V5 - the SMTP queue and the runners. One address waits in the queue once
+    # (`queued` or `leased`); a finished or cancelled row leaves the index, so the
+    # address can be queued again later.
+    {5,
+     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_live_email_idx " <>
+       "ON #{@schema_token}.phoenix_kit_email_verify_smtp_queue USING btree (email) " <>
+       "WHERE state IN ('queued', 'leased')"},
+    {5,
+     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_state_idx " <>
+       "ON #{@schema_token}.phoenix_kit_email_verify_smtp_queue USING btree (state, not_before)"},
+    {5,
+     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_domain_idx " <>
+       "ON #{@schema_token}.phoenix_kit_email_verify_smtp_queue USING btree (domain, state)"},
+    {5,
+     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_lease_idx " <>
+       "ON #{@schema_token}.phoenix_kit_email_verify_smtp_queue USING btree (lease_token) " <>
+       "WHERE lease_token IS NOT NULL"},
+    {5,
+     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_runners_key_idx " <>
+       "ON #{@schema_token}.phoenix_kit_email_verify_runners USING btree (api_key_uuid)"}
   ]
 
   # V4 - tables this chain creates itself, in dependency order (a batch before
@@ -657,6 +701,49 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
        PRIMARY KEY ("uuid"),
        CONSTRAINT fk_email_verify_batch_items_batch FOREIGN KEY ("batch_uuid")
          REFERENCES #{@schema_token}.phoenix_kit_email_verify_batches ("uuid") ON DELETE CASCADE
+     )
+     """},
+    {5, "phoenix_kit_email_verify_smtp_queue",
+     """
+     CREATE TABLE IF NOT EXISTS #{@schema_token}.phoenix_kit_email_verify_smtp_queue (
+       "uuid" uuid DEFAULT #{@schema_token}.uuid_generate_v7() NOT NULL,
+       "email" citext NOT NULL,
+       "checked_as" character varying(320) NOT NULL,
+       "domain" character varying(253) NOT NULL,
+       "state" character varying(16) DEFAULT 'queued' NOT NULL,
+       "attempts" integer DEFAULT 0 NOT NULL,
+       "not_before" timestamp with time zone,
+       "lease_token" character varying(64),
+       "leased_by" character varying(64),
+       "lease_expires_at" timestamp with time zone,
+       "last_reason" character varying(64),
+       "inserted_at" timestamp with time zone DEFAULT now() NOT NULL,
+       "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+       PRIMARY KEY ("uuid")
+     )
+     """},
+    {5, "phoenix_kit_email_verify_runners",
+     """
+     CREATE TABLE IF NOT EXISTS #{@schema_token}.phoenix_kit_email_verify_runners (
+       "uuid" uuid DEFAULT #{@schema_token}.uuid_generate_v7() NOT NULL,
+       "api_key_uuid" uuid NOT NULL,
+       "name" character varying(255),
+       "version" character varying(32),
+       "os" character varying(255),
+       "public_ip" character varying(45),
+       "helo_auto" character varying(255),
+       "port25" character varying(16) DEFAULT 'unknown' NOT NULL,
+       "port25_checked_at" timestamp with time zone,
+       "last_seen_at" timestamp with time zone,
+       "jobs_done" integer DEFAULT 0 NOT NULL,
+       "last_error" text,
+       "paused_until" timestamp with time zone,
+       "pause_reason" character varying(255),
+       "fail_streak" integer DEFAULT 0 NOT NULL,
+       "fail_domains" jsonb DEFAULT '[]'::jsonb NOT NULL,
+       "inserted_at" timestamp with time zone DEFAULT now() NOT NULL,
+       "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+       PRIMARY KEY ("uuid")
      )
      """}
   ]

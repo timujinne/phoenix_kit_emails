@@ -21,7 +21,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationV4TablesTest do
     Map.new(rows, fn [name, type, nullable] -> {name, {type, nullable == "YES"}} end)
   end
 
-  test "all four tables exist, with no marker-less leftovers" do
+  test "every owned table exists" do
     for table <- Migrations.owned_tables() do
       assert map_size(columns(table)) > 0, "#{table} is missing"
     end
@@ -55,7 +55,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationV4TablesTest do
   test "batches and batch items have the spec's columns" do
     assert Map.keys(columns("phoenix_kit_email_verify_batches")) |> Enum.sort() ==
              Enum.sort(
-               ~w(uuid source_type source_ref title state total processed counts created_by_uuid started_at finished_at inserted_at updated_at)
+               ~w(uuid source_type source_ref title state total processed counts created_by_uuid started_at finished_at inserted_at updated_at awaiting_smtp)
              )
 
     assert Map.keys(columns("phoenix_kit_email_verify_batch_items")) |> Enum.sort() ==

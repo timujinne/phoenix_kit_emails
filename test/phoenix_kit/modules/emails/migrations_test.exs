@@ -557,7 +557,8 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"archived_at\" timestamp with time zone",
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"s3_key\" text",
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:4'",
+               "ALTER TABLE public.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"awaiting_smtp\" integer DEFAULT 0 NOT NULL",
+               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:5'",
                "CREATE EXTENSION IF NOT EXISTS citext"
              ]
     end
@@ -648,7 +649,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
     test "V4 creates the four verification tables and stamps V4" do
       statements = Migrations.up_statements("public", 4)
 
-      for table <- Migrations.owned_tables() do
+      for table <- Enum.take(Migrations.owned_tables(), 4) do
         assert Enum.any?(
                  statements,
                  &String.starts_with?(&1, "CREATE TABLE IF NOT EXISTS public.#{table} (")
@@ -658,6 +659,9 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
 
       assert Enum.any?(statements, &String.contains?(&1, "pke_schema:4"))
       refute Enum.any?(statements, &String.contains?(&1, "pke_schema:3"))
+      refute Enum.any?(statements, &String.contains?(&1, "phoenix_kit_email_verify_smtp_queue"))
+      refute Enum.any?(statements, &String.contains?(&1, "phoenix_kit_email_verify_runners"))
+      refute Enum.any?(statements, &String.contains?(&1, "awaiting_smtp"))
     end
 
     test "the rewrite follows the schema prefix" do
@@ -670,7 +674,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
     test "the adoption half is emitted at every version" do
       # Adoption is not versioned: it is "the tables core already made", and a
       # pinned version must still repair a missing one.
-      for version <- [1, 2, 3, 4] do
+      for version <- [1, 2, 3, 4, 5] do
         statements = Migrations.up_statements("public", version)
 
         assert Enum.any?(statements, &String.contains?(&1, "phoenix_kit_email_logs")),
@@ -685,10 +689,12 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       phoenix_kit_email_verify_domains
       phoenix_kit_email_verify_batches
       phoenix_kit_email_verify_batch_items
+      phoenix_kit_email_verify_smtp_queue
+      phoenix_kit_email_verify_runners
     )
 
-    test "the chain is at version 4 and owns exactly the four tables of the spec" do
-      assert Migrations.current_version() == 4
+    test "the chain is at version 5 and owns exactly the six tables of the specs" do
+      assert Migrations.current_version() == 5
       assert Migrations.owned_tables() == @owned_tables
     end
 
@@ -794,6 +800,57 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       for statement <- new_statements do
         refute statement =~ ~r/\A\s*(ALTER|UPDATE|DELETE)\b/i,
                "V4 changes existing data: #{statement}"
+      end
+    end
+  end
+  describe "V5 - the SMTP queue and the runners" do
+    test "V5 adds the queue, the runners and the awaiting counter, and stamps V5" do
+      v4 = MapSet.new(Migrations.up_statements("public", 4))
+
+      added = Migrations.up_statements("public", 5) |> Enum.reject(&MapSet.member?(v4, &1))
+
+      assert Enum.any?(added, &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_verify_smtp_queue ("))
+      assert Enum.any?(added, &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_verify_runners ("))
+      assert Enum.any?(added, &(&1 =~ ~s("awaiting_smtp" integer DEFAULT 0 NOT NULL)))
+      assert Enum.any?(added, &(&1 =~ "pke_schema:5"))
+    end
+
+    test "the only change to an existing table is one added column on a V4 table of this chain" do
+      v4 = MapSet.new(Migrations.up_statements("public", 4))
+
+      changes =
+        Migrations.up_statements("public", 5)
+        |> Enum.reject(&MapSet.member?(v4, &1))
+        |> Enum.filter(&(&1 =~ ~r/\A\s*(ALTER|UPDATE|DELETE|DROP)\b/i))
+
+      assert changes == [
+               "ALTER TABLE public.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"awaiting_smtp\" integer DEFAULT 0 NOT NULL"
+             ]
+    end
+
+    test "a live address is queued once: the unique index is partial on queued and leased" do
+      statement =
+        Enum.find(
+          Migrations.up_statements(),
+          &(&1 =~ "phoenix_kit_email_verify_smtp_queue_live_email_idx")
+        )
+
+      assert statement =~ "CREATE UNIQUE INDEX IF NOT EXISTS"
+      assert statement =~ "(email) WHERE state IN ('queued', 'leased')"
+    end
+
+    test "a pinned older version emits none of it" do
+      for version <- 1..4 do
+        refute Enum.any?(
+                 Migrations.up_statements("public", version),
+                 &(&1 =~ "smtp_queue" or &1 =~ "verify_runners" or &1 =~ "awaiting_smtp")
+               )
+      end
+    end
+
+    test "down never drops a table or a column" do
+      for target <- 0..4, statement <- Migrations.down_statements("public", target) do
+        refute statement =~ ~r/\bDROP\b/i
       end
     end
   end
