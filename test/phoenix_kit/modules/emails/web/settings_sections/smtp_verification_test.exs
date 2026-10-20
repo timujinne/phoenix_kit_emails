@@ -23,6 +23,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Verification
   alias PhoenixKit.Modules.Emails.Verification.Config
+  alias PhoenixKit.Modules.Emails.Verification.LocalRunner
   alias PhoenixKit.Modules.Emails.Verification.Runner
   alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Verification.RunnerSetup
@@ -164,20 +165,33 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
   end
 
   describe "reading only what the mode shows" do
-    test "off and local read nothing about the runner or the core" do
+    test "off reads nothing about the runner or the core" do
       put_setting("api_admin_enabled", "false")
       {key, _token} = runner_key(elem(user_with(["emails"]), 0))
       heartbeat(key, 5)
+      put_mode("off")
 
-      for mode <- ["off", "local"] do
-        put_mode(mode)
-        socket = socket()
+      socket = socket()
 
-        assert socket.assigns.preconditions == []
-        assert socket.assigns.active_keys == 0
-        assert socket.assigns.status.runner == nil
-        assert socket.assigns.relay == nil
-      end
+      assert socket.assigns.preconditions == []
+      assert socket.assigns.active_keys == 0
+      assert socket.assigns.status.runner == nil
+      assert socket.assigns.relay == nil
+    end
+
+    test "local reads the built-in runner, never a remote one, and nothing of the core" do
+      put_setting("api_admin_enabled", "false")
+      {key, _token} = runner_key(elem(user_with(["emails"]), 0))
+      heartbeat(key, 5)
+      put_mode("local")
+
+      socket = socket()
+
+      assert socket.assigns.preconditions == []
+      assert socket.assigns.active_keys == 0
+      assert socket.assigns.status.runner == nil
+      assert socket.assigns.status.owner == nil
+      assert socket.assigns.local_info.host == LocalRunner.server_name()
     end
 
     test "runner reads them" do
@@ -191,6 +205,23 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert :api_admin_disabled in socket.assigns.preconditions
       assert socket.assigns.active_keys == 1
       assert socket.assigns.status.runner.name == "NEWSERVER"
+    end
+
+    test "going to local starts the relay of a connected page too" do
+      connected = %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, flash: %{}},
+        transport_pid: self()
+      }
+
+      {:ok, socket} = SmtpVerification.update(%{id: "smtp-verification"}, connected)
+      socket = event(socket, "set_mode", %{"mode" => "local"})
+      relay = socket.assigns.relay
+      assert is_pid(relay) and Process.alive?(relay)
+
+      ref = Process.monitor(relay)
+      socket = event(socket, "set_mode", %{"mode" => "off"})
+      assert socket.assigns.relay == nil
+      assert_receive {:DOWN, ^ref, :process, ^relay, _}, 1_000
     end
 
     test "going to runner starts the relay of a connected page and going away stops it" do
@@ -215,25 +246,126 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
   end
 
   describe "mode local" do
-    test "selects this server and shows no runner panel" do
+    setup do
       put_mode("local")
+      :ok
+    end
+
+    test "selects this server and shows no token panel" do
       html = render_section()
 
       assert Regex.match?(~r/<input[^>]*value="local"[^>]*checked/s, html)
+      assert html =~ ~s|id="smtp-verification-local"|
       refute html =~ "Issue a new token"
+      refute html =~ "Connecting"
+      refute html =~ "has no checker on the server yet"
     end
 
-    test "says that nothing checks the addresses on the server yet" do
-      assert render_section() =~ "has no checker on the server yet"
+    test "warns that the connections go from the IP of the site" do
+      html = render_section()
+
+      assert html =~ "Do not enable it if other sites share this IP address"
+    end
+
+    test "says where the checks run and under which EHLO name" do
+      put_setting("email_verify_smtp_helo", "mail.hydroforce.ee")
+      html = render_section()
+
+      assert html =~ LocalRunner.server_name()
+      assert html =~ "go out from its IP address, with the EHLO name mail.hydroforce.ee"
     end
 
     test "the sender and HELO fields are there, the runner's instruction is not" do
-      put_mode("local")
       html = render_section()
 
       assert html =~ ~s|name="smtp[mail_from]"|
       assert html =~ "HELO name"
       refute html =~ "Connecting"
+    end
+
+    test "not started yet" do
+      html = render_section()
+
+      assert html =~ "Not started yet"
+      assert html =~ "0 in the queue"
+    end
+
+    test "ready: the built-in runner has run and nothing waits" do
+      Runners.heartbeat_local(%{name: "docker1", port25: "open"}, DateTime.utc_now())
+      html = render_section()
+
+      assert html =~ "Ready"
+      assert html =~ "docker1"
+      assert html =~ "port 25 open"
+      refute html =~ "Not responding"
+    end
+
+    test "working: addresses wait in the queue" do
+      Runners.heartbeat_local(%{name: "docker1", port25: "open"}, DateTime.utc_now())
+      domain = unique_domain()
+      FakeResolver.put(domain, mx: {:ok, [%{host: "mx.#{domain}", pref: 10}]})
+      {:ok, _} = Verification.verify("info@#{domain}", smtp: :enqueue)
+
+      html = render_section()
+
+      assert html =~ "Working"
+      assert html =~ "1 in the queue"
+    end
+
+    test "not responding: work waits and the last cycle is long ago" do
+      Runners.heartbeat_local(%{name: "docker1"}, DateTime.add(DateTime.utc_now(), -3600))
+      domain = unique_domain()
+      FakeResolver.put(domain, mx: {:ok, [%{host: "mx.#{domain}", pref: 10}]})
+      {:ok, _} = Verification.verify("info@#{domain}", smtp: :enqueue)
+
+      html = render_section()
+
+      assert html =~ "Not responding"
+      assert html =~ "last cycle"
+    end
+
+    test "a closed port 25 is said so" do
+      Runners.heartbeat_local(%{name: "docker1", port25: "blocked"}, DateTime.utc_now())
+      html = render_section()
+
+      assert html =~ "port 25 closed"
+      assert html =~ "Port 25 is closed on this server"
+      refute html =~ "on the runner&#39;s machine"
+    end
+
+    test "no usable sender is said so" do
+      put_setting("from_email", "noreply@localhost")
+      html = render_section()
+
+      assert html =~ "the server starts no sessions"
+    end
+
+    test "a pause shows its reason and the button to resume" do
+      runner = Runners.heartbeat_local(%{name: "docker1"}, DateTime.utc_now())
+
+      Repo.update_all(from(r in Runner, where: r.uuid == ^runner.uuid),
+        set: [
+          paused_until: DateTime.add(DateTime.utc_now(), 3600) |> DateTime.truncate(:second),
+          pause_reason: "5 sessions in a row failed"
+        ]
+      )
+
+      html = render_section()
+      assert html =~ "Paused: 5 sessions in a row failed"
+      assert html =~ "Resume"
+
+      socket = socket() |> event("clear_pause")
+      assert socket.assigns.status.paused == nil
+    end
+
+    test "a remote runner's row is not shown as the built-in one" do
+      {key, _token} = runner_key(elem(user_with(["emails"]), 0))
+      heartbeat(key, 5, %{name: "NEWSERVER"})
+
+      html = render_section()
+
+      refute html =~ "NEWSERVER"
+      assert html =~ "Not started yet"
     end
   end
 
@@ -554,6 +686,21 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
       assert html =~ "На связи · отклик"
       assert html =~ "NEWSERVER · порт 25 открыт · в очереди 0"
+    end
+
+    test "the built-in runner's status reads in Russian and in Estonian" do
+      put_mode("local")
+      Runners.heartbeat_local(%{name: "docker1", port25: "open"}, DateTime.utc_now())
+
+      Gettext.put_locale(PhoenixKit.Modules.Emails.Gettext, "ru")
+      html = render_section()
+      assert html =~ "Готов · docker1 · порт 25 открыт · в очереди 0"
+      assert html =~ "имя в EHLO"
+
+      Gettext.put_locale(PhoenixKit.Modules.Emails.Gettext, "et")
+      html = render_section()
+      assert html =~ "Valmis · docker1"
+      assert html =~ "EHLO nimi"
     end
 
     test "every message of the section is translated into Russian and Estonian" do

@@ -23,8 +23,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   ## Live updates
 
   Core mounts every section on every visit of the page, in a hidden tab, so the relay
-  (and the reads about the runner) exist only while the mode is `runner`: it starts when
-  the mode becomes `runner` and stops when it leaves it.
+  (and the reads about the runner) exist only while the mode is `runner` or `local`: it
+  starts when the mode becomes one of them and stops when it leaves them. In `local` mode
+  the card shows the built-in runner (`Verification.LocalRunner`): the host it runs on, the
+  `EHLO` name, the finding of its port 25 self-test and the queue, with the same pause and
+  "Resume" as a remote runner.
 
   The status line and the form live in one component, and a patch resets whatever the
   browser holds on its own (a `<details>` that was opened, a typed value in a field that
@@ -42,6 +45,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   alias PhoenixKit.Modules.Emails.Paths
   alias PhoenixKit.Modules.Emails.Verification
   alias PhoenixKit.Modules.Emails.Verification.Config
+  alias PhoenixKit.Modules.Emails.Verification.LocalRunner
   alias PhoenixKit.Modules.Emails.Verification.RunnerKeys
   alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Verification.RunnerSetup
@@ -52,6 +56,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
 
   # The status is read again on every Nth tick, in case an announcement was missed.
   @reload_every 12
+
+  # The modes that have a runner to show (and to keep live).
+  @live_modes ~w(runner local)
 
   @impl true
   def update(%{relay_event: event}, socket), do: {:ok, relay_event(event, socket)}
@@ -99,12 +106,13 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   defp scope_state(%Scope{}), do: :known
   defp scope_state(_scope), do: :pending
 
-  # The relay (live updates, the admin's scope) is needed only while the mode is
-  # `runner`: core mounts every section on every visit of the page, in a hidden tab.
-  defp sync_relay(%{assigns: %{mode: "runner", relay: nil}} = socket), do: start_relay(socket)
+  # The relay (live updates, the admin's scope) is needed only while the mode has a
+  # runner to show: core mounts every section on every visit of the page, in a hidden tab.
+  defp sync_relay(%{assigns: %{mode: mode, relay: nil}} = socket) when mode in @live_modes,
+    do: start_relay(socket)
 
   defp sync_relay(%{assigns: %{mode: mode, relay: relay}} = socket)
-       when mode != "runner" and is_pid(relay) do
+       when mode not in @live_modes and is_pid(relay) do
     Relay.stop(relay)
     assign(socket, :relay, nil)
   end
@@ -124,16 +132,19 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   # Everything that comes from the database. `view` is what the template shows; it is
   # computed again on every tick from the same data, so the clock moves without a read.
   #
-  # The runner's row, its owner, the queue, the core-side preconditions and the keys are
-  # read only while the mode is `runner`; in the other modes the card is not shown.
+  # The runner's row and the queue are read only while the mode has a runner (`runner`,
+  # `local`); the key's owner, the core-side preconditions and the keys only in `runner`.
+  # In the other modes the card is not shown.
   defp reload(socket) do
-    runner? = Config.smtp_mode_setting() == "runner"
-    status = if runner?, do: Verification.runner_status(), else: light_status()
+    mode = Config.smtp_mode_setting()
+    runner? = mode == "runner"
+    status = if mode in @live_modes, do: Verification.runner_status(), else: light_status()
 
     socket
     |> assign(:status, status)
     |> assign(:idle_poll_s, Config.idle_poll_s())
     |> assign(:site_sender, Config.site_sender_address())
+    |> assign(:local_info, if(mode == "local", do: local_info(), else: nil))
     |> assign(:preconditions, if(runner?, do: RunnerSetup.preconditions(), else: []))
     |> assign(:active_keys, if(runner?, do: active_keys(), else: 0))
     |> assign(:now, UtilsDate.utc_now())
@@ -159,6 +170,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     }
   end
 
+  # Where the built-in runner's connections come from: this server, under this name.
+  defp local_info, do: %{host: LocalRunner.server_name(), helo: LocalRunner.helo()}
+
   defp active_keys do
     if Config.machine_api_available?(), do: length(RunnerKeys.active()), else: 0
   rescue
@@ -175,7 +189,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
 
   defp relay_event(:tick, %{assigns: %{ticks: ticks}} = socket) do
     cond do
-      socket.assigns.mode != "runner" ->
+      socket.assigns.mode not in @live_modes ->
         socket
 
       rem(ticks + 1, @reload_every) == 0 ->
@@ -217,22 +231,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   defp build_view(status, now, idle_poll_s) do
     paused = live_pause(status.paused, now)
     runner = status.runner
-    online? = runner != nil and Runners.online?(runner.last_seen_at, now, idle_poll_s)
-
-    state =
-      cond do
-        runner == nil or runner.last_seen_at == nil -> :never
-        online? -> :online
-        true -> :offline
-      end
-
+    state = view_state(status, now, idle_poll_s)
     segments = segments(state, runner, status, now)
     paused_view = paused_view(paused)
 
     %{
       state: state,
       paused: paused_view,
-      dot: dot_class(state, paused),
+      dot: dot_class(state, paused, status),
       segments: segments,
       state_text: state_text(paused_view, segments),
       port25_blocked?: status.port25_blocked,
@@ -241,6 +247,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
       mail_from_missing?: status.mail_from_missing,
       owner: owner_view(status.owner)
     }
+  end
+
+  defp view_state(%{runner: nil}, _now, _idle_poll_s), do: :never
+  defp view_state(%{runner: %{last_seen_at: nil}}, _now, _idle_poll_s), do: :never
+
+  # The built-in runner rests when nothing waits: silence is a fault only with work queued.
+  defp view_state(%{mode: "local", runner: runner, queue: queue}, now, _idle_poll_s) do
+    if Runners.local_responding?(runner.last_seen_at, now, queue), do: :online, else: :offline
+  end
+
+  defp view_state(%{runner: runner}, now, idle_poll_s) do
+    if Runners.online?(runner.last_seen_at, now, idle_poll_s), do: :online, else: :offline
   end
 
   # A pause that has ended by `now` is gone, whatever the last read of the row said.
@@ -257,10 +275,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   defp paused_view(nil), do: nil
   defp paused_view(%{reason: reason}), do: %{reason: reason || gettext("no reason recorded")}
 
-  defp dot_class(_state, %{}), do: "bg-warning"
-  defp dot_class(:online, nil), do: "bg-success"
-  defp dot_class(:offline, nil), do: "bg-warning"
-  defp dot_class(:never, nil), do: "bg-base-content/30"
+  defp dot_class(_state, %{}, _status), do: "bg-warning"
+  defp dot_class(:online, nil, %{mode: "local", port25_blocked: true}), do: "bg-warning"
+  defp dot_class(:online, nil, _status), do: "bg-success"
+  defp dot_class(:offline, nil, _status), do: "bg-warning"
+  defp dot_class(:never, nil, _status), do: "bg-base-content/30"
+
+  defp segments(state, runner, %{mode: "local"} = status, _now),
+    do: local_segments(state, runner, status)
 
   defp segments(:never, _runner, status, _now) do
     [gettext("Not connected yet"), queue_text(status.queue)]
@@ -287,6 +309,34 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     ]
     |> Enum.reject(&is_nil/1)
   end
+
+  defp local_segments(:never, _runner, status) do
+    [gettext("Not started yet"), queue_text(status.queue)]
+  end
+
+  defp local_segments(:online, runner, status) do
+    [
+      local_word(status.queue),
+      runner.name,
+      port25_text(runner.port25),
+      queue_text(status.queue)
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp local_segments(:offline, runner, status) do
+    [
+      pgettext("smtp local runner status", "Not responding"),
+      gettext("last cycle %{at}", at: Calendar.strftime(runner.last_seen_at, "%d.%m %H:%M UTC")),
+      runner.name,
+      port25_text(runner.port25),
+      queue_text(status.queue)
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp local_word(%{queued: 0, leased: 0}), do: pgettext("smtp local runner status", "Ready")
+  defp local_word(_queue), do: pgettext("smtp local runner status", "Working")
 
   defp port25_text("open"), do: gettext("port 25 open")
   defp port25_text("blocked"), do: gettext("port 25 closed")

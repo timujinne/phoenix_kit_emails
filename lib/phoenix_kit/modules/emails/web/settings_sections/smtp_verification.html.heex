@@ -34,11 +34,6 @@
           "Do not enable it if other sites share this IP address: a mail host that blocks it blocks them too."
         )}
       </p>
-      <p class="text-xs text-base-content/70 ml-9">
-        {gettext(
-          "This version has no checker on the server yet: addresses wait in the queue until another mode is chosen."
-        )}
-      </p>
 
       <label class="label cursor-pointer justify-start gap-3 py-1">
         <input
@@ -59,8 +54,8 @@
     </fieldset>
   </form>
 
-  <%!-- The runner --%>
-  <div :if={@mode == "runner"} class="card bg-base-200/40" id={"#{@id}-runner"}>
+  <%!-- The runner: a remote one, or the built-in one of this server --%>
+  <div :if={@mode in ["runner", "local"]} class="card bg-base-200/40" id={"#{@id}-#{@mode}"}>
     <div class="card-body p-4 space-y-4">
       <%!-- What must be on in core first --%>
       <div :for={precondition <- @preconditions} class="alert alert-warning py-2">
@@ -138,7 +133,7 @@
         {Enum.join(@view.segments, " · ")}
       </p>
 
-      <div :if={@view.port25_blocked?} class="alert alert-warning py-2">
+      <div :if={@view.port25_blocked? and @mode == "runner"} class="alert alert-warning py-2">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
         <span class="text-sm">
           {gettext(
@@ -147,7 +142,16 @@
         </span>
       </div>
 
-      <div :if={@view.mail_from_missing?} class="alert alert-warning py-2">
+      <div :if={@view.port25_blocked? and @mode == "local"} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "Port 25 is closed on this server (the host or a firewall). No mailbox can be checked from here; the server looks again every ten minutes."
+          )}
+        </span>
+      </div>
+
+      <div :if={@view.mail_from_missing? and @mode == "runner"} class="alert alert-warning py-2">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
         <span class="text-sm">
           {gettext(
@@ -156,8 +160,26 @@
         </span>
       </div>
 
+      <div :if={@view.mail_from_missing? and @mode == "local"} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "There is no usable sender address, so the server starts no sessions. Set the sender below or in the settings of this page."
+          )}
+        </span>
+      </div>
+
+      <%!-- The built-in runner: where the connections come from --%>
+      <p :if={@mode == "local" and @local_info} class="text-sm text-base-content/70">
+        {gettext(
+          "The checks run on this server (%{host}) and go out from its IP address, with the EHLO name %{helo}.",
+          host: @local_info.host,
+          helo: @local_info.helo
+        )}
+      </p>
+
       <%!-- Whose key --%>
-      <div :if={@view.owner} class="text-sm space-y-2">
+      <div :if={@mode == "runner" and @view.owner} class="text-sm space-y-2">
         <p class="text-base-content/70">
           {gettext("The runner works with the key of %{who}.", who: @view.owner.who)}
         </p>
@@ -168,7 +190,7 @@
       </div>
 
       <%!-- Token --%>
-      <div class="flex flex-wrap items-center gap-2">
+      <div :if={@mode == "runner"} class="flex flex-wrap items-center gap-2">
         <button
           type="button"
           class="btn btn-primary btn-sm"
@@ -204,7 +226,7 @@
       </div>
 
       <%!-- Connecting --%>
-      <div class="text-sm space-y-2">
+      <div :if={@mode == "runner"} class="text-sm space-y-2">
         <h4 class="font-semibold">{gettext("Connecting")}</h4>
         <ol class="list-decimal ml-5 space-y-2">
           <li>
