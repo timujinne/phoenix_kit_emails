@@ -162,6 +162,29 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert html =~ ~s|id="smtp-verification-mode"|
       assert html =~ "Runner on your computer"
     end
+
+    # daisyUI's `label` does not wrap; on a 390 px screen a long option ran past the card.
+    test "the text of every radio row wraps and the row does not outgrow the card" do
+      labels =
+        render_section()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query(~s|form[id$="-mode"] label|)
+
+      assert Enum.count(labels) == 3
+
+      for label <- labels do
+        row = label |> LazyHTML.attribute("class") |> hd() |> String.split()
+        assert Enum.all?(~w(flex w-full items-start whitespace-normal), &(&1 in row))
+
+        [text] =
+          label
+          |> LazyHTML.query("span")
+          |> Enum.to_list()
+          |> Enum.map(&LazyHTML.attribute(&1, "class"))
+
+        assert Enum.all?(~w(min-w-0 flex-1), &(&1 in String.split(hd(text))))
+      end
+    end
   end
 
   describe "reading only what the mode shows" do
