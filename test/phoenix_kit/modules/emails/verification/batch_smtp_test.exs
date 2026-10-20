@@ -20,6 +20,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Result
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
+  alias PhoenixKit.Modules.Emails.Verification.SmtpQueueItem
   alias PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker
   alias PhoenixKitEmails.Test.FakeResolver
   alias PhoenixKitEmails.Test.Repo
@@ -354,6 +355,74 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
       end
 
       assert Batches.settle_awaiting(email, "valid") == Enum.sort(batches)
+    end
+  end
+
+  describe "a batch cancelled while its job runs" do
+    # The batch is cancelled at the moment the job looks up the MX, after it has
+    # checked that the batch is open and before it queues and parks the address.
+    defp run_job_cancelled_midway(batch, email, domain) do
+      FakeResolver.put(domain,
+        mx: fn ->
+          {:ok, _} = Verification.cancel_batch(batch.uuid)
+          {:ok, [%{host: "mx." <> domain, pref: 10}]}
+        end
+      )
+
+      perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email})
+    end
+
+    defp laid_out_batch(domain, locals) do
+      FakeResolver.put(domain, mx: {:ok, [%{host: "mx." <> domain, pref: 10}]})
+      emails = Enum.map(locals, &(&1 <> "@" <> domain))
+      {:ok, batch} = Verification.start_batch(emails, "manual", nil)
+
+      job =
+        Enum.find(all_enqueued(worker: BatchStartWorker), &(&1.args["batch_uuid"] == batch.uuid))
+
+      :ok = perform_job(BatchStartWorker, job.args)
+      batch
+    end
+
+    test "the address it queued is cancelled, nobody waits for it", %{domain: domain} do
+      email = "a@" <> domain
+      batch = laid_out_batch(domain, ~w(a))
+
+      assert {:cancel, :batch_cancelled} = run_job_cancelled_midway(batch, email, domain)
+
+      assert %{state: "cancelled"} = Repo.get_by!(SmtpQueueItem, email: email)
+      assert SmtpQueue.counts() == %{queued: 0, leased: 0}
+    end
+
+    test "unless another live batch still needs the address", %{domain: domain} do
+      email = "a@" <> domain
+      first = laid_out_batch(domain, ~w(a))
+      _second = laid_out_batch(domain, ~w(a))
+
+      assert {:cancel, :batch_cancelled} = run_job_cancelled_midway(first, email, domain)
+
+      assert %{state: "queued"} = Repo.get_by!(SmtpQueueItem, email: email)
+    end
+
+    test "a row a runner already holds is left to finish", %{runner: runner, domain: domain} do
+      email = "a@" <> domain
+      batch = laid_out_batch(domain, ~w(a))
+
+      FakeResolver.put(domain,
+        mx: fn ->
+          {:ok, _} = Verification.cancel_batch(batch.uuid)
+          {:ok, [%{host: "mx." <> domain, pref: 10}]}
+        end
+      )
+
+      # The row is queued and claimed by a fast runner before the job gets to park it.
+      {:ok, _} = Verification.verify(email, smtp: :enqueue)
+      {:ok, [_session]} = SmtpQueue.claim(runner, 4, @now)
+
+      assert {:cancel, :batch_cancelled} =
+               perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email})
+
+      assert %{state: "leased"} = Repo.get_by!(SmtpQueueItem, email: email)
     end
   end
 

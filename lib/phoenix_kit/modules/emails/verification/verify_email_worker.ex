@@ -16,7 +16,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   step is queued for an SMTP session (`Verification.verify(email, smtp: :enqueue)`)
   and the job does not count it: the item becomes `"awaiting_smtp"`
   (`Batches.await_smtp/2`) and the SMTP queue finishes it when the final verdict
-  lands. The job is done; nothing waits for the runner here.
+  lands. The job is done; nothing waits for the runner here. If the batch was
+  cancelled while the job ran, the queued row is cancelled too, unless another live
+  batch needs the address.
 
   A `"temp"` verdict caused by a failed DNS lookup (`"dns_error"`), or by greylisting
   (only an SMTP result can say that), is put off with `{:snooze, seconds}` instead
@@ -44,6 +46,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   alias PhoenixKit.Modules.Emails.Verification.Batches
   alias PhoenixKit.Modules.Emails.Verification.BatchItem
   alias PhoenixKit.Modules.Emails.Verification.Retry
+  alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"batch_uuid" => _, "email" => _}} = job) do
@@ -110,8 +113,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
     case Batches.await_smtp(batch_uuid, email) do
       {:ok, _awaiting_or_settled} -> :ok
       {:error, :already_done} -> :ok
-      {:error, :batch_closed} -> {:cancel, :batch_cancelled}
+      {:error, :batch_closed} -> release_queued(email)
     end
+  end
+
+  # The batch was cancelled after this job queued the address: nobody is waiting for
+  # the session any more (unless another live batch is).
+  defp release_queued(email) do
+    SmtpQueue.cancel_unneeded(email)
+    {:cancel, :batch_cancelled}
   end
 
   defp finish(batch_uuid, email, status) do

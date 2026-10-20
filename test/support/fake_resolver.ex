@@ -7,7 +7,9 @@ defmodule PhoenixKitEmails.Test.FakeResolver do
 
   An answer may also be a *list* of answers: they are given one per lookup, in
   order, and the last one repeats - "the first attempt fails, the second says
-  nxdomain" is `mx: [{:error, :timeout}, {:error, :nxdomain}]`.
+  nxdomain" is `mx: [{:error, :timeout}, {:error, :nxdomain}]`. A function of no
+  arguments is called when the lookup is made and its return value is the answer
+  (to do something at that very moment, e.g. cancel a batch in the middle of a job).
   """
 
   @behaviour PhoenixKit.Modules.Emails.Verification.Resolver
@@ -39,6 +41,7 @@ defmodule PhoenixKitEmails.Test.FakeResolver do
     Enum.at(answers, seen) || List.last(answers)
   end
 
+  defp next_answer(answer, _kind, _domain) when is_function(answer, 0), do: answer.()
   defp next_answer(answer, _kind, _domain), do: answer
 
   defp scripted(domain), do: Process.get({__MODULE__, domain}, [])

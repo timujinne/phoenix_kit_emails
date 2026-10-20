@@ -171,6 +171,33 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
     count
   end
 
+  @doc """
+  Cancels the queued row of `email` unless a live batch (queued or running) still
+  waits for the address. For a job that queued the address and then found its batch
+  closed (cancelled while the job ran, so `cancel_for_batch/1` saw nothing to cancel).
+  A row a runner holds is left to finish. Returns how many rows it cancelled.
+  """
+  @spec cancel_unneeded(String.t()) :: non_neg_integer()
+  def cancel_unneeded(email) when is_binary(email) do
+    needed =
+      from(i in Verification.BatchItem,
+        join: b in Verification.Batch,
+        on: b.uuid == i.batch_uuid,
+        where:
+          i.email == ^email and i.state in ["pending", "awaiting_smtp"] and
+            b.state in ["queued", "running"],
+        select: 1
+      )
+
+    {count, _} =
+      from(q in Item, where: q.state == "queued" and q.email == ^email and not exists(needed))
+      |> repo().update_all(
+        set: [state: "cancelled", last_reason: "batch_cancelled", updated_at: UtilsDate.utc_now()]
+      )
+
+    count
+  end
+
   ## --- Claim ---
 
   @doc """
