@@ -80,6 +80,13 @@ config :phoenix_kit_emails, verification_confirm_pause_ms: 0
 # `:nxdomain`). The one live-DNS test is tagged `:external`.
 config :phoenix_kit_emails, verification_resolver: PhoenixKitEmails.Test.FakeResolver
 
+# The built-in SMTP runner (mode "local") may connect to the loopback interface only, and
+# to port 1 unless a test hands it the port of its own fake mail host: no test can reach
+# a real mail server, whatever it forgets to script.
+config :phoenix_kit_emails,
+  verification_smtp_loopback_only: true,
+  verification_smtp_port: 1
+
 # Users are registered for real in the tests of the API and the settings section (each
 # needs a password hash): the cheapest bcrypt cost keeps those tests fast.
 config :bcrypt_elixir, log_rounds: 4
