@@ -27,8 +27,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
   setup do
     setup_api()
     put_setting("email_verify_smtp_mode", "runner")
-    put_setting("from_email", "mail@hydroforce.ee")
-    FakeResolver.put("hydroforce.ee", mx: {:ok, [%{host: "mx.hydroforce.ee", pref: 10}]})
+    put_setting("from_email", "mail@acme-mail.test")
+    FakeResolver.put("acme-mail.test", mx: {:ok, [%{host: "mx.acme-mail.test", pref: 10}]})
 
     {owner, role} = user_with(["emails"])
     {key, token} = issue_key(owner)
@@ -63,7 +63,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
   describe "heartbeat/3" do
     test "creates the row on first contact and updates it after", %{actor: actor, key: key} do
       info = %{
-        name: "NEWSERVER",
+        name: "WORKSTATION",
         version: "1.0.0",
         os: "Windows",
         helo_auto: "h.example.ee",
@@ -75,7 +75,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
       assert runner.api_key_uuid == key.uuid
 
       assert {runner.name, runner.version, runner.os, runner.helo_auto} ==
-               {"NEWSERVER", "1.0.0", "Windows", "h.example.ee"}
+               {"WORKSTATION", "1.0.0", "Windows", "h.example.ee"}
 
       assert {runner.public_ip, runner.port25, runner.last_seen_at} ==
                {"203.0.113.7", "open", @now}
@@ -89,7 +89,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
       assert again.uuid == runner.uuid
 
       assert {again.name, again.version, again.public_ip, again.last_seen_at} ==
-               {"NEWSERVER", "1.0.1", "203.0.113.8", later}
+               {"WORKSTATION", "1.0.1", "203.0.113.8", later}
 
       assert again.port25_checked_at == @now
       assert Repo.aggregate(Runner, :count) == 1
@@ -241,14 +241,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
       Runners.heartbeat(actor, %{}, @now)
 
       assert %{
-               mail_from: "mail@hydroforce.ee",
+               mail_from: "mail@acme-mail.test",
                mail_from_source: :site_sender,
                mail_from_missing: false
              } = Runners.status(@now)
 
-      put_setting("email_verify_smtp_mail_from", "verify@hydroforce.ee")
+      put_setting("email_verify_smtp_mail_from", "verify@acme-mail.test")
 
-      assert %{mail_from: "verify@hydroforce.ee", mail_from_source: :override} =
+      assert %{mail_from: "verify@acme-mail.test", mail_from_source: :override} =
                Runners.status(@now)
 
       put_setting("email_verify_smtp_mail_from", "")
@@ -388,12 +388,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
 
   describe "selftest_host/0" do
     test "the setting wins" do
-      put_setting("email_verify_smtp_selftest_host", "mx9.hydroforce.ee")
-      assert Runners.selftest_host() == "mx9.hydroforce.ee"
+      put_setting("email_verify_smtp_selftest_host", "mx9.acme-mail.test")
+      assert Runners.selftest_host() == "mx9.acme-mail.test"
     end
 
     test "otherwise the first mail host of the MAIL FROM domain" do
-      assert Runners.selftest_host() == "mx.hydroforce.ee"
+      assert Runners.selftest_host() == "mx.acme-mail.test"
 
       put_setting("email_verify_smtp_mail_from", "verify@other.ee")
 

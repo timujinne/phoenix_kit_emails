@@ -53,7 +53,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunnerTest do
     start_supervised!(PhoenixKit.PubSub.Manager)
 
     put("email_verify_smtp_mode", "local")
-    put("from_email", "mail@hydroforce.ee")
+    put("from_email", "mail@acme-mail.test")
     put("email_verify_smtp_selftest_host", "127.0.0.1")
     put("email_verify_smtp_helo", "runner.example.test")
     put("email_verify_domain_interval_s", "10")
@@ -101,7 +101,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunnerTest do
 
       commands = FakeSmtpServer.commands(server)
 
-      assert ["EHLO runner.example.test", "MAIL FROM:<mail@hydroforce.ee>", probe | rest] =
+      assert ["EHLO runner.example.test", "MAIL FROM:<mail@acme-mail.test>", probe | rest] =
                commands
 
       assert probe =~ ~r/\ARCPT TO:<x[a-z0-9]+@#{Regex.escape(domain)}>\z/
@@ -302,14 +302,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunnerTest do
 
     test "a MAIL FROM override is enough" do
       put("from_email", "noreply@localhost")
-      put("email_verify_smtp_mail_from", "verify@hydroforce.ee")
+      put("email_verify_smtp_mail_from", "verify@acme-mail.test")
       domain = unique_domain()
       queue_local(domain, ~w(info))
       selftested()
       server = FakeSmtpServer.start(@picky)
 
       assert %{sessions: 1} = cycle(server)
-      assert "MAIL FROM:<verify@hydroforce.ee>" in FakeSmtpServer.commands(server)
+      assert "MAIL FROM:<verify@acme-mail.test>" in FakeSmtpServer.commands(server)
     end
   end
 
@@ -400,7 +400,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunnerTest do
 
     test "no host to test against is no finding" do
       put("email_verify_smtp_selftest_host", "")
-      FakeResolver.put("hydroforce.ee", mx: {:error, :nxdomain})
+      FakeResolver.put("acme-mail.test", mx: {:error, :nxdomain})
       queue_local(unique_domain(), ~w(info))
       server = FakeSmtpServer.start(@picky)
 

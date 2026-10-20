@@ -16,7 +16,7 @@ defmodule PhoenixKitEmails.Test.SmtpHelpers do
   @doc "Runner mode with a usable MAIL FROM, as a configured site has."
   def configure_runner_mode do
     put("email_verify_smtp_mode", "runner")
-    put("from_email", "mail@hydroforce.ee")
+    put("from_email", "mail@acme-mail.test")
   end
 
   @doc "A domain name no other test uses (rows of async tests are isolated, advisory locks are not)."

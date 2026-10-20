@@ -40,8 +40,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
   setup do
     setup_api()
-    put_setting("from_email", "mail@hydroforce.ee")
-    FakeResolver.put("hydroforce.ee", mx: {:ok, [%{host: "mx.hydroforce.ee", pref: 10}]})
+    put_setting("from_email", "mail@acme-mail.test")
+    FakeResolver.put("acme-mail.test", mx: {:ok, [%{host: "mx.acme-mail.test", pref: 10}]})
 
     {admin, role} = user_with(["emails"])
     %{admin: admin, role: role, scope: scope_of(admin)}
@@ -86,7 +86,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
   # A runner that called `seconds` ago.
   defp heartbeat(key, seconds_ago, info \\ %{}) do
-    info = Map.merge(%{name: "NEWSERVER", port25: "open", version: "1.0.0"}, info)
+    info = Map.merge(%{name: "WORKSTATION", port25: "open", version: "1.0.0"}, info)
     now = DateTime.add(DateTime.utc_now(), -seconds_ago)
     Runners.heartbeat(%{key_uuid: key.uuid, ip: "203.0.113.7"}, info, now)
   end
@@ -105,7 +105,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     {:ok, user} =
       Auth.register_user(
         %{
-          email: "noapi#{System.unique_integer([:positive])}@hydroforce.ee",
+          email: "noapi#{System.unique_integer([:positive])}@acme-mail.test",
           password: "ValidPassword123!"
         },
         nil
@@ -227,7 +227,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
       assert :api_admin_disabled in socket.assigns.preconditions
       assert socket.assigns.active_keys == 1
-      assert socket.assigns.status.runner.name == "NEWSERVER"
+      assert socket.assigns.status.runner.name == "WORKSTATION"
     end
 
     test "going to local starts the relay of a connected page too" do
@@ -291,11 +291,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "says where the checks run and under which EHLO name" do
-      put_setting("email_verify_smtp_helo", "mail.hydroforce.ee")
+      put_setting("email_verify_smtp_helo", "mail.acme-mail.test")
       html = render_section()
 
       assert html =~ LocalRunner.server_name()
-      assert html =~ "go out from its IP address, with the EHLO name mail.hydroforce.ee"
+      assert html =~ "go out from its IP address, with the EHLO name mail.acme-mail.test"
     end
 
     test "the sender and HELO fields are there, the runner's instruction is not" do
@@ -383,11 +383,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "a remote runner's row is not shown as the built-in one" do
       {key, _token} = runner_key(elem(user_with(["emails"]), 0))
-      heartbeat(key, 5, %{name: "NEWSERVER"})
+      heartbeat(key, 5, %{name: "WORKSTATION"})
 
       html = render_section()
 
-      refute html =~ "NEWSERVER"
+      refute html =~ "WORKSTATION"
       assert html =~ "Not started yet"
     end
   end
@@ -427,7 +427,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
       assert html =~ "Online"
       assert html =~ "answered 12 s ago" or html =~ "answered 13 s ago"
-      assert html =~ "NEWSERVER"
+      assert html =~ "WORKSTATION"
       assert html =~ "port 25 open"
       assert html =~ "0 in the queue"
       assert html =~ "bg-success"
@@ -504,15 +504,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     test "the sender in use and where it comes from" do
       html = render_section()
 
-      assert html =~ "In use: mail@hydroforce.ee (the sender address of the site)."
-      assert html =~ ~s|placeholder="mail@hydroforce.ee"|
+      assert html =~ "In use: mail@acme-mail.test (the sender address of the site)."
+      assert html =~ ~s|placeholder="mail@acme-mail.test"|
       assert html =~ "Empty: the sender address of the site is used."
 
-      put_setting("email_verify_smtp_mail_from", "verify@hydroforce.ee")
+      put_setting("email_verify_smtp_mail_from", "verify@acme-mail.test")
       html = render_section()
 
-      assert html =~ "In use: verify@hydroforce.ee (set here)."
-      assert html =~ ~s|value="verify@hydroforce.ee"|
+      assert html =~ "In use: verify@acme-mail.test (set here)."
+      assert html =~ ~s|value="verify@acme-mail.test"|
     end
 
     test "whose key the runner works with", %{admin: admin} do
@@ -734,7 +734,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       html = render_section()
 
       assert html =~ "На связи · отклик"
-      assert html =~ "NEWSERVER · порт 25 открыт · в очереди 0"
+      assert html =~ "WORKSTATION · порт 25 открыт · в очереди 0"
     end
 
     test "the built-in runner's status reads in Russian and in Estonian" do
@@ -833,15 +833,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
   describe "save" do
     test "writes the fields and shows what was stored" do
       params = %{
-        "mail_from" => "verify@hydroforce.ee",
-        "helo" => "mx.hydroforce.ee",
+        "mail_from" => "verify@acme-mail.test",
+        "helo" => "mx.acme-mail.test",
         "rcpt_per_session" => "20"
       }
 
       socket = socket() |> event("save", %{"smtp" => params})
 
-      assert Config.smtp_mail_from() == {"verify@hydroforce.ee", :override}
-      assert Config.smtp_helo() == "mx.hydroforce.ee"
+      assert Config.smtp_mail_from() == {"verify@acme-mail.test", :override}
+      assert Config.smtp_helo() == "mx.acme-mail.test"
       assert Config.rcpt_per_session() == 20
       assert socket.assigns.errors == %{}
       assert socket.assigns.form["rcpt_per_session"] == "20"
@@ -857,7 +857,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
           "smtp" => %{
             "mail_from" => "nope",
             "domain_interval_s" => "0",
-            "helo" => "ok.hydroforce.ee"
+            "helo" => "ok.acme-mail.test"
           }
         })
 
@@ -931,7 +931,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       put_mode("local")
       socket = socket(%{phoenix_kit_current_scope: scope})
 
-      event(socket, "save", %{"smtp" => %{"mail_from" => "verify@hydroforce.ee"}})
+      event(socket, "save", %{"smtp" => %{"mail_from" => "verify@acme-mail.test"}})
 
       assert [latest | _] = History.list("email_verify_smtp_mail_from")
       assert latest.actor_uuid == admin.uuid
@@ -947,7 +947,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "the mode is not part of the form" do
       put_mode("local")
-      _socket = socket() |> event("save", %{"smtp" => %{"mail_from" => "verify@hydroforce.ee"}})
+      _socket = socket() |> event("save", %{"smtp" => %{"mail_from" => "verify@acme-mail.test"}})
 
       assert Config.smtp_mode_setting() == "local"
     end
@@ -964,12 +964,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
         socket()
         |> event("validate", %{
           "_target" => ["smtp", "mail_from"],
-          "smtp" => %{"mail_from" => "verify@hydroforce.ee", "rcpt_per_session" => "7"}
+          "smtp" => %{"mail_from" => "verify@acme-mail.test", "rcpt_per_session" => "7"}
         })
 
-      assert socket.assigns.form["mail_from"] == "verify@hydroforce.ee"
+      assert socket.assigns.form["mail_from"] == "verify@acme-mail.test"
       assert socket.assigns.form["rcpt_per_session"] == "7"
-      assert Config.smtp_mail_from() == {"mail@hydroforce.ee", :site_sender}
+      assert Config.smtp_mail_from() == {"mail@acme-mail.test", :site_sender}
       assert Config.rcpt_per_session() == 10
     end
 

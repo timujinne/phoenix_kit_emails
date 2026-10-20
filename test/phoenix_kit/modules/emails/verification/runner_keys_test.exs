@@ -134,7 +134,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerKeysTest do
       {:ok, user} =
         Auth.register_user(
           %{
-            email: "noapi#{System.unique_integer([:positive])}@hydroforce.ee",
+            email: "noapi#{System.unique_integer([:positive])}@acme-mail.test",
             password: "ValidPassword123!"
           },
           nil

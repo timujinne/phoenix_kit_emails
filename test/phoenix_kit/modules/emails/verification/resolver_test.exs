@@ -299,9 +299,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.ResolverTest do
       assert Enum.all?(records, &(is_binary(&1.host) and is_integer(&1.pref)))
     end
 
-    test "hydroforce.ee resolves to mail hosts" do
+    test "a domain with mail hosts resolves through the full pipeline" do
       assert {:ok, %{hosts: [_ | _]}} =
-               Resolver.resolve("hydroforce.ee", resolver: Inet, timeout: 5_000)
+               Resolver.resolve("gmail.com", resolver: Inet, timeout: 5_000)
     end
 
     test "a guaranteed-nonexistent domain is :nxdomain, not a transient error" do

@@ -58,23 +58,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
     end
 
     test "the site's configured sender is the default" do
-      put("from_email", "mail@hydroforce.ee")
+      put("from_email", "mail@acme-mail.test")
 
-      assert Config.smtp_mail_from() == {"mail@hydroforce.ee", :site_sender}
-      assert Config.site_sender_address() == "mail@hydroforce.ee"
+      assert Config.smtp_mail_from() == {"mail@acme-mail.test", :site_sender}
+      assert Config.site_sender_address() == "mail@acme-mail.test"
     end
 
     test "a valid override wins over the site sender" do
-      put("from_email", "mail@hydroforce.ee")
-      put("email_verify_smtp_mail_from", "  verify@hydroforce.ee ")
+      put("from_email", "mail@acme-mail.test")
+      put("email_verify_smtp_mail_from", "  verify@acme-mail.test ")
 
-      assert Config.smtp_mail_from() == {"verify@hydroforce.ee", :override}
-      assert Config.smtp_mail_from_override() == "verify@hydroforce.ee"
+      assert Config.smtp_mail_from() == {"verify@acme-mail.test", :override}
+      assert Config.smtp_mail_from_override() == "verify@acme-mail.test"
     end
 
     test "an override alone is enough" do
-      put("email_verify_smtp_mail_from", "verify@hydroforce.ee")
-      assert Config.smtp_mail_from() == {"verify@hydroforce.ee", :override}
+      put("email_verify_smtp_mail_from", "verify@acme-mail.test")
+      assert Config.smtp_mail_from() == {"verify@acme-mail.test", :override}
     end
 
     test "placeholder and invalid values count as not configured" do
@@ -87,7 +87,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
         "me@intranet",
         "not an address",
         "a@@b.ee",
-        "@hydroforce.ee",
+        "@acme-mail.test",
         ""
       ]
 
@@ -98,11 +98,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
     end
 
     test "a placeholder override does not shadow a good site sender" do
-      put("from_email", "mail@hydroforce.ee")
+      put("from_email", "mail@acme-mail.test")
 
       for value <- ["verify@localhost", "verify@example.com", "garbage"] do
         put("email_verify_smtp_mail_from", value)
-        assert Config.smtp_mail_from() == {"mail@hydroforce.ee", :site_sender}, inspect(value)
+        assert Config.smtp_mail_from() == {"mail@acme-mail.test", :site_sender}, inspect(value)
       end
     end
 
@@ -117,27 +117,27 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
     end
 
     test "the address is normalised: the domain lowercase, punycode, the local part as typed" do
-      put("from_email", "  Mail@HydroForce.EE ")
-      assert Config.smtp_mail_from() == {"Mail@hydroforce.ee", :site_sender}
-      assert Config.site_sender_address() == "Mail@hydroforce.ee"
+      put("from_email", "  Mail@Acme-Mail.TEST ")
+      assert Config.smtp_mail_from() == {"Mail@acme-mail.test", :site_sender}
+      assert Config.site_sender_address() == "Mail@acme-mail.test"
 
       put("email_verify_smtp_mail_from", "verify@München.DE")
       assert Config.smtp_mail_from() == {"verify@xn--mnchen-3ya.de", :override}
     end
 
     test "a non-ASCII local part would need SMTPUTF8: not usable" do
-      put("from_email", "почта@hydroforce.ee")
+      put("from_email", "почта@acme-mail.test")
       assert Config.smtp_mail_from() == {nil, :none}
       assert Config.site_sender_address() == nil
 
-      put("email_verify_smtp_mail_from", "büro@hydroforce.ee")
+      put("email_verify_smtp_mail_from", "büro@acme-mail.test")
       assert Config.smtp_mail_from() == {nil, :none}
     end
 
     test "a non-ASCII override falls back to the site sender" do
-      put("from_email", "mail@hydroforce.ee")
-      put("email_verify_smtp_mail_from", "büro@hydroforce.ee")
-      assert Config.smtp_mail_from() == {"mail@hydroforce.ee", :site_sender}
+      put("from_email", "mail@acme-mail.test")
+      put("email_verify_smtp_mail_from", "büro@acme-mail.test")
+      assert Config.smtp_mail_from() == {"mail@acme-mail.test", :site_sender}
     end
   end
 
@@ -202,15 +202,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
     end
 
     test "settings override them" do
-      put("email_verify_smtp_helo", " mail.hydroforce.ee ")
-      put("email_verify_smtp_selftest_host", "mx.hydroforce.ee")
+      put("email_verify_smtp_helo", " mail.acme-mail.test ")
+      put("email_verify_smtp_selftest_host", "mx.acme-mail.test")
       put("email_verify_rcpt_per_session", "4")
       put("email_verify_domain_interval_s", "30")
       put("email_verify_smtp_idle_poll_s", "5")
       put("email_verify_domain_pause_min", "10")
 
-      assert Config.smtp_helo() == "mail.hydroforce.ee"
-      assert Config.smtp_selftest_host_setting() == "mx.hydroforce.ee"
+      assert Config.smtp_helo() == "mail.acme-mail.test"
+      assert Config.smtp_selftest_host_setting() == "mx.acme-mail.test"
       assert Config.rcpt_per_session() == 4
       assert Config.domain_interval_s() == 30
       assert Config.idle_poll_s() == 5
@@ -232,7 +232,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
 
   describe "what the settings form checks with" do
     test "usable_sender_address/1 normalises an address and refuses placeholders" do
-      assert Config.usable_sender_address("Verify@HydroForce.EE") == {:ok, "Verify@hydroforce.ee"}
+      assert Config.usable_sender_address("Verify@Acme-Mail.TEST") ==
+               {:ok, "Verify@acme-mail.test"}
 
       for bad <- ["verify", "noreply@localhost", "x@example.com", "x@host", "", nil, 5] do
         assert Config.usable_sender_address(bad) == :error, inspect(bad)
@@ -240,7 +241,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
     end
 
     test "helo_name?/1 takes host names and address literals, nothing else" do
-      assert Config.helo_name?("mx.hydroforce.ee")
+      assert Config.helo_name?("mx.acme-mail.test")
       assert Config.helo_name?("[203.0.113.9]")
 
       for bad <- ["", "mx host", "mx.ee\r\nDATA", "-mx.ee", "a..b", nil, 5] do

@@ -73,7 +73,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
       end
 
       for not_free <- [
-            "hydroforce.ee",
+            "acme-mail.test",
             "example.com",
             "yahoo.evil.example.com",
             "yahoo.evil.com",

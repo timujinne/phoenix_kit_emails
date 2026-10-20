@@ -138,9 +138,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetupTest do
 
   describe "command/2" do
     test "is the line of the instruction with the site and the token filled in" do
-      assert RunnerSetup.command("https://hydroforce.ee", "pk_ab12cd34_secret") ==
+      assert RunnerSetup.command("https://acme-mail.test", "pk_ab12cd34_secret") ==
                "powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 " <>
-                 "-Server https://hydroforce.ee -Token pk_ab12cd34_secret"
+                 "-Server https://acme-mail.test -Token pk_ab12cd34_secret"
     end
   end
 end

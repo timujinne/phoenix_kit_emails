@@ -20,8 +20,8 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
     `port25`, `helo_auto`: what the runner says about itself). Answer:
 
         %{"sessions" => [%{"lease", "domain", "mx", "probe", "rcpt" => [%{"id", "email"}]}],
-          "seen_ip" => "165.118.126.194",
-          "settings" => %{"mail_from" => "verify@hydroforce.ee" | nil, "helo" => nil,
+          "seen_ip" => "203.0.113.50",
+          "settings" => %{"mail_from" => "verify@acme-mail.test" | nil, "helo" => nil,
                           "connect_timeout_s", "read_timeout_s", "max_report",
                           "idle_poll_s", "selftest_host"},
           "paused" => nil | %{"reason", "until"},

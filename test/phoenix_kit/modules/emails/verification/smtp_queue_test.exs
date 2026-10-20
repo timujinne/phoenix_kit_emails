@@ -286,7 +286,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       assert {:ok, []} = SmtpQueue.claim(runner, 4, @now)
       assert Repo.aggregate(from(i in Item, where: i.state == "queued"), :count) == 1
 
-      put("email_verify_smtp_mail_from", "verify@hydroforce.ee")
+      put("email_verify_smtp_mail_from", "verify@acme-mail.test")
       assert [_] = claim!(runner)
     end
 

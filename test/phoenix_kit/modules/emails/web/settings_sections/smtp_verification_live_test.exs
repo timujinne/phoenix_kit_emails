@@ -22,7 +22,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
 
   setup do
     setup_api()
-    put_setting("from_email", "mail@hydroforce.ee")
+    put_setting("from_email", "mail@acme-mail.test")
     put_setting("email_verify_smtp_mode", "runner")
     start_supervised!(LiveEndpoint)
 
@@ -31,7 +31,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
 
     Runners.heartbeat(
       %{key_uuid: key.uuid, ip: "203.0.113.7"},
-      %{name: "NEWSERVER", port25: "open", version: "1.0.0"},
+      %{name: "WORKSTATION", port25: "open", version: "1.0.0"},
       DateTime.add(DateTime.utc_now(), -5)
     )
 
@@ -60,8 +60,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
     settings_form(view)
     |> render_change(%{
       "smtp" => %{
-        "mail_from" => "verify@hydroforce.ee",
-        "helo" => "mx.hydroforce.ee",
+        "mail_from" => "verify@acme-mail.test",
+        "helo" => "mx.acme-mail.test",
         "rcpt_per_session" => "7"
       }
     })
@@ -70,8 +70,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
     send(view.pid, :ignored)
     html = tick(view)
 
-    assert html =~ ~s(value="verify@hydroforce.ee")
-    assert html =~ ~s(value="mx.hydroforce.ee")
+    assert html =~ ~s(value="verify@acme-mail.test")
+    assert html =~ ~s(value="mx.acme-mail.test")
     assert html =~ ~s(name="smtp[rcpt_per_session]")
 
     assert html =~
@@ -79,14 +79,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
   end
 
   test "an announcement of the runner keeps the typed values too", %{view: view} do
-    settings_form(view) |> render_change(%{"smtp" => %{"mail_from" => "verify@hydroforce.ee"}})
+    settings_form(view) |> render_change(%{"smtp" => %{"mail_from" => "verify@acme-mail.test"}})
 
     Phoenix.LiveView.send_update(view.pid, SmtpVerification,
       id: "smtp-verification",
       relay_event: :runner
     )
 
-    assert render(view) =~ ~s(value="verify@hydroforce.ee")
+    assert render(view) =~ ~s(value="verify@acme-mail.test")
   end
 
   test "the Advanced block stays open across the live updates", %{view: view} do

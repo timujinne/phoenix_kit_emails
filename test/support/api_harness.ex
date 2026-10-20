@@ -91,7 +91,7 @@ defmodule PhoenixKitEmails.Test.ApiHarness do
     {:ok, user} =
       Auth.register_user(
         %{
-          email: "runner_owner_#{System.unique_integer([:positive])}@hydroforce.ee",
+          email: "runner_owner_#{System.unique_integer([:positive])}@acme-mail.test",
           password: "ValidPassword123!"
         },
         nil

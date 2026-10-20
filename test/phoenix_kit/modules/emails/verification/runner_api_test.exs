@@ -37,8 +37,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
   setup do
     setup_api()
     put_setting("email_verify_smtp_mode", "runner")
-    put_setting("from_email", "mail@hydroforce.ee")
-    FakeResolver.put("hydroforce.ee", mx: {:ok, [%{host: "mx.hydroforce.ee", pref: 10}]})
+    put_setting("from_email", "mail@acme-mail.test")
+    FakeResolver.put("acme-mail.test", mx: {:ok, [%{host: "mx.acme-mail.test", pref: 10}]})
 
     {owner, role} = user_with(["emails"])
     {key, token} = issue_key(owner)
@@ -149,11 +149,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
                  %{
                    "max_sessions" => 4,
                    "runner" => %{
-                     "name" => "NEWSERVER",
+                     "name" => "WORKSTATION",
                      "version" => "1.0.0",
                      "os" => "Windows 10",
                      "port25" => "open",
-                     "helo_auto" => "165-118-126-194.sta.estpak.ee"
+                     "helo_auto" => "host-203-0-113-50.example.net"
                    }
                  },
                  ip: "203.0.113.50"
@@ -185,13 +185,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
       assert body["min_version"] == "1.0.0"
 
       assert body["settings"] == %{
-               "mail_from" => "mail@hydroforce.ee",
+               "mail_from" => "mail@acme-mail.test",
                "helo" => nil,
                "connect_timeout_s" => 20,
                "read_timeout_s" => 30,
                "max_report" => 50,
                "idle_poll_s" => 30,
-               "selftest_host" => "mx.hydroforce.ee"
+               "selftest_host" => "mx.acme-mail.test"
              }
     end
 
@@ -202,7 +202,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
                  %{
                    "max_sessions" => 0,
                    "runner" => %{
-                     "name" => "NEWSERVER",
+                     "name" => "WORKSTATION",
                      "version" => "1.0.0",
                      "os" => "Windows",
                      "port25" => "blocked",
@@ -213,7 +213,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
                )
 
       runner = Repo.get_by!(Runner, api_key_uuid: key.uuid)
-      assert runner.name == "NEWSERVER"
+      assert runner.name == "WORKSTATION"
       assert runner.version == "1.0.0"
       assert runner.os == "Windows"
       assert runner.port25 == "blocked"
@@ -225,7 +225,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
       # A second claim, without the details, keeps what it knows.
       assert {200, _} = claim(token, %{})
       assert Repo.aggregate(Runner, :count) == 1
-      assert Repo.get_by!(Runner, api_key_uuid: key.uuid).name == "NEWSERVER"
+      assert Repo.get_by!(Runner, api_key_uuid: key.uuid).name == "WORKSTATION"
     end
 
     test "a claim with helo_auto null clears the stored name, one without keeps it", %{
@@ -284,14 +284,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
     end
 
     test "the override and the helo are handed to the runner", %{token: token} do
-      put_setting("email_verify_smtp_mail_from", "verify@hydroforce.ee")
-      put_setting("email_verify_smtp_helo", "mail.hydroforce.ee")
-      put_setting("email_verify_smtp_selftest_host", "mx9.hydroforce.ee")
+      put_setting("email_verify_smtp_mail_from", "verify@acme-mail.test")
+      put_setting("email_verify_smtp_helo", "mail.acme-mail.test")
+      put_setting("email_verify_smtp_selftest_host", "mx9.acme-mail.test")
 
       assert {200, %{"settings" => settings}} = claim(token)
-      assert settings["mail_from"] == "verify@hydroforce.ee"
-      assert settings["helo"] == "mail.hydroforce.ee"
-      assert settings["selftest_host"] == "mx9.hydroforce.ee"
+      assert settings["mail_from"] == "verify@acme-mail.test"
+      assert settings["helo"] == "mail.acme-mail.test"
+      assert settings["selftest_host"] == "mx9.acme-mail.test"
     end
 
     test "a helo that is not a plain host name is not handed to the runner", %{token: token} do

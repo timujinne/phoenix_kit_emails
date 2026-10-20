@@ -47,12 +47,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettingsTest do
 
     test "reads back what the getters read" do
       put("email_verify_domain_block_window_min", "30")
-      put("email_verify_smtp_mail_from", "verify@hydroforce.ee")
+      put("email_verify_smtp_mail_from", "verify@acme-mail.test")
 
       current = SmtpSettings.current()
 
       assert current.numbers["domain_block_window_min"] == 30
-      assert current.mail_from == "verify@hydroforce.ee"
+      assert current.mail_from == "verify@acme-mail.test"
     end
 
     test "numbers lists the fields in the order of the form" do
@@ -123,50 +123,50 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettingsTest do
         SmtpSettings.current()
         |> form()
         |> Map.merge(%{
-          "mail_from" => " Verify@HydroForce.EE ",
-          "helo" => "mx.hydroforce.ee",
+          "mail_from" => " Verify@Acme-Mail.TEST ",
+          "helo" => "mx.acme-mail.test",
           "rcpt_per_session" => "20",
           "domain_pause_min" => " 15 "
         })
 
       assert {:ok, _} = SmtpSettings.save(params)
 
-      assert Config.smtp_mail_from() == {"Verify@hydroforce.ee", :override}
-      assert Config.smtp_helo() == "mx.hydroforce.ee"
+      assert Config.smtp_mail_from() == {"Verify@acme-mail.test", :override}
+      assert Config.smtp_helo() == "mx.acme-mail.test"
       assert Config.rcpt_per_session() == 20
       assert Config.domain_pause_s() == 15 * 60
     end
 
     test "empty sender and HELO clear the overrides" do
-      put("from_email", "mail@hydroforce.ee")
-      put("email_verify_smtp_mail_from", "verify@hydroforce.ee")
-      put("email_verify_smtp_helo", "mx.hydroforce.ee")
+      put("from_email", "mail@acme-mail.test")
+      put("email_verify_smtp_mail_from", "verify@acme-mail.test")
+      put("email_verify_smtp_helo", "mx.acme-mail.test")
 
       params = SmtpSettings.current() |> form() |> Map.merge(%{"mail_from" => "", "helo" => ""})
       assert {:ok, _} = SmtpSettings.save(params)
 
-      assert Config.smtp_mail_from() == {"mail@hydroforce.ee", :site_sender}
+      assert Config.smtp_mail_from() == {"mail@acme-mail.test", :site_sender}
       assert Config.smtp_helo() == nil
     end
 
     test "the self-test host is stored as given, empty clears it" do
-      params = SmtpSettings.current() |> form() |> Map.put("selftest_host", "mx.hydroforce.ee")
+      params = SmtpSettings.current() |> form() |> Map.put("selftest_host", "mx.acme-mail.test")
       assert {:ok, _} = SmtpSettings.save(params)
-      assert Config.smtp_selftest_host_setting() == "mx.hydroforce.ee"
+      assert Config.smtp_selftest_host_setting() == "mx.acme-mail.test"
 
       assert {:ok, _} = SmtpSettings.save(Map.put(params, "selftest_host", ""))
       assert Config.smtp_selftest_host_setting() == nil
     end
 
     test "a sender that is not an address is refused, a placeholder too" do
-      for bad <- ["verify", "verify@", "a b@hydroforce.ee", "noreply@localhost", "x@example.com"] do
+      for bad <- ["verify", "verify@", "a b@acme-mail.test", "noreply@localhost", "x@example.com"] do
         params = SmtpSettings.current() |> form() |> Map.put("mail_from", bad)
         assert {:error, %{"mail_from" => :address}} = SmtpSettings.save(params), bad
       end
     end
 
     test "a HELO name with a line break or a space is refused" do
-      for bad <- ["mx.hydroforce.ee\r\nDATA", "mx host", "-mx.ee", "a..b"] do
+      for bad <- ["mx.acme-mail.test\r\nDATA", "mx host", "-mx.ee", "a..b"] do
         params = SmtpSettings.current() |> form() |> Map.put("helo", bad)
         assert {:error, %{"helo" => :helo}} = SmtpSettings.save(params), inspect(bad)
       end
@@ -192,16 +192,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettingsTest do
     end
 
     test "nothing is written when one field is wrong" do
-      put("email_verify_smtp_helo", "keep.hydroforce.ee")
+      put("email_verify_smtp_helo", "keep.acme-mail.test")
 
       params =
         SmtpSettings.current()
         |> form()
-        |> Map.merge(%{"helo" => "new.hydroforce.ee", "smtp_lease_s" => "0"})
+        |> Map.merge(%{"helo" => "new.acme-mail.test", "smtp_lease_s" => "0"})
 
       assert {:error, errors} = SmtpSettings.save(params)
       assert Map.keys(errors) == ["smtp_lease_s"]
-      assert Config.smtp_helo() == "keep.hydroforce.ee"
+      assert Config.smtp_helo() == "keep.acme-mail.test"
     end
 
     test "reports every wrong field at once" do
@@ -217,10 +217,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettingsTest do
     test "a field missing from the params keeps its value" do
       put("email_verify_smtp_lease_s", "120")
 
-      assert {:ok, _} = SmtpSettings.save(%{"mail_from" => "verify@hydroforce.ee"})
+      assert {:ok, _} = SmtpSettings.save(%{"mail_from" => "verify@acme-mail.test"})
 
       assert Config.smtp_lease_s() == 120
-      assert Config.smtp_mail_from() == {"verify@hydroforce.ee", :override}
+      assert Config.smtp_mail_from() == {"verify@acme-mail.test", :override}
     end
 
     test "non-string values are refused instead of raising" do
