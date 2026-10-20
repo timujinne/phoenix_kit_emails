@@ -342,6 +342,7 @@ check is off by default (`email_verify_smtp_mode` is `off`). With the mode `runn
 the server never opens a connection to port 25 itself: it queues the addresses and
 a runner on the user's own machine, authenticated by an API key of core's machine
 API (core 2.63.0 and later), takes the work and reports what the mail hosts said.
+See [docs/smtp-runner.md](docs/smtp-runner.md) for the runner script.
 
 ## Development
 
