@@ -803,14 +803,23 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       end
     end
   end
+
   describe "V5 - the SMTP queue and the runners" do
     test "V5 adds the queue, the runners and the awaiting counter, and stamps V5" do
       v4 = MapSet.new(Migrations.up_statements("public", 4))
 
       added = Migrations.up_statements("public", 5) |> Enum.reject(&MapSet.member?(v4, &1))
 
-      assert Enum.any?(added, &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_verify_smtp_queue ("))
-      assert Enum.any?(added, &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_verify_runners ("))
+      assert Enum.any?(
+               added,
+               &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_verify_smtp_queue (")
+             )
+
+      assert Enum.any?(
+               added,
+               &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_verify_runners (")
+             )
+
       assert Enum.any?(added, &(&1 =~ ~s("awaiting_smtp" integer DEFAULT 0 NOT NULL)))
       assert Enum.any?(added, &(&1 =~ "pke_schema:5"))
     end

@@ -36,7 +36,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
     end
 
     test "the old boolean switch does nothing any more" do
-      Settings.update_boolean_setting_with_module("email_verify_smtp_enabled", true, "email_system")
+      Settings.update_boolean_setting_with_module(
+        "email_verify_smtp_enabled",
+        true,
+        "email_system"
+      )
+
       assert Config.smtp_mode() == "off"
     end
 
