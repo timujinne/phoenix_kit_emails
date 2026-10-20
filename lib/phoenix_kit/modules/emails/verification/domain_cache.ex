@@ -3,9 +3,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.DomainCache do
   The persistent per-domain cache (`phoenix_kit_email_verify_domains`).
 
   One row per domain; every cached fact has its own timestamp and so its own
-  TTL (`Config.ttl_seconds/1`). In this stage only the MX answer is used - the
-  catch-all, greylist and throttling columns belong to the SMTP stage and are
-  left untouched.
+  TTL (`Config.ttl_seconds/1`). The pipeline writes the MX answer; the SMTP queue
+  writes the rest (`record_session/3`): the catch-all fact, the greylist note, the
+  time of the last session and the block counter that pauses a domain.
 
   The `mx` column holds either `%{"hosts" => [...], "implicit" => bool}` or,
   for a definitive negative answer, `%{"error" => "nxdomain"}` (also
@@ -15,6 +15,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.DomainCache do
 
   use Ecto.Schema
   use PhoenixKit.SchemaPrefix
+
+  import Ecto.Query, only: [from: 2]
 
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Resolver
@@ -82,6 +84,71 @@ defmodule PhoenixKit.Modules.Emails.Verification.DomainCache do
   end
 
   def store_mx(_domain, {:error, _transient}, _now), do: :ok
+
+  @doc """
+  The row of `domain`, or `nil`.
+  """
+  @spec get(String.t()) :: t() | nil
+  def get(domain), do: repo().get(__MODULE__, domain)
+
+  @doc """
+  Writes what one SMTP session learned about `domain`: the time of the session
+  (spacing the next one), the catch-all fact when the session proved one, the
+  greylist note, and the block counter - `Config.domain_block_threshold/0` blocks
+  within `Config.domain_block_window_s/0` pause the domain for
+  `Config.domain_pause_s/0`.
+
+  `facts` is the `domain` map of `Verification.Classifier`. The row is locked, so
+  call it inside the transaction that settles the session. Returns whether the
+  domain is paused now.
+  """
+  @spec record_session(String.t(), map(), DateTime.t()) :: %{paused: boolean()}
+  def record_session(domain, facts, now) do
+    row = locked(domain) || %__MODULE__{domain: domain, blocks: %{}}
+    {blocks, paused_until, paused?} = count_block(row, facts.blocked, now)
+
+    fields =
+      %{last_smtp_at: now, blocks: blocks, paused_until: paused_until}
+      |> put_unless_nil(:catch_all, facts.catch_all)
+      |> put_unless_nil(:catch_all_checked_at, if(is_nil(facts.catch_all), do: nil, else: now))
+      |> put_unless_nil(:grey_message, truncate(facts.grey_message))
+      |> put_unless_nil(:grey_at, if(is_nil(facts.grey_message), do: nil, else: now))
+
+    :ok = upsert(domain, fields)
+    %{paused: paused?}
+  end
+
+  defp locked(domain) do
+    repo().one(from(d in __MODULE__, where: d.domain == ^domain, lock: "FOR UPDATE"))
+  end
+
+  defp count_block(row, false, _now), do: {row.blocks || %{}, row.paused_until, false}
+
+  defp count_block(row, true, now) do
+    cutoff = DateTime.add(now, -Config.domain_block_window_s(), :second)
+
+    recent =
+      (get_in(row.blocks || %{}, ["recent"]) || [])
+      |> Enum.filter(fn stamp ->
+        case DateTime.from_iso8601(stamp) do
+          {:ok, at, _offset} -> DateTime.compare(at, cutoff) == :gt
+          _ -> false
+        end
+      end)
+      |> Kernel.++([DateTime.to_iso8601(now)])
+
+    if length(recent) >= Config.domain_block_threshold() do
+      {%{"recent" => []}, DateTime.add(now, Config.domain_pause_s(), :second), true}
+    else
+      {%{"recent" => recent}, row.paused_until, false}
+    end
+  end
+
+  defp put_unless_nil(map, _key, nil), do: map
+  defp put_unless_nil(map, key, value), do: Map.put(map, key, value)
+
+  defp truncate(nil), do: nil
+  defp truncate(text), do: String.slice(text, 0, 512)
 
   @doc """
   Whether the fact of the given `kind` on `row` is still within its TTL.

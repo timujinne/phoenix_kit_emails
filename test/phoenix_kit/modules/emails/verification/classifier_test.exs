@@ -46,7 +46,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
 
       assert verdict.action == :final
       assert final(verdict) == {"valid", "smtp_ok", "smtp", false}
-      assert result.domain == %{catch_all: false, blocked: false, grey_message: nil}
+      assert result.domain == %{catch_all: nil, blocked: false, grey_message: nil}
       refute result.failed
     end
 
@@ -64,13 +64,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
     test "250 on a cached catch-all domain is not_sure / catch_all" do
       {verdict, result} = one(250, "ok", catch_all: true)
       assert final(verdict) == {"not_sure", "catch_all", "smtp", true}
-      assert result.domain.catch_all == true
+      assert result.domain.catch_all == nil
     end
   end
 
   describe "the catch-all probe" do
     test "a probe the host accepts makes the domain catch-all and the address not_sure" do
-      session = session([%{id: "a", code: 250, text: "ok"}], steps: [@banner, @ehlo, @mail, probe(250)])
+      session =
+        session([%{id: "a", code: 250, text: "ok"}], steps: [@banner, @ehlo, @mail, probe(250)])
+
       result = classify(session, ["a"], catch_all: nil)
 
       assert final(result.verdicts["a"]) == {"not_sure", "catch_all", "smtp", true}
@@ -111,13 +113,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
       assert final(result.verdicts["a"]) == {"valid", "smtp_ok", "smtp", nil}
     end
 
-    test "a temporary refusal of the probe proves nothing either, the cached value stays" do
+    test "a temporary refusal of the probe proves nothing either, the cached value still decides" do
       session =
         session([%{id: "a", code: 250, text: "ok"}],
           steps: [@banner, @ehlo, @mail, probe(450, "try again later")]
         )
 
-      assert classify(session, ["a"], catch_all: false).domain.catch_all == false
+      cached = classify(session, ["a"], catch_all: true)
+      assert cached.domain.catch_all == nil
+      assert cached.verdicts["a"].reason == "catch_all"
       assert classify(session, ["a"]).domain.catch_all == nil
     end
   end
@@ -219,7 +223,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
 
       assert verdict.action == :retry
       assert verdict.kind == :grey
-      assert verdict.exhausted == %{status: "temp", reason: "greylisted", level: "smtp", catch_all: nil}
+
+      assert verdict.exhausted == %{
+               status: "temp",
+               reason: "greylisted",
+               level: "smtp",
+               catch_all: nil
+             }
+
       assert result.domain.grey_message == "4.7.1 Greylisted, please try again later"
       refute result.domain.blocked
       refute result.failed

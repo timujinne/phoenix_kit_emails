@@ -55,6 +55,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
         failed: boolean
       }
 
+  `domain.catch_all` is what this session's probe proved (`nil` when there was no
+  probe or it proved nothing): the cached fact passed in with `:catch_all` shapes
+  the verdicts but is not echoed back, so the queue refreshes the domain's catch-all
+  timestamp only when a probe really ran.
+
   A verdict is either final
 
       %{action: :final, status: "valid", reason: "smtp_ok", level: "smtp", catch_all: false}
@@ -134,7 +139,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
     case session_fault(session.outcome, steps) do
       {:all, verdict, failure} ->
         verdicts = Map.new(ids, &{&1, verdict})
-        result(verdicts, cached, failure == :blocked, failure != nil)
+        result(verdicts, nil, failure == :blocked, failure != nil)
 
       :none ->
         probe = probe_result(steps["rcpt_probe"], ctx)
@@ -142,14 +147,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
         verdicts = Map.new(ids, &{&1, address(rcpt[&1], session.outcome, catch_all, ctx)})
         blocked? = Enum.any?(verdicts, fn {_id, verdict} -> blocked?(verdict) end)
 
-        result(verdicts, catch_all, blocked?, blocked? or session.outcome == "connect_failed")
+        result(verdicts, probe, blocked?, blocked? or session.outcome == "connect_failed")
     end
   end
 
-  defp result(verdicts, catch_all, blocked?, failed?) do
+  defp result(verdicts, probe, blocked?, failed?) do
     %{
       verdicts: verdicts,
-      domain: %{catch_all: catch_all, blocked: blocked?, grey_message: grey_message(verdicts)},
+      domain: %{catch_all: probe, blocked: blocked?, grey_message: grey_message(verdicts)},
       failed: failed?
     }
   end

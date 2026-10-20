@@ -174,7 +174,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   defp checked_as(%{check_local: local, parts: %{domain: domain}}),
     do: %{"checked_as" => local <> "@" <> domain}
 
-  defp resolve_mx(domain, opts) do
+  @doc false
+  # The MX answer for `domain`: the persistent cache, then the resolver. Also used by
+  # the SMTP queue when it hands a domain to a runner.
+  @spec resolve_mx(String.t(), keyword()) ::
+          {{:ok, Resolver.resolution()} | {:error, Resolver.resolve_error()}, String.t()}
+  def resolve_mx(domain, opts \\ []) do
     now = UtilsDate.utc_now()
 
     case DomainCache.fetch_mx(domain, now) do

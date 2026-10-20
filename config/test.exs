@@ -74,3 +74,8 @@ config :phoenix_kit_emails,
 
 # No pause before a negative DNS answer is confirmed: tests script the answers.
 config :phoenix_kit_emails, verification_confirm_pause_ms: 0
+
+# No test may reach the real DNS by accident: unless a test hands a resolver to the
+# call itself, the answers come from the scripted fake (an unscripted domain is
+# `:nxdomain`). The one live-DNS test is tagged `:external`.
+config :phoenix_kit_emails, verification_resolver: PhoenixKitEmails.Test.FakeResolver

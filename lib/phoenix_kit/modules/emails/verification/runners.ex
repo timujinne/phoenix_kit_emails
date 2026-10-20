@@ -1,0 +1,365 @@
+defmodule PhoenixKit.Modules.Emails.Verification.Runners do
+  @moduledoc """
+  The runners that connect to this site: who they are, whether they are alive, and
+  the autopause that protects the IP of the machine they run on.
+
+  A runner is identified by the API key it authenticates with (one row per key).
+  Every `claim` is a heartbeat (`heartbeat/3`); every settled session feeds the
+  autopause (`record_session/6`): five failed sessions in a row (a refused
+  connection, or a block) on at least three different domains pause the runner for
+  an hour, which means a closed port 25 or an IP on a blocklist. While paused, `claim`
+  hands out nothing; `clear_pause/0` lifts it.
+
+  `status/0` is what the settings UI shows. Changes are announced on the PubSub topic
+  `"email_verify:runner"` as `{:email_verify_runner, %{event:, runner_uuid:}}` - a
+  heartbeat at most every 5 seconds, a pause or its end at once - and the UI
+  re-reads `status/0` on each.
+  """
+
+  import Ecto.Query
+  require Logger
+
+  alias PhoenixKit.Modules.Emails.Verification.Config
+  alias PhoenixKit.Modules.Emails.Verification.Pipeline
+  alias PhoenixKit.Modules.Emails.Verification.Runner
+  alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
+  alias PhoenixKit.PubSub.Manager, as: PubSubManager
+  alias PhoenixKit.Utils.Date, as: UtilsDate
+
+  @topic "email_verify:runner"
+  @broadcast_gap_s 5
+  @online_factor 3
+
+  @type info :: %{
+          optional(:name) => String.t() | nil,
+          optional(:version) => String.t() | nil,
+          optional(:os) => String.t() | nil,
+          optional(:helo_auto) => String.t() | nil,
+          optional(:port25) => String.t() | nil
+        }
+
+  ## --- PubSub ---
+
+  @doc "The PubSub topic of runner changes: `\"email_verify:runner\"`."
+  @spec topic() :: String.t()
+  def topic, do: @topic
+
+  @doc "Subscribes the calling process to `topic/0`."
+  @spec subscribe() :: :ok | {:error, term()}
+  def subscribe, do: PubSubManager.subscribe(@topic)
+
+  @doc false
+  # Best effort: a broadcast never fails the caller.
+  @spec broadcast(map()) :: :ok
+  def broadcast(event) do
+    PubSubManager.broadcast(@topic, {:email_verify_runner, event})
+    :ok
+  rescue
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
+  end
+
+  ## --- Heartbeat ---
+
+  @doc """
+  Records that the runner behind `actor` (`%{key_uuid:, ip:}`, a
+  `PhoenixKit.API.Actor`) is alive and says `info`; creates the row on first contact.
+  Fields the runner did not send keep their value. Returns the row.
+  """
+  @spec heartbeat(map(), info(), DateTime.t()) :: Runner.t()
+  def heartbeat(%{key_uuid: key_uuid} = actor, info \\ %{}, now \\ UtilsDate.utc_now())
+      when is_binary(key_uuid) do
+    previous = repo().get_by(Runner, api_key_uuid: key_uuid)
+    port25 = valid_port25(Map.get(info, :port25))
+
+    fields =
+      [
+        name: clip(Map.get(info, :name), 255),
+        version: clip(Map.get(info, :version), 32),
+        os: clip(Map.get(info, :os), 255),
+        helo_auto: clip(Map.get(info, :helo_auto), 255),
+        public_ip: clip(Map.get(actor, :ip), 45),
+        port25: port25,
+        port25_checked_at: if(port25, do: now),
+        last_seen_at: now,
+        updated_at: now
+      ]
+      |> Enum.reject(fn {_field, value} -> is_nil(value) end)
+
+    {:ok, runner} =
+      repo().insert(struct(Runner, [api_key_uuid: key_uuid] ++ fields),
+        on_conflict: [set: fields],
+        conflict_target: :api_key_uuid,
+        returning: true
+      )
+
+    if announce?(previous, runner, now),
+      do: broadcast(%{event: :heartbeat, runner_uuid: runner.uuid})
+
+    runner
+  end
+
+  # First contact, a changed port-25 finding, or the last announcement older than the gap.
+  defp announce?(nil, _runner, _now), do: true
+
+  defp announce?(previous, runner, now) do
+    previous.port25 != runner.port25 or
+      is_nil(previous.last_seen_at) or
+      DateTime.diff(now, previous.last_seen_at, :second) >= @broadcast_gap_s
+  end
+
+  defp valid_port25(value) when is_binary(value) do
+    if value in Runner.port25_values(), do: value
+  end
+
+  defp valid_port25(_value), do: nil
+
+  defp clip(value, limit) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      text -> String.slice(text, 0, limit)
+    end
+  end
+
+  defp clip(_value, _limit), do: nil
+
+  ## --- Autopause ---
+
+  @doc """
+  Counts one settled session against `claimant` and returns the events to announce
+  (after the surrounding transaction has committed).
+
+  A session that failed (`classification.failed`: the connection was refused, or the
+  host blocked it) adds to the streak and remembers its domain; a clean answered
+  session ends the streak; a timeout or a reset changes nothing. When the streak
+  reaches `Config.runner_fail_sessions/0` on at least `Config.runner_fail_domains/0`
+  distinct domains the runner is paused for `Config.runner_pause_s/0`.
+
+  `:local` (the built-in runner) has no row and no autopause.
+  """
+  @spec record_session(term(), String.t(), map(), String.t(), non_neg_integer(), DateTime.t()) ::
+          [map()]
+  def record_session(%Runner{uuid: uuid}, domain, classification, outcome, settled, now) do
+    runner = repo().one(from(r in Runner, where: r.uuid == ^uuid, lock: "FOR UPDATE"))
+
+    {streak, domains, last_error} = streak(runner, domain, classification, outcome)
+
+    pause? =
+      streak >= Config.runner_fail_sessions() and length(domains) >= Config.runner_fail_domains()
+
+    changes =
+      [
+        jobs_done: runner.jobs_done + settled,
+        fail_streak: if(pause?, do: 0, else: streak),
+        fail_domains: if(pause?, do: [], else: domains),
+        last_error: last_error,
+        updated_at: now
+      ] ++ pause_changes(pause?, streak, domains, now)
+
+    from(r in Runner, where: r.uuid == ^uuid) |> repo().update_all(set: changes)
+
+    if pause?, do: [%{event: :paused, runner_uuid: uuid}], else: []
+  end
+
+  def record_session(_claimant, _domain, _classification, _outcome, _settled, _now), do: []
+
+  defp streak(runner, domain, %{failed: true}, outcome) do
+    cause = if outcome == "connect_failed", do: "connect_failed", else: "smtp_blocked"
+
+    {runner.fail_streak + 1, Enum.uniq(runner.fail_domains ++ [domain]), "#{cause} at #{domain}"}
+  end
+
+  defp streak(_runner, _domain, _classification, "answered"), do: {0, [], nil}
+
+  defp streak(runner, _domain, _classification, _outcome),
+    do: {runner.fail_streak, runner.fail_domains, runner.last_error}
+
+  defp pause_changes(false, _streak, _domains, _now), do: []
+
+  defp pause_changes(true, streak, domains, now) do
+    [
+      paused_until: DateTime.add(now, Config.runner_pause_s(), :second),
+      pause_reason:
+        "#{streak} sessions in a row failed on #{length(domains)} domains " <>
+          "(port 25 closed, or this IP is blocked)"
+    ]
+  end
+
+  @doc """
+  Lifts the autopause of every runner and forgets the streak. `{:ok, n}` runners were
+  paused.
+  """
+  @spec clear_pause() :: {:ok, non_neg_integer()}
+  def clear_pause do
+    now = UtilsDate.utc_now()
+
+    {count, _} =
+      from(r in Runner, where: not is_nil(r.paused_until) or r.fail_streak > 0)
+      |> repo().update_all(
+        set: [
+          paused_until: nil,
+          pause_reason: nil,
+          fail_streak: 0,
+          fail_domains: [],
+          updated_at: now
+        ]
+      )
+
+    if count > 0, do: broadcast(%{event: :resumed, runner_uuid: nil})
+    {:ok, count}
+  end
+
+  ## --- Status ---
+
+  @doc """
+  What the settings UI shows about the SMTP runner.
+
+    * `:mode` - the stored mode; `:api_available` - whether this core has the
+      machine API a runner needs
+    * `:state` - `:never_connected`, `:online` (seen within three times
+      `idle_poll_s`) or `:offline`
+    * `:runner` - the latest runner's row as a map (`nil` before any contact)
+    * `:port25_blocked`, `:paused` (`%{reason:, until:}` or `nil`)
+    * `:mail_from`, `:mail_from_source`, `:mail_from_missing`
+    * `:owner` - whose key the runner works with: `nil`, or `%{key_uuid:,
+      key_name:, user_uuid:, email:, name:, active:, emails_permission:, warning:}`;
+      `warning` is `nil`, `:key_revoked`, `:key_expired`, `:owner_inactive` or
+      `:no_emails_permission` (the runner will stop, issue a new token)
+    * `:queue` - `%{queued:, leased:}`
+  """
+  @spec status(DateTime.t()) :: map()
+  def status(now \\ UtilsDate.utc_now()) do
+    runner = latest()
+    {mail_from, source} = Config.smtp_mail_from()
+
+    %{
+      mode: Config.smtp_mode_setting(),
+      api_available: Config.machine_api_available?(),
+      state: state(runner, now),
+      runner: runner && Map.take(runner, runner_fields()),
+      port25_blocked: match?(%Runner{port25: "blocked"}, runner),
+      paused: paused(runner, now),
+      mail_from: mail_from,
+      mail_from_source: source,
+      mail_from_missing: is_nil(mail_from),
+      owner: runner && owner(runner),
+      queue: SmtpQueue.counts()
+    }
+  end
+
+  defp runner_fields,
+    do:
+      ~w(uuid api_key_uuid name version os public_ip helo_auto port25 port25_checked_at last_seen_at jobs_done last_error paused_until pause_reason)a
+
+  defp latest do
+    repo().one(
+      from(r in Runner,
+        order_by: [desc_nulls_last: r.last_seen_at, desc: r.inserted_at],
+        limit: 1
+      )
+    )
+  end
+
+  defp state(nil, _now), do: :never_connected
+  defp state(%Runner{last_seen_at: nil}, _now), do: :never_connected
+
+  defp state(%Runner{last_seen_at: seen}, now) do
+    if DateTime.diff(now, seen, :second) < @online_factor * Config.idle_poll_s(),
+      do: :online,
+      else: :offline
+  end
+
+  defp paused(%Runner{paused_until: %DateTime{} = until, pause_reason: reason}, now) do
+    if DateTime.compare(until, now) == :gt, do: %{reason: reason, until: until}
+  end
+
+  defp paused(_runner, _now), do: nil
+
+  @doc """
+  Why a `claim` hands out nothing, as `%{reason:, until:}`, or `nil` when the runner is
+  not paused.
+  """
+  @spec pause_of(Runner.t(), DateTime.t()) ::
+          %{reason: String.t() | nil, until: DateTime.t()} | nil
+  def pause_of(%Runner{} = runner, now), do: paused(runner, now)
+
+  ## --- The key's owner ---
+
+  defp owner(%Runner{api_key_uuid: key_uuid}) do
+    if Config.machine_api_available?(), do: key_owner(key_uuid)
+  rescue
+    _ -> nil
+  end
+
+  defp key_owner(key_uuid) do
+    alias PhoenixKit.API.Keys
+    alias PhoenixKit.Users.Auth
+    alias PhoenixKit.Users.Auth.Scope
+
+    with %{} = key <- Keys.get_key(key_uuid),
+         %{} = user <- Auth.get_user(key.user_uuid) do
+      active = user.is_active != false
+      permitted = active and Scope.can?(Scope.for_user(user, narrow: false), "emails")
+
+      %{
+        key_uuid: key.uuid,
+        key_name: key.name,
+        user_uuid: user.uuid,
+        email: user.email,
+        name:
+          [user.first_name, user.last_name] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" "),
+        active: active,
+        emails_permission: permitted,
+        warning: warning(Keys.dead_reason(key), active, permitted)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp warning(:revoked, _active, _permitted), do: :key_revoked
+  defp warning(:expired, _active, _permitted), do: :key_expired
+  defp warning(nil, false, _permitted), do: :owner_inactive
+  defp warning(nil, true, false), do: :no_emails_permission
+  defp warning(nil, true, true), do: nil
+
+  ## --- The self-test host ---
+
+  @doc """
+  The host the runner's port 25 self-test connects to: the setting
+  `email_verify_smtp_selftest_host` when set, otherwise the first mail host of the
+  `MAIL FROM` domain, otherwise of the site's own host - a server that expects
+  our traffic, never someone else's. `nil` when none can be found.
+  """
+  @spec selftest_host() :: String.t() | nil
+  def selftest_host do
+    Config.smtp_selftest_host_setting() || first_mx(mail_from_domain()) || first_mx(site_host())
+  end
+
+  defp mail_from_domain do
+    case Config.smtp_mail_from() do
+      {address, _source} when is_binary(address) -> address |> String.split("@") |> List.last()
+      _ -> nil
+    end
+  end
+
+  defp site_host do
+    PhoenixKit.Utils.Routes.base_url() |> URI.parse() |> Map.get(:host)
+  rescue
+    _ -> nil
+  end
+
+  defp first_mx(domain) when is_binary(domain) and domain != "" do
+    case Pipeline.resolve_mx(String.downcase(domain), []) do
+      {{:ok, %{hosts: [%{host: host} | _]}}, _source} -> host
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp first_mx(_domain), do: nil
+
+  defp repo, do: PhoenixKit.RepoHelper.repo()
+end

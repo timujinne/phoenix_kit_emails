@@ -10,6 +10,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
 
   ## Retries
 
+  ## SMTP
+
+  With the SMTP mode on (`email_verify_smtp_mode`), an address that passes the MX
+  step is queued for an SMTP session (`Verification.verify(email, smtp: :enqueue)`)
+  and the job does not count it: the item becomes `"awaiting_smtp"`
+  (`Batches.await_smtp/2`) and the SMTP queue finishes it when the final verdict
+  lands. The job is done; nothing waits for the runner here.
+
   A `"temp"` verdict caused by a failed DNS lookup (`"dns_error"`), or by greylisting
   (only an SMTP result can say that), is put off with `{:snooze, seconds}` instead
   of being counted: see `Verification.Retry`. Snoozing does not use up an Oban
@@ -51,11 +59,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   defp run(%Oban.Job{args: %{"batch_uuid" => batch_uuid, "email" => email}} = job) do
     with {:ok, _batch} <- open_batch(batch_uuid),
          {:ok, _item} <- pending_item(batch_uuid, email),
-         {:ok, result} <- Verification.verify(email) do
+         {:ok, result} <- Verification.verify(email, smtp: :enqueue) do
       case Retry.decide(result, snoozed(job)) do
         {:snooze, seconds} ->
           Batches.schedule_retry(batch_uuid, email, seconds)
           {:snooze, seconds}
+
+        :done when result.reason == "smtp_pending" ->
+          await(batch_uuid, email)
 
         :done ->
           finish(batch_uuid, email, result.status)
@@ -90,8 +101,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   defp pending_item(batch_uuid, email) do
     case Batches.get_item(batch_uuid, email) do
       nil -> {:cancel, :not_a_member}
-      %BatchItem{state: "done"} -> :finished
+      %BatchItem{state: state} when state in ["done", "awaiting_smtp"] -> :finished
       %BatchItem{} = item -> {:ok, item}
+    end
+  end
+
+  defp await(batch_uuid, email) do
+    case Batches.await_smtp(batch_uuid, email) do
+      {:ok, _awaiting_or_settled} -> :ok
+      {:error, :already_done} -> :ok
+      {:error, :batch_closed} -> {:cancel, :batch_cancelled}
     end
   end
 

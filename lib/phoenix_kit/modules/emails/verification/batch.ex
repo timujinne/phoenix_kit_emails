@@ -15,6 +15,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batch do
       the batch `"done"`.
     * `counts` - finished addresses by verdict status, e.g.
       `%{"not_sure" => 3, "invalid" => 1}`; a status nobody got is absent.
+    * `awaiting_smtp` - addresses that passed the MX step and wait for their SMTP
+      result. They are not in `processed` yet: an address counts as processed when
+      its final verdict lands, and the batch is `"done"` only then.
     * `started_at` / `finished_at` - when the items were laid out, and when the
       batch ended (done or cancelled).
   """
@@ -38,6 +41,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batch do
     field(:total, :integer, default: 0)
     field(:processed, :integer, default: 0)
     field(:counts, :map, default: %{})
+    field(:awaiting_smtp, :integer, default: 0)
     field(:created_by_uuid, Ecto.UUID)
     field(:started_at, :utc_datetime)
     field(:finished_at, :utc_datetime)

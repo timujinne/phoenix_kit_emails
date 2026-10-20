@@ -17,6 +17,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
        SQL (`processed + 1`, the status's entry in `counts`), so concurrent jobs
        never lose an update. The job that makes `processed == total` also
        makes the batch `"done"`.
+    4. With SMTP on, an address that passed the MX step is not finished by its job:
+       `await_smtp/2` moves its item to `"awaiting_smtp"` (counted in the batch's
+       `awaiting_smtp`, not in `processed`) and the SMTP queue finishes it later with
+       `settle_awaiting/2`, when the final verdict lands. The batch is `"done"` only
+       when every item has finished SMTP.
 
   Every change is broadcast on `batch_topic/1` as
   `{:email_verify_batch, %{uuid:, state:, processed:, total:, counts:}}`. The
@@ -43,6 +48,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   alias PhoenixKit.Modules.Emails.Verification.BatchItem
   alias PhoenixKit.Modules.Emails.Verification.BatchStartWorker
   alias PhoenixKit.Modules.Emails.Verification.Normalizer
+  alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
   alias PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -56,7 +62,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
           state: String.t(),
           processed: non_neg_integer(),
           total: non_neg_integer(),
-          counts: %{String.t() => non_neg_integer()}
+          counts: %{String.t() => non_neg_integer()},
+          awaiting_smtp: non_neg_integer()
         }
 
   ## --- Creating ---
@@ -103,11 +110,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     end)
   rescue
     error ->
-      Logger.warning("[Emails.Verification] could not start a batch: #{Exception.message(error)}")
+      Logger.warning(
+        "[Emails.Verification] could not start a batch: " <>
+          mask_addresses(Exception.message(error))
+      )
+
       {:error, error}
   catch
     :exit, reason ->
-      Logger.warning("[Emails.Verification] could not start a batch: #{inspect(reason)}")
+      Logger.warning(
+        "[Emails.Verification] could not start a batch: " <> mask_addresses(inspect(reason))
+      )
+
       {:error, reason}
   end
 
@@ -272,6 +286,102 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   end
 
   @doc """
+  Parks the item for `email` until the SMTP queue settles it: `"pending"` becomes
+  `"awaiting_smtp"` and the batch's `awaiting_smtp` goes up, together or not at all.
+  Same answers as `record_result/3`: `{:error, :already_done}` when the item is not
+  pending any more, `{:error, :batch_closed}` for a finished or cancelled batch.
+
+  The verdict may land before this runs (a fast runner); then it finds nothing to
+  finish. So the stored verdict is read again afterwards and, when it is already
+  final, the item is finished here.
+  """
+  @spec await_smtp(String.t(), String.t()) ::
+          {:ok, :awaiting | :settled} | {:error, :already_done | :batch_closed}
+  def await_smtp(batch_uuid, email) do
+    now = UtilsDate.utc_now()
+
+    outcome =
+      repo().transaction(fn ->
+        with {1, _} <- park_item(batch_uuid, email, now),
+             {1, _} <- bump_awaiting(batch_uuid, now) do
+          :ok
+        else
+          {0, _} -> repo().rollback(:rejected)
+        end
+      end)
+
+    case outcome do
+      {:ok, :ok} ->
+        settled? = settle_if_final(batch_uuid, email)
+        broadcast(batch_uuid)
+        {:ok, if(settled?, do: :settled, else: :awaiting)}
+
+      {:error, :rejected} ->
+        {:error, rejection(batch_uuid, email)}
+    end
+  end
+
+  defp park_item(batch_uuid, email, now) do
+    from(i in BatchItem,
+      where: i.batch_uuid == ^batch_uuid and i.email == ^email and i.state == "pending"
+    )
+    |> repo().update_all(set: [state: "awaiting_smtp", next_attempt_at: nil, updated_at: now])
+  end
+
+  defp bump_awaiting(batch_uuid, now) do
+    from(b in Batch, where: b.uuid == ^batch_uuid and b.state in ["queued", "running"])
+    |> repo().update_all(inc: [awaiting_smtp: 1], set: [updated_at: now])
+  end
+
+  defp settle_if_final(batch_uuid, email) do
+    case Verification.statuses_for([email]) do
+      %{^email => %{status: status, reason: reason}} when reason != "smtp_pending" ->
+        settle_item(batch_uuid, email, status)
+
+      _ ->
+        false
+    end
+  end
+
+  @doc false
+  # Finishes the items of `email` that wait for SMTP, in every batch, with `status`.
+  # For the SMTP queue, inside its transaction: it does not broadcast (the caller does,
+  # after the commit, with the batches returned) and it never rolls back, which would
+  # take the caller's transaction with it.
+  @spec settle_awaiting(String.t(), String.t()) :: [String.t()]
+  def settle_awaiting(email, status) do
+    from(i in BatchItem,
+      where: i.email == ^email and i.state == "awaiting_smtp",
+      select: i.batch_uuid
+    )
+    |> repo().all()
+    |> Enum.filter(&settle_item(&1, email, status))
+  end
+
+  # The batch row is locked first: a batch that is still open cannot close under us,
+  # so the item and the counters move together without a rollback.
+  defp settle_item(batch_uuid, email, status) do
+    now = UtilsDate.utc_now()
+
+    open =
+      from(b in Batch,
+        where:
+          b.uuid == ^batch_uuid and b.state in ["queued", "running"] and b.processed < b.total,
+        lock: "FOR UPDATE",
+        select: b.uuid
+      )
+      |> repo().one()
+
+    with true <- not is_nil(open),
+         {1, _} <- finish_item(batch_uuid, email, now, "awaiting_smtp"),
+         {1, _} <- bump(batch_uuid, status, now, 1) do
+      true
+    else
+      _ -> false
+    end
+  end
+
+  @doc """
   Counts an item whose job has failed for good as `"temp"` - no verdict was reached,
   and the batch must not wait for it forever - and stores the same `"temp"`
   verdict for the address (`Verification.record_gave_up/1`), so that
@@ -335,16 +445,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   def mask_addresses(message) when is_binary(message),
     do: Regex.replace(@address, message, &mask/1)
 
-  defp finish_item(batch_uuid, email, now) do
+  defp finish_item(batch_uuid, email, now, from_state \\ "pending") do
     from(i in BatchItem,
-      where: i.batch_uuid == ^batch_uuid and i.email == ^email and i.state == "pending"
+      where: i.batch_uuid == ^batch_uuid and i.email == ^email and i.state == ^from_state
     )
     |> repo().update_all(set: [state: "done", next_attempt_at: nil, updated_at: now])
   end
 
   # One statement: every right-hand side sees the row as it was, so `processed + 1`
   # is compared with `total` and the status counter is bumped without a read.
-  defp bump(batch_uuid, status, now) do
+  defp bump(batch_uuid, status, now, awaiting \\ 0) do
     from(b in Batch,
       where: b.uuid == ^batch_uuid and b.state in ["queued", "running"] and b.processed < b.total,
       select: b,
@@ -369,6 +479,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
               type(^now, :utc_datetime),
               b.finished_at
             ),
+          awaiting_smtp:
+            fragment("GREATEST(? - ?, 0)", b.awaiting_smtp, type(^awaiting, :integer)),
           updated_at: ^now
         ]
       ]
@@ -378,7 +490,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   defp rejection(batch_uuid, email) do
     case get_item(batch_uuid, email) do
-      %BatchItem{state: "done"} -> :already_done
+      %BatchItem{state: state} when state in ["done", "awaiting_smtp"] -> :already_done
       _ -> :batch_closed
     end
   end
@@ -448,6 +560,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     case mark_cancelled(uuid) do
       {1, [batch]} ->
         cancel_jobs(uuid)
+        SmtpQueue.cancel_for_batch(uuid)
         broadcast(batch)
         {:ok, batch}
 
@@ -539,7 +652,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   @spec snapshot(Batch.t()) :: snapshot()
   def snapshot(%Batch{} = batch) do
-    Map.take(batch, [:uuid, :state, :processed, :total, :counts])
+    Map.take(batch, [:uuid, :state, :processed, :total, :counts, :awaiting_smtp])
   end
 
   defp repo, do: PhoenixKit.RepoHelper.repo()

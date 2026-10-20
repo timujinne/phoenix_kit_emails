@@ -41,6 +41,8 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   alias PhoenixKit.Modules.Emails.Verification.Normalizer
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
   alias PhoenixKit.Modules.Emails.Verification.Result
+  alias PhoenixKit.Modules.Emails.Verification.Runners
+  alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
 
   @persisted [
     :email,
@@ -94,7 +96,11 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   answer is cached per domain either way.
 
   Options: `:force` (re-run even if a stored verdict is fresh), `:resolver`
-  (overrides the configured implementation).
+  (overrides the configured implementation), `smtp: :enqueue` (when the SMTP mode
+  is not `"off"`, an address that passes the MX step is stored as `not_sure` /
+  `smtp_pending` and put in the SMTP queue; the verdict arrives later, from the
+  queue - this function never waits for SMTP, and without the option it does not
+  queue anything).
 
   This function does not consult `enabled?/0`: with `email_verify_enabled`
   switched off it still runs and writes. Gating the feature is the caller's job
@@ -104,9 +110,20 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   def verify(email, opts \\ []) do
     case stored_fresh(email, opts) do
       %Result{} = result -> {:ok, result}
-      nil -> email |> Pipeline.run(opts) |> persist()
+      nil -> email |> Pipeline.run(opts) |> persist() |> enqueue_pending()
     end
   end
+
+  # A pending verdict is stored first, so a runner never settles an address that has
+  # no row yet; the queue deduplicates by address.
+  defp enqueue_pending({:ok, %Result{reason: "smtp_pending"} = result} = stored) do
+    case SmtpQueue.enqueue(result) do
+      {:ok, _queued} -> stored
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp enqueue_pending(other), do: other
 
   @doc """
   The stored verdicts for `emails`, keyed by the address as given.
@@ -271,6 +288,36 @@ defmodule PhoenixKit.Modules.Emails.Verification do
     _ -> false
   end
 
+  ## --- The SMTP stage ---
+
+  @doc """
+  The SMTP mode in effect: `"off"` (default), `"runner"` or `"local"`. `"runner"`
+  reads `"off"` on a core without the machine API. See `Verification.Config`.
+  """
+  @spec smtp_mode() :: String.t()
+  defdelegate smtp_mode, to: Config
+
+  @doc """
+  What the settings UI shows about the SMTP runner: whether it is online, its
+  port-25 finding, a pause, the `MAIL FROM` in force, whose key it works with and
+  whether that key still works, the queue length. See `Verification.Runners.status/1`.
+  """
+  @spec runner_status() :: map()
+  def runner_status, do: Runners.status()
+
+  @doc """
+  Subscribes the calling process to runner changes: messages
+  `{:email_verify_runner, %{event:, runner_uuid:}}` on the topic
+  `"email_verify:runner"` (a heartbeat at most every 5 seconds, a pause or its end
+  at once). Re-read `runner_status/0` on each.
+  """
+  @spec subscribe_runner() :: :ok | {:error, term()}
+  defdelegate subscribe_runner, to: Runners, as: :subscribe
+
+  @doc "Lifts the autopause of the runner (and forgets its failure streak). `{:ok, n}` runners were affected."
+  @spec clear_runner_pause() :: {:ok, non_neg_integer()}
+  defdelegate clear_runner_pause, to: Runners, as: :clear_pause
+
   ## --- Internals ---
 
   defp keyed(emails) do
@@ -296,7 +343,21 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   # A "temp" verdict is "try again later" - except a disposable domain's, which
   # is temp by policy and will not change.
+  #
+  # With SMTP on, a verdict that only says "the domain takes mail" is not final
+  # (`smtp_disabled`, the interim `smtp_pending` unless it is still in the queue),
+  # and neither is one that failed for a reason on our side or a transient one: a
+  # blocked or refused connection, a timeout, a rejected sender.
   defp final?(%Result{status: "temp", reason: reason}), do: reason == "disposable"
+
+  defp final?(%Result{status: "not_sure", reason: reason} = result)
+       when reason in ~w(smtp_disabled smtp_pending smtp_unavailable smtp_connect_failed smtp_timeout smtp_reset smtp_blocked mail_from_rejected) do
+    cond do
+      reason == "smtp_pending" -> SmtpQueue.live?(result.email)
+      true -> not Config.smtp_enabled?()
+    end
+  end
+
   defp final?(%Result{}), do: true
 
   defp fresh?(%Result{checked_at: %DateTime{} = at}) do
@@ -321,6 +382,59 @@ defmodule PhoenixKit.Modules.Emails.Verification do
       )
     )
   end
+
+  @doc false
+  # The final verdict of the SMTP queue for `email`: replaces the interim
+  # `smtp_pending` verdict and appends what the mail host said to its log. `verdict`
+  # is `%{status:, reason:, level:, catch_all:}`, `details` may carry `:mx`, `:ms`,
+  # `:code` and `:text` of the reply. Runs inside the queue's transaction.
+  @spec record_smtp_result(String.t(), map(), map(), DateTime.t()) :: :ok
+  def record_smtp_result(email, verdict, details, now) do
+    entry = smtp_log_entry(verdict, details)
+
+    case fetch_rows([email]) do
+      [%Result{} = row] ->
+        attrs = %{
+          status: verdict.status,
+          reason: verdict.reason,
+          level: verdict.level,
+          catch_all: verdict.catch_all,
+          log: row.log ++ [entry],
+          attempts: row.attempts + 1,
+          checked_at: now
+        }
+
+        row |> Result.changeset(attrs) |> repo().update!()
+
+      [] ->
+        domain = email |> String.split("@") |> List.last()
+
+        %Result{}
+        |> Result.changeset(%{
+          email: email,
+          domain: domain,
+          status: verdict.status,
+          reason: verdict.reason,
+          level: verdict.level,
+          catch_all: verdict.catch_all,
+          log: [entry],
+          checked_at: now
+        })
+        |> repo().insert!()
+    end
+
+    :ok
+  end
+
+  defp smtp_log_entry(verdict, details) do
+    %{"step" => "smtp_session", "outcome" => verdict.reason, "ms" => details[:ms] || 0.0}
+    |> put_present("mx", details[:mx])
+    |> put_present("code", details[:code])
+    |> put_present("text", details[:text] && String.slice(details.text, 0, 200))
+  end
+
+  defp put_present(map, _key, value) when value in [nil, ""], do: map
+  defp put_present(map, key, value), do: Map.put(map, key, value)
 
   @doc false
   # The verdict of an address its batch job gave up on (`Batches.give_up/2`): a

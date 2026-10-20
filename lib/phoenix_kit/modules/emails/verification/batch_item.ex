@@ -4,7 +4,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchItem do
   batch.
 
   `state` is `"pending"` until the address has been verified and counted into
-  its batch, then `"done"`. `next_attempt_at` is set while a retry is waiting
+  its batch, then `"done"`. An address that passed the MX step with SMTP on is
+  `"awaiting_smtp"` in between: it waits in the SMTP queue and is counted when its
+  final verdict lands. `next_attempt_at` is set while a retry is waiting
   (a failed DNS lookup, a greylisted address) and cleared when the item is done.
   """
 
