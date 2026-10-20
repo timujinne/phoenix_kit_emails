@@ -8,8 +8,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   user's own machine), and for a runner its state (online, offline, never connected,
   paused), whose API key it works with, the buttons to issue and revoke its token, the
   four-line instruction, what must be switched on in core first, the `MAIL FROM` and
-  `HELO` fields and a collapsed block with the numbers. See
-  `docs/superpowers/specs/2026-10-20-smtp-runner.md`, section 6.
+  `HELO` fields and a collapsed block with the numbers. The runner itself is described in
+  `docs/smtp-runner.md`.
 
   ## Who is looking
 

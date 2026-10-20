@@ -1,8 +1,7 @@
 if Code.ensure_loaded?(PhoenixKit.API.Tool) do
   defmodule PhoenixKit.Modules.Emails.Verification.RunnerApi do
     @moduledoc """
-    The two API tools a remote SMTP runner uses (spec
-    `docs/superpowers/specs/2026-10-20-smtp-runner.md`, section 2), declared through
+    The two API tools a remote SMTP runner uses (see `docs/smtp-runner.md`), declared through
     `Emails.api_tools/0` for core's machine API (`POST /api/admin/v1/<tool>`, a bearer
     key with the scope `emails.smtp_runner:run`, whose owner holds the `emails`
     permission). Core checks the key, the scope, the owner's rights, the rate limit and

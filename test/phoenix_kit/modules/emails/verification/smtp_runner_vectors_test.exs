@@ -28,7 +28,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpRunnerVectorsTest do
   # nothing private.
   defp phrases, do: %{Classifier.phrases() | grey: [], quota: [], block: []}
 
-  test "the file is valid and holds the scenarios the spec lists" do
+  test "the file is valid and holds the scenarios the runner contract needs" do
     assert document()["format"] == 1
     names = Enum.map(vectors(), & &1["name"])
 

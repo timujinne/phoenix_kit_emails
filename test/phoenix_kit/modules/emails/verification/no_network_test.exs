@@ -1,6 +1,6 @@
 defmodule PhoenixKit.Modules.Emails.Verification.NoNetworkTest do
   @moduledoc """
-  The owner's rule: the server opens an SMTP connection only in the mode `local`, and
+  The rule: the server opens an SMTP connection only in the mode `local`, and
   only from one place. The server side of a remote runner hands out jobs and classifies
   the facts a runner reports; the sockets are the runner's. The built-in runner is the one
   exception, `Verification.Smtp.Direct`, and this test keeps it the only one: it fails the

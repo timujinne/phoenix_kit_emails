@@ -1,8 +1,7 @@
 defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   @moduledoc """
   The queue of addresses waiting for an SMTP session, and the two calls a runner
-  makes on it (spec `docs/superpowers/specs/2026-10-20-smtp-runner.md`, sections 3.2
-  to 3.4). This module never opens a connection: it hands work out (`claim/3`) and
+  makes on it. This module never opens a connection: it hands work out (`claim/3`) and
   settles what comes back (`report/3`).
 
   ## Life of a row

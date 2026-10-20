@@ -1,9 +1,9 @@
 defmodule PhoenixKit.Modules.Emails.Verification.HijackTest do
   @moduledoc """
-  Anti-DNS-hijack (ANALYSIS section 4.1). Some resolvers answer NXDOMAIN with the
-  address of a landing page; without a counter-measure a nonexistent domain would
-  look like a mail server through the implicit-MX fallback. The probe cache is
-  one per VM, so these tests are synchronous and clear it around each test.
+  Anti-DNS-hijack: some resolvers answer NXDOMAIN with the address of a landing
+  page; without a counter-measure a nonexistent domain would look like a mail
+  server through the implicit-MX fallback. The probe cache is one per VM, so
+  these tests are synchronous and clear it around each test.
   """
 
   use PhoenixKitEmails.DataCase, async: false

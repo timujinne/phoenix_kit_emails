@@ -1,6 +1,6 @@
 defmodule PhoenixKit.Modules.Emails.Verification.PipelineFlagsTest do
   @moduledoc """
-  Fake, curse and typo are flags, not verdicts (owner's doc: "Fake Pattern and
+  Fake, curse and typo are flags, not verdicts (the original tool's notes say "Fake Pattern and
   Curse Words are not a verdict"): they ride along on the result and never move
   the status. The list-driven ones need an external lists directory, which is
   global state, hence a synchronous module of their own.

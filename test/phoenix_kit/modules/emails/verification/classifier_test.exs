@@ -1,6 +1,6 @@
 defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
   @moduledoc """
-  The table of spec section 4, on fixture phrases (never the owner's private lists):
+  The classification table, on fixture phrases (not the original tool's lists):
   every row of the table, the precedence between the phrase lists, the user-unknown
   exception for IP addresses, and the domain side effects.
   """

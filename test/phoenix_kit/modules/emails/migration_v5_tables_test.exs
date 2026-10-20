@@ -1,7 +1,7 @@
 defmodule PhoenixKit.Modules.Emails.MigrationV5TablesTest do
   @moduledoc """
-  V5 against a real database: the SMTP queue and the runners have the shape of
-  spec section 3.1, the unique partial index lets an address wait once and be
+  V5 against a real database: the SMTP queue and the runners have the expected
+  columns, the unique partial index lets an address wait once and be
   queued again after it finished, and replaying the chain keeps the rows.
   """
 
@@ -34,7 +34,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationV5TablesTest do
     assert Migrations.current_version() >= 5
   end
 
-  test "the queue has the columns of the spec, the address as citext" do
+  test "the queue has the expected columns, the address as citext" do
     columns = columns("phoenix_kit_email_verify_smtp_queue")
 
     expected =
@@ -46,7 +46,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationV5TablesTest do
     assert {"timestamptz", true} = columns["lease_expires_at"]
   end
 
-  test "the runners table has the columns of the spec and the autopause state" do
+  test "the runners table has the expected columns and the autopause state" do
     columns = columns("phoenix_kit_email_verify_runners")
 
     expected =

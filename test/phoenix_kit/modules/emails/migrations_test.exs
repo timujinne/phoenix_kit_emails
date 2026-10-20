@@ -693,7 +693,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       phoenix_kit_email_verify_runners
     )
 
-    test "the chain is at version 5 and owns exactly the six tables of the specs" do
+    test "the chain is at version 5 and owns exactly the six tables of the verification engine and the SMTP stage" do
       assert Migrations.current_version() == 5
       assert Migrations.owned_tables() == @owned_tables
     end

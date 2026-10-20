@@ -1,7 +1,7 @@
 defmodule PhoenixKit.Modules.Emails.MigrationV4TablesTest do
   @moduledoc """
-  V4 against a real database: the four verification tables exist with the shape
-  of spec section 5, the constraints that matter hold, and replaying the chain
+  V4 against a real database: the four verification tables exist with the expected
+  columns, the constraints that matter hold, and replaying the chain
   changes nothing.
   """
 
@@ -27,7 +27,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationV4TablesTest do
     end
   end
 
-  test "verifications has the spec's columns, email as citext" do
+  test "verifications has the expected columns, email as citext" do
     columns = columns("phoenix_kit_email_verifications")
 
     expected =
@@ -52,7 +52,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationV4TablesTest do
     assert Map.keys(columns) |> Enum.sort() == Enum.sort(expected)
   end
 
-  test "batches and batch items have the spec's columns" do
+  test "batches and batch items have the expected columns" do
     assert Map.keys(columns("phoenix_kit_email_verify_batches")) |> Enum.sort() ==
              Enum.sort(
                ~w(uuid source_type source_ref title state total processed counts created_by_uuid started_at finished_at inserted_at updated_at awaiting_smtp)

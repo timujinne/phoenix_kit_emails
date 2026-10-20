@@ -28,7 +28,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
 
   @now ~U[2026-10-20 10:00:00Z]
 
-  # Fixture phrases, never the owner's private lists.
+  # Fixture phrases, not the original tool's lists.
   @phrases %{
     grey: ["fixture grey phrase", "fixture grey other"],
     quota: ["fixture quota phrase"],
@@ -433,7 +433,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       assert %Item{state: "queued", attempts: 1, lease_expiries: 1, last_reason: "lease_expired"} =
                row = hd(items(domain))
 
-      # The token stays, so a late report can still find the row (spec 3.4).
+      # The token stays, so a late report can still find the row.
       assert row.lease_token == first.lease
 
       [second] = claim!(runner, 4, later)

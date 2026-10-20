@@ -2,7 +2,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Flags do
   @moduledoc """
   The fake, curse and typo flags of an address.
 
-  They are **flags, not verdicts**: the owner's own notes on the original tool
+  They are **flags, not verdicts**: notes on the original tool
   say "Fake Pattern and Curse Words are not a verdict", because the heuristic
   also catches legitimate addresses (initials such as `aha@hjj.dk`). They are
   stored on the result and never change its status.
@@ -31,11 +31,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Flags do
   `^([a-z]+\.){4,}`, which the dot count includes); a `dr`, `jr` or `sr` segment
   is not counted.
 
-  The thresholds follow section 3 of the analysis of the original tool. A short
-  name without vowels is deliberately *not* fake: `hjj`, `skf` or `bbc` are
-  legitimate initials, and the analysis lists exactly those as the false
-  positives of the older "three or more characters" rule. Where the analysis was
-  loose (whether the eight-character rule counts the dots) this is our reading.
+  The thresholds follow the original tool. A short name without vowels is
+  deliberately *not* fake: `hjj`, `skf` or `bbc` are legitimate initials, exactly
+  the false positives of the older "three or more characters" rule. Where the
+  original was loose (whether the eight-character rule counts the dots) this is our
+  reading.
 
   ## curse
 

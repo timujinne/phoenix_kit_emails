@@ -1,7 +1,6 @@
 defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
   @moduledoc """
-  Turns the raw facts of one SMTP session into a verdict per address (spec
-  `docs/superpowers/specs/2026-10-20-smtp-runner.md`, section 4).
+  Turns the raw facts of one SMTP session into a verdict per address.
 
   A runner only reports what the mail host said (reply codes and texts, and how the
   connection ended); this module decides what it means, on the server, so the

@@ -661,7 +661,7 @@ function Write-Check {
     if ($Level -eq 'FAIL') { $script:State.Failed = $true }
 }
 
-# The four checks of spec 5.1 step 1. Sets $State (Port25, HeloAuto, Failed, Fatal) and sends
+# The four start-up checks. Sets $State (Port25, HeloAuto, Failed, Fatal) and sends
 # the outcome to the site in a final heartbeat. Fatal: 'token', 'version' or $null.
 function Invoke-SelfTest {
     $script:State.Failed = $false

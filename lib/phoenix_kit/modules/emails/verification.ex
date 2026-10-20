@@ -31,8 +31,7 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   `queue_configured?/0` tells whether it is there, so a UI can warn.
 
-  See `docs/superpowers/specs/2026-10-19-email-verification.md` and
-  `Verification.Config` for the settings.
+  See `Verification.Config` for the settings.
   """
 
   import Ecto.Query

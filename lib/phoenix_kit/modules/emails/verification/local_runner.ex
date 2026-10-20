@@ -1,8 +1,7 @@
 defmodule PhoenixKit.Modules.Emails.Verification.LocalRunner do
   @moduledoc """
   The built-in runner of the SMTP mode `local`: the site's own server takes the sessions
-  from the same queue a remote runner does and opens the connections itself (spec
-  `docs/superpowers/specs/2026-10-20-smtp-runner.md`, sections 1 and 11, Q17). There is
+  from the same queue a remote runner does and opens the connections itself. There is
   no second path: it calls `SmtpQueue.claim/3`, runs each session with
   `Smtp.Direct` and reports through `SmtpQueue.report/4`, so the classifier, the retries,
   the domain throttling (one live session per domain, the interval, the domain pause) and

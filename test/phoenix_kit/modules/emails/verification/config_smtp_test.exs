@@ -1,7 +1,7 @@
 defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
   @moduledoc """
-  The settings of the SMTP stage: the mode, the MAIL FROM rules of the owner's
-  decision (override wins, else the site's sender, placeholders are "not
+  The settings of the SMTP stage: the mode, the MAIL FROM rules
+  (override wins, else the site's sender, placeholders are "not
   configured") and the typed getters with their defaults.
   """
 

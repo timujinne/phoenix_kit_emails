@@ -58,7 +58,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.FlagsTest do
       assert fake?("john@mail.bcdfghj.co.uk")
     end
 
-    test "short consonant-only names are initials, not throw-aways (ANALYSIS section 3)" do
+    test "short consonant-only names are initials, not throw-aways" do
       for address <- [
             "aha@hjj.dk",
             "skf.cz@good-fixture.org",

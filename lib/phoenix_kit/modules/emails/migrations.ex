@@ -106,8 +106,8 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   ## What V4 is
 
   The first tables this package CREATES rather than adopts: the storage of the
-  e-mail verification engine (`PhoenixKit.Modules.Emails.Verification`), see
-  `docs/superpowers/specs/2026-10-19-email-verification.md`, section 5.
+  e-mail verification engine (`PhoenixKit.Modules.Emails.Verification`): the latest
+  verdict per address and the verification batches.
 
     * `phoenix_kit_email_verifications` - the latest verdict per address
       (`email` is `citext`, unique). Besides the verdict it keeps the flags
@@ -139,8 +139,8 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   ## What V5 is
 
-  The storage of the SMTP stage (spec `docs/superpowers/specs/2026-10-20-smtp-runner.md`,
-  section 3.1), again only objects of this package:
+  The storage of the SMTP stage (see `docs/smtp-runner.md` for the runner that works
+  with it), again only objects of this package:
 
     * `phoenix_kit_email_verify_smtp_queue` - one row per address that waits for an
       SMTP session. A unique partial index on `email` for the live states
@@ -148,7 +148,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
       row. Beside `attempts` (the total) the row counts its retries apart:
       `grey_attempts`, `transport_attempts`, `lease_expiries`.
     * `phoenix_kit_email_verify_runners` - one row per API key that has connected as a
-      runner. Besides the columns of the spec it keeps `fail_streak` and
+      runner. Besides the columns that identify and describe the runner it keeps `fail_streak` and
       `fail_domains`, the state of the runner autopause (consecutive failed sessions
       and the domains they hit).
     * `phoenix_kit_email_verify_batches.awaiting_smtp` - an added column on a V4 table:
