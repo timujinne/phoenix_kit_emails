@@ -24,8 +24,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
   alias PhoenixKit.Modules.Emails.Verification.DomainCache
   alias PhoenixKit.Modules.Emails.Verification.Result
   alias PhoenixKit.Modules.Emails.Verification.Runner
-  alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Verification.RunnerApi
+  alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueueItem, as: Item
   alias PhoenixKit.Users.Permissions
   alias PhoenixKitEmails.Test.FakeResolver
