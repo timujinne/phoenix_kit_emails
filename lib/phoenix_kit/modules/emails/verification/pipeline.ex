@@ -11,7 +11,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   | 5 | disposable list | `email_verify_disposable_status`: temp (default) or invalid, `disposable` |
   | 6 | free / role flags | - |
   | 7 | DNS MX (cache, then resolver) | invalid `no_mx`; temp `dns_error` |
-  | 8 | SMTP, only when enabled | whatever the client says |
+  | 8 | SMTP, only when asked to queue (`smtp: :enqueue`) and the mode is not `off` | `smtp_pending` (an interim verdict; the SMTP queue settles it) |
 
   The first final outcome stops the run.
 
@@ -26,16 +26,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   whatever happens later (a typo domain usually ends at `no_mx`). They never
   change a status. An address that gets through every
   step without an SMTP verdict is `not_sure`: `smtp_disabled` when the SMTP
-  step is switched off (the domain takes mail, the mailbox is unchecked) or
-  `smtp_unavailable` when it is on but the configured client cannot probe.
+  step is not run (the domain takes mail, the mailbox is unchecked) or
+  `smtp_pending` when it was asked to queue the address for SMTP: the mailbox
+  is probed later, by a runner, and the verdict is replaced when its report comes.
+  The pipeline itself never opens an SMTP connection.
 
   Every step appends `%{"step", "outcome", "ms"}` (plus step-specific keys) to
   the result's `log`. This module only reads: it persists nothing but the MX
   answer, which goes into `DomainCache`.
 
-  Options: `:resolver` and `:smtp` override the configured implementations;
-  `:hijack_probe` names the domain `Hijack` resolves to detect a hijacking
-  resolver (for tests).
+  Options: `:resolver` overrides the configured implementation; `smtp: :enqueue`
+  makes an address that passes the MX step `smtp_pending` instead of
+  `smtp_disabled` (when `Config.smtp_mode/0` is not `"off"`; the caller puts it
+  in the queue); `:hijack_probe` names the domain `Hijack` resolves to detect a
+  hijacking resolver (for tests).
   """
 
   alias PhoenixKit.Modules.Emails.Verification.Config
@@ -60,8 +64,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
       log: [],
       parts: nil,
       check_local: nil,
-      key: nil,
-      hosts: []
+      key: nil
     }
 
     state =
@@ -81,7 +84,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
 
     case normalized do
       {:ok, parts} ->
-        check_local = strip_alias(parts.local)
+        check_local = Normalizer.strip_tag(parts.local)
         state = %{state | parts: parts, check_local: check_local}
         {:cont, %{state | result: %{state.result | email: parts.email}}, checked_as(state)}
 
@@ -139,8 +142,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
 
     case resolution do
       {:ok, %{hosts: [%{host: host} | _] = hosts, implicit: implicit}} ->
-        state = %{state | hosts: Enum.map(hosts, & &1.host)}
-
         {:cont, %{state | result: %{state.result | mx: host}},
          %{"hosts" => length(hosts), "implicit" => implicit, "source" => source}}
 
@@ -155,35 +156,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
   end
 
   defp step(:smtp, state) do
-    if Config.smtp_enabled?() do
-      client = Keyword.get_lazy(state.opts, :smtp, &Config.smtp_client/0)
-      email = state.check_local <> "@" <> state.parts.domain
-      {:cont, smtp_verdict(client.verify(email, state.hosts, []), state), %{}}
-    else
-      {:skip, finalise(state, "not_sure", "smtp_disabled", "mx"), %{}}
+    case smtp_mode(state.opts) do
+      "off" -> {:skip, finalise(state, "not_sure", "smtp_disabled", "mx"), %{}}
+      mode -> {:cont, finalise(state, "not_sure", "smtp_pending", "mx"), %{"mode" => mode}}
     end
   end
 
-  defp smtp_verdict({:ok, %{status: status, reason: reason} = outcome}, state) do
-    state = finalise(state, Atom.to_string(status), reason, "smtp")
-    %{state | result: %{state.result | catch_all: Map.get(outcome, :catch_all)}}
+  # The queue is asked for explicitly: a synchronous caller does not wait for SMTP.
+  defp smtp_mode(opts) do
+    if Keyword.get(opts, :smtp) == :enqueue, do: Config.smtp_mode(), else: "off"
   end
-
-  defp smtp_verdict({:error, :unavailable}, state),
-    do: finalise(state, "not_sure", "smtp_unavailable", "mx")
-
-  defp smtp_verdict({:error, _other}, state),
-    do: finalise(state, "not_sure", "smtp_error", "mx")
 
   ## --- Helpers ---
-
-  # Everything from the first "+" is a tag - unless nothing would be left.
-  defp strip_alias(local) do
-    case String.split(local, "+", parts: 2) do
-      [base, _tag] when base != "" -> base
-      _ -> local
-    end
-  end
 
   defp checked_as(%{check_local: local, parts: %{local: local}}), do: %{}
 

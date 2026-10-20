@@ -11,7 +11,33 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   ## Settings
 
     * `email_verify_enabled` - the feature switch (default `true`)
-    * `email_verify_smtp_enabled` - run the SMTP step at all (default `false`)
+    * `email_verify_smtp_mode` - who opens the SMTP connections: `"off"` (default, no
+      SMTP at all), `"runner"` (an agent on the user's machine, through the machine
+      API) or `"local"` (this server); anything else counts as `"off"`
+    * `email_verify_smtp_mail_from` - an override for the `MAIL FROM` address (empty
+      by default: the site's sender address is used), see `smtp_mail_from/0`
+    * `email_verify_smtp_helo` - the `EHLO` name; empty means "the reverse DNS of the
+      sending IP, found by the runner"
+    * `email_verify_rcpt_per_session` - addresses of one domain per SMTP session (default `10`)
+    * `email_verify_domain_interval_s` - least gap between two sessions to one domain
+      (default `10`)
+    * `email_verify_smtp_lease_s` - how long a runner holds a session before it is
+      taken back (default `300`)
+    * `email_verify_smtp_max_attempts` - sessions lost to an expired lease before the
+      address is given up as `smtp_unavailable` (default `5`)
+    * `email_verify_smtp_connect_timeout_s` / `email_verify_smtp_read_timeout_s` -
+      handed to the runner (default `20` / `30`)
+    * `email_verify_smtp_idle_poll_s` - the runner's pause on an empty answer; the runner
+      counts as online while it was seen within three times this (default `30`)
+    * `email_verify_domain_block_threshold` / `email_verify_domain_block_window_min` /
+      `email_verify_domain_pause_min` - this many blocks within the window pause the
+      domain for the pause (default `2` / `60` / `60`)
+    * `email_verify_runner_fail_sessions` / `email_verify_runner_fail_domains` /
+      `email_verify_runner_pause_min` - this many failed sessions in a row, on at
+      least this many different domains, pause the runner for the pause
+      (default `5` / `3` / `60`)
+    * `email_verify_smtp_selftest_host` - the host the runner's port 25 self-test
+      connects to (empty: derived, see `Verification.Runners.selftest_host/0`)
     * `email_verify_ttl_mx_hours` - cached MX answer (default `24`)
     * `email_verify_ttl_no_mx_hours` - cached "no MX / no such domain" (default `24`)
     * `email_verify_ttl_catch_all_days` - cached catch-all probe (default `7`)
@@ -26,8 +52,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `email_verify_dns_max_attempts` - how many times a batch job tries an address
       whose DNS lookup failed transiently before keeping the `temp` verdict (default `3`)
     * `email_verify_grey_retry_minutes` - least wait before a greylisted address is
-      tried again in a batch; the wait is picked between this and twice this
-      (default `15`)
+      tried again; a batch job picks the wait between this and twice this, the SMTP
+      queue uses it as it is (default `20`)
     * `email_verify_grey_max_attempts` - greylist attempts before the `temp` verdict
       is kept (default `3`)
     * `email_verify_lists_dir` - optional external dictionary directory
@@ -35,18 +61,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   ## Application env (`:phoenix_kit_emails`)
 
     * `:verification_resolver` - a `Verification.Resolver` module (default `Resolver.Inet`)
-    * `:verification_smtp` - a `Verification.Smtp` module (default `Smtp.Disabled`)
     * `:verification_lists_dir` - external dictionary directory; wins over the setting
     * `:verification_confirm_pause_ms` - the pause before a negative DNS answer is
       asked a second time, in milliseconds (default `300`, at most `2000`, `0`
       switches it off; the test config sets `0`)
   """
 
+  alias PhoenixKit.Modules.Emails.Verification.Normalizer
   alias PhoenixKit.Modules.Emails.Verification.Resolver
-  alias PhoenixKit.Modules.Emails.Verification.Smtp
+  alias PhoenixKit.Modules.Emails.Verification.Syntax
   alias PhoenixKit.Settings
 
   @type ttl_kind :: :mx | :no_mx | :catch_all | :grey | :result
+  @type smtp_mode :: String.t()
+  @type mail_from_source :: :override | :site_sender | :none
+
+  @smtp_modes ~w(off runner local)
+  @placeholder_domains ~w(localhost example.com example.org example.net)
 
   @default_dns_timeout_ms 3_000
   @default_confirm_pause_ms 300
@@ -60,13 +91,142 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     _ -> false
   end
 
-  @doc "Whether the SMTP step runs at all (default `false`)."
-  @spec smtp_enabled?() :: boolean()
-  def smtp_enabled? do
-    Settings.get_boolean_setting("email_verify_smtp_enabled", false)
+  @doc """
+  The SMTP mode as stored: `"off"` (default), `"runner"` or `"local"`. Anything
+  else, or an unreadable store, is `"off"`. For the settings UI; the pipeline asks
+  `smtp_mode/0`.
+  """
+  @spec smtp_mode_setting() :: smtp_mode()
+  def smtp_mode_setting do
+    case Settings.get_setting("email_verify_smtp_mode") do
+      value when is_binary(value) ->
+        mode = value |> String.trim() |> String.downcase()
+        if mode in @smtp_modes, do: mode, else: "off"
+
+      _ ->
+        "off"
+    end
   rescue
-    _ -> false
+    _ -> "off"
   end
+
+  @doc """
+  The SMTP mode in effect. `"runner"` needs the machine API of core
+  (`machine_api_available?/0`); on a core without it the mode reads `"off"`, so
+  addresses are never queued for a runner that cannot connect.
+  """
+  @spec smtp_mode() :: smtp_mode()
+  def smtp_mode do
+    case smtp_mode_setting() do
+      "runner" -> if machine_api_available?(), do: "runner", else: "off"
+      mode -> mode
+    end
+  end
+
+  @doc "Whether the SMTP step is active (`smtp_mode/0` is not `\"off\"`)."
+  @spec smtp_enabled?() :: boolean()
+  def smtp_enabled?, do: smtp_mode() != "off"
+
+  @doc "Whether the core installed here has the machine API a runner connects through (core 2.63.0 and later)."
+  @spec machine_api_available?() :: boolean()
+  def machine_api_available?, do: Code.ensure_loaded?(PhoenixKit.API.Keys)
+
+  @doc """
+  The `MAIL FROM` address of SMTP sessions and where it came from.
+
+  The override setting (`email_verify_smtp_mail_from`) wins when it is a usable
+  address; otherwise the site's configured sender (`PhoenixKit.Mailer.get_from_email/0`,
+  verified with the mail provider) is used. A placeholder (domain `localhost`,
+  `example.com`/`.org`/`.net`, a domain with no dot) or an invalid address counts as
+  not configured: `{nil, :none}`, and no SMTP session may start without a sender.
+  """
+  @spec smtp_mail_from() :: {String.t() | nil, mail_from_source()}
+  def smtp_mail_from do
+    case usable_sender(override_mail_from()) do
+      {:ok, address} ->
+        {address, :override}
+
+      :error ->
+        case usable_sender(site_sender()) do
+          {:ok, address} -> {address, :site_sender}
+          :error -> {nil, :none}
+        end
+    end
+  end
+
+  @doc "The override setting alone (empty by default), trimmed."
+  @spec smtp_mail_from_override() :: String.t()
+  def smtp_mail_from_override, do: override_mail_from()
+
+  @doc "The site's sender address, or `nil` when it is not a usable address."
+  @spec site_sender_address() :: String.t() | nil
+  def site_sender_address do
+    case usable_sender(site_sender()) do
+      {:ok, address} -> address
+      :error -> nil
+    end
+  end
+
+  @doc "The `EHLO` name override, or `nil` for \"the runner works it out from its IP\"."
+  @spec smtp_helo() :: String.t() | nil
+  def smtp_helo, do: blank_to_nil(text_setting("email_verify_smtp_helo"))
+
+  @doc "The host a runner's port 25 self-test is pointed at, if one is set (otherwise it is derived)."
+  @spec smtp_selftest_host_setting() :: String.t() | nil
+  def smtp_selftest_host_setting,
+    do: blank_to_nil(text_setting("email_verify_smtp_selftest_host"))
+
+  @doc "Addresses of one domain in one SMTP session."
+  @spec rcpt_per_session() :: pos_integer()
+  def rcpt_per_session, do: min(positive_integer("email_verify_rcpt_per_session", 10), 100)
+
+  @doc "Least seconds between two SMTP sessions to one domain."
+  @spec domain_interval_s() :: pos_integer()
+  def domain_interval_s, do: positive_integer("email_verify_domain_interval_s", 10)
+
+  @doc "Seconds a runner may hold a session."
+  @spec smtp_lease_s() :: pos_integer()
+  def smtp_lease_s, do: positive_integer("email_verify_smtp_lease_s", 300)
+
+  @doc "Sessions lost to an expired lease before an address is given up."
+  @spec smtp_max_attempts() :: pos_integer()
+  def smtp_max_attempts, do: positive_integer("email_verify_smtp_max_attempts", 5)
+
+  @doc "The runner's connect timeout, seconds."
+  @spec smtp_connect_timeout_s() :: pos_integer()
+  def smtp_connect_timeout_s, do: positive_integer("email_verify_smtp_connect_timeout_s", 20)
+
+  @doc "The runner's read timeout, seconds."
+  @spec smtp_read_timeout_s() :: pos_integer()
+  def smtp_read_timeout_s, do: positive_integer("email_verify_smtp_read_timeout_s", 30)
+
+  @doc "How long the runner sleeps after an empty answer, seconds."
+  @spec idle_poll_s() :: pos_integer()
+  def idle_poll_s, do: positive_integer("email_verify_smtp_idle_poll_s", 30)
+
+  @doc "Blocks within `domain_block_window_s/0` that pause a domain."
+  @spec domain_block_threshold() :: pos_integer()
+  def domain_block_threshold, do: positive_integer("email_verify_domain_block_threshold", 2)
+
+  @doc "The window, in seconds, in which blocks are counted."
+  @spec domain_block_window_s() :: pos_integer()
+  def domain_block_window_s, do: positive_integer("email_verify_domain_block_window_min", 60) * 60
+
+  @doc "How long a blocking domain is left alone, seconds."
+  @spec domain_pause_s() :: pos_integer()
+  def domain_pause_s, do: positive_integer("email_verify_domain_pause_min", 60) * 60
+
+  @doc "Failed sessions in a row that pause the runner."
+  @spec runner_fail_sessions() :: pos_integer()
+  def runner_fail_sessions, do: positive_integer("email_verify_runner_fail_sessions", 5)
+
+  @doc "Different domains those failed sessions must span."
+  @spec runner_fail_domains() :: pos_integer()
+  def runner_fail_domains, do: positive_integer("email_verify_runner_fail_domains", 3)
+
+  @doc "How long a paused runner is left alone, seconds."
+  @spec runner_pause_s() :: pos_integer()
+  def runner_pause_s, do: positive_integer("email_verify_runner_pause_min", 60) * 60
 
   @doc "How long a cached fact (or a stored verdict) stays fresh, in seconds."
   @spec ttl_seconds(ttl_kind()) :: pos_integer()
@@ -104,7 +264,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
 
   @doc "The least wait, in minutes, before a greylisted address is tried again."
   @spec grey_retry_minutes() :: pos_integer()
-  def grey_retry_minutes, do: positive_integer("email_verify_grey_retry_minutes", 15)
+  def grey_retry_minutes, do: positive_integer("email_verify_grey_retry_minutes", 20)
 
   @doc "The deadline of one DNS query (all its retransmissions), in milliseconds."
   @spec dns_timeout_ms() :: pos_integer()
@@ -129,12 +289,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @spec resolver() :: module()
   def resolver do
     Application.get_env(:phoenix_kit_emails, :verification_resolver, Resolver.Inet)
-  end
-
-  @doc "The SMTP client implementation. The stub, until a real client exists."
-  @spec smtp_client() :: module()
-  def smtp_client do
-    Application.get_env(:phoenix_kit_emails, :verification_smtp, Smtp.Disabled)
   end
 
   @doc "The external dictionary directory, or `nil`."
@@ -166,6 +320,49 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     end
   rescue
     _ -> :error
+  end
+
+  defp override_mail_from, do: "email_verify_smtp_mail_from" |> text_setting() |> String.trim()
+
+  defp site_sender do
+    PhoenixKit.Mailer.get_from_email()
+  rescue
+    _ -> nil
+  end
+
+  defp usable_sender(address) when is_binary(address) do
+    address = String.trim(address)
+
+    with {:ok, %{local: local, domain: domain}} <- Normalizer.normalize(address),
+         :ok <- Syntax.check(local, domain),
+         false <- placeholder_domain?(domain) do
+      {:ok, address}
+    else
+      _ -> :error
+    end
+  end
+
+  defp usable_sender(_address), do: :error
+
+  defp placeholder_domain?(domain) do
+    not String.contains?(domain, ".") or
+      Enum.any?(@placeholder_domains, &(domain == &1 or String.ends_with?(domain, "." <> &1)))
+  end
+
+  defp text_setting(key) do
+    case Settings.get_setting(key) do
+      value when is_binary(value) -> value
+      _ -> ""
+    end
+  rescue
+    _ -> ""
+  end
+
+  defp blank_to_nil(value) do
+    case String.trim(value) do
+      "" -> nil
+      trimmed -> trimmed
+    end
   end
 
   defp hours(key, default), do: positive_integer(key, default) * 3_600

@@ -11,8 +11,9 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   Without SMTP an address that passes every step is `not_sure` at level `"mx"`:
   its domain accepts mail, the mailbox is unchecked. `"valid"` only ever comes
-  from an SMTP probe, which is off by default (`email_verify_smtp_enabled`) and,
-  in this release, has no client behind it.
+  from an SMTP probe, which is off by default (`email_verify_smtp_mode`) and runs
+  elsewhere: the server only queues the address (`Verification.SmtpQueue`) and a
+  runner on the user's machine opens the connection.
 
   ## Batches
 
@@ -77,7 +78,7 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   Defaults to `true`: the checks that run by default (syntax, word lists, DNS)
   are passive and cost nothing to leave available. It deliberately does not
-  look at `email_verify_smtp_enabled` - the SMTP step is a separate, riskier
+  look at `email_verify_smtp_mode` - the SMTP step is a separate, riskier
   switch - nor at `email_enabled`, which gates sending. `false` if settings
   cannot be read.
   """
@@ -92,8 +93,8 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   `"disposable"` verdict is final whatever status the setting gives it. The MX
   answer is cached per domain either way.
 
-  Options: `:force` (re-run even if a stored verdict is fresh), `:resolver` and
-  `:smtp` (override the configured implementations).
+  Options: `:force` (re-run even if a stored verdict is fresh), `:resolver`
+  (overrides the configured implementation).
 
   This function does not consult `enabled?/0`: with `email_verify_enabled`
   switched off it still runs and writes. Gating the feature is the caller's job

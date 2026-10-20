@@ -25,20 +25,16 @@ defmodule PhoenixKit.Modules.Emails.VerificationTest do
   describe "enabled?/0" do
     test "defaults to true, with no SMTP involved" do
       assert Verification.enabled?()
-      refute Settings.get_boolean_setting("email_verify_smtp_enabled", false)
+      assert Verification.Config.smtp_mode() == "off"
     end
 
-    test "follows email_verify_enabled, and not email_verify_smtp_enabled" do
+    test "follows email_verify_enabled, and not the SMTP mode" do
       Settings.update_boolean_setting_with_module("email_verify_enabled", false, "email_system")
       refute Verification.enabled?()
 
       Settings.update_boolean_setting_with_module("email_verify_enabled", true, "email_system")
 
-      Settings.update_boolean_setting_with_module(
-        "email_verify_smtp_enabled",
-        false,
-        "email_system"
-      )
+      Settings.update_setting_with_module("email_verify_smtp_mode", "runner", "email_system")
 
       assert Verification.enabled?()
     end

@@ -377,19 +377,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
 
     defp temp(reason), do: %Result{status: "temp", reason: reason}
 
-    test "greylist snoozes 15 to 30 minutes by default" do
+    test "greylist snoozes 20 to 40 minutes by default" do
       for _ <- 1..30 do
         assert {:snooze, seconds} = Retry.decide(temp("greylist"), 0)
-        assert seconds in 900..1800
+        assert seconds in 1200..2400
       end
     end
 
     test "the minimum is a setting and the window is up to double of it" do
-      set_setting("email_verify_grey_retry_minutes", 20)
+      set_setting("email_verify_grey_retry_minutes", 10)
 
       for _ <- 1..30 do
         assert {:snooze, seconds} = Retry.decide(temp("greylist"), 0)
-        assert seconds in 1200..2400
+        assert seconds in 600..1200
       end
     end
 

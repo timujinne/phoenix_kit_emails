@@ -5,10 +5,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
   alias PhoenixKit.Modules.Emails.Verification.DomainCache
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
   alias PhoenixKit.Modules.Emails.Verification.Result
-  alias PhoenixKit.Modules.Emails.Verification.Smtp.Disabled
   alias PhoenixKit.Settings
   alias PhoenixKitEmails.Test.FakeResolver
-  alias PhoenixKitEmails.Test.FakeSmtp
 
   @mx {:ok, [%{host: "mx.good.example", pref: 10}]}
 
@@ -257,17 +255,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
       assert run("user.name+tag@good-fixture.org").status == "not_sure"
     end
 
-    test "the SMTP client is asked about the stripped address" do
-      Settings.update_boolean_setting_with_module(
-        "email_verify_smtp_enabled",
-        true,
-        "email_system"
-      )
+    test "the queue is asked about the stripped address, and the result keeps the tag" do
+      Settings.update_setting_with_module("email_verify_smtp_mode", "runner", "email_system")
 
-      FakeSmtp.put({:ok, %{status: :invalid, reason: "user_unknown", catch_all: false}})
-      result = run("john+tag@good-fixture.org", smtp: FakeSmtp)
+      result = run("john+tag@good-fixture.org", smtp: :enqueue)
 
-      assert FakeSmtp.calls() == [{"john@good-fixture.org", ["mx.good.example"]}]
+      assert {result.status, result.reason} == {"not_sure", "smtp_pending"}
       assert result.email == "john+tag@good-fixture.org"
     end
   end
@@ -308,62 +301,44 @@ defmodule PhoenixKit.Modules.Emails.Verification.PipelineTest do
       :ok
     end
 
-    test "is skipped entirely while the setting is off (the default)" do
-      FakeSmtp.put({:ok, %{status: :valid, reason: "accepted", catch_all: false}})
-      result = run("john@good-fixture.org", smtp: FakeSmtp)
+    defp set_mode(mode),
+      do: Settings.update_setting_with_module("email_verify_smtp_mode", mode, "email_system")
 
-      assert FakeSmtp.calls() == []
+    test "is skipped while the mode is off (the default), even when asked to queue" do
+      result = run("john@good-fixture.org", smtp: :enqueue)
+
+      assert {result.status, result.reason, result.level} == {"not_sure", "smtp_disabled", "mx"}
+      assert List.last(result.log)["outcome"] == "skipped"
+    end
+
+    test "is skipped when the mode is on but nobody asked to queue: a sync caller never waits" do
+      set_mode("runner")
+      result = run("john@good-fixture.org")
+
       assert {result.status, result.reason, result.level} == {"not_sure", "smtp_disabled", "mx"}
     end
 
-    test "enabled with the stub client: not_sure smtp_unavailable, level stays mx" do
-      Settings.update_boolean_setting_with_module(
-        "email_verify_smtp_enabled",
-        true,
-        "email_system"
-      )
+    test "when asked to queue in runner mode, a passing address is pending at level mx" do
+      set_mode("runner")
+      result = run("john@good-fixture.org", smtp: :enqueue)
 
-      result = run("john@good-fixture.org")
-
-      assert {result.status, result.reason, result.level} ==
-               {"not_sure", "smtp_unavailable", "mx"}
-
+      assert {result.status, result.reason, result.level} == {"not_sure", "smtp_pending", "mx"}
       assert result.catch_all == nil
-      assert Enum.map(result.log, & &1["outcome"]) |> List.last() == "ok"
+      assert %{"step" => "smtp", "outcome" => "ok", "mode" => "runner"} = List.last(result.log)
     end
 
-    test "the configured client is the stub unless overridden" do
-      assert Config.smtp_client() == Disabled
+    test "local mode queues too" do
+      set_mode("local")
+
+      assert %{reason: "smtp_pending"} = run("john@good-fixture.org", smtp: :enqueue)
     end
 
-    test "when enabled, an injected client's verdict is taken as is, at level smtp" do
-      Settings.update_boolean_setting_with_module(
-        "email_verify_smtp_enabled",
-        true,
-        "email_system"
-      )
+    test "an address that fails an earlier step never reaches the SMTP step" do
+      set_mode("runner")
+      result = run("john@good-fixture.invalidtld", smtp: :enqueue)
 
-      FakeSmtp.put({:ok, %{status: :invalid, reason: "user_unknown", catch_all: false}})
-
-      result = run("john@good-fixture.org", smtp: FakeSmtp)
-
-      assert {result.status, result.reason, result.level, result.catch_all} ==
-               {"invalid", "user_unknown", "smtp", false}
-
-      assert FakeSmtp.calls() == [{"john@good-fixture.org", ["mx.good.example"]}]
-    end
-
-    test "an unexpected client error is not_sure smtp_error" do
-      Settings.update_boolean_setting_with_module(
-        "email_verify_smtp_enabled",
-        true,
-        "email_system"
-      )
-
-      FakeSmtp.put({:error, :boom})
-
-      assert %{status: "not_sure", reason: "smtp_error", level: "mx"} =
-               run("john@good-fixture.org", smtp: FakeSmtp)
+      assert result.reason == "bad_tld"
+      refute "smtp" in steps(result)
     end
   end
 end

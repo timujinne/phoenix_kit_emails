@@ -54,6 +54,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.Normalizer do
 
   def storage_key(_input, _normalized), do: nil
 
+  @doc """
+  The local part without its `+tag`: everything from the first `+` is a tag -
+  unless nothing would be left.
+  """
+  @spec strip_tag(String.t()) :: String.t()
+  def strip_tag(local) do
+    case String.split(local, "+", parts: 2) do
+      [base, _tag] when base != "" -> base
+      _ -> local
+    end
+  end
+
   defp storable?(input), do: String.valid?(input) and not String.contains?(input, <<0>>)
 
   defp split(""), do: {:error, :empty}
