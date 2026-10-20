@@ -237,7 +237,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       }
 
       {:ok, socket} = SmtpVerification.update(%{id: "smtp-verification"}, connected)
-      socket = event(socket, "set_mode", %{"mode" => "local"})
+      socket = socket |> event("set_mode", %{"mode" => "local"}) |> event("confirm_switch_local")
       relay = socket.assigns.relay
       assert is_pid(relay) and Process.alive?(relay)
 
@@ -789,7 +789,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert socket.assigns.mode == "runner"
       assert flash(socket, :info) =~ "through the runner"
 
-      socket = event(socket, "set_mode", %{"mode" => "local"})
+      socket = socket |> event("set_mode", %{"mode" => "local"}) |> event("confirm_switch_local")
       assert Config.smtp_mode_setting() == "local"
       assert socket.assigns.mode == "local"
     end
@@ -827,6 +827,92 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
       assert Config.smtp_mode_setting() == "off"
       assert flash(socket, :error) =~ "needs the machine API of PhoenixKit 2.63"
+    end
+  end
+
+  describe "switching to this server" do
+    test "asks first and saves nothing until it is confirmed" do
+      socket = socket() |> event("set_mode", %{"mode" => "local"})
+
+      assert socket.assigns.confirm_local?
+      assert Config.smtp_mode_setting() == "off"
+      assert socket.assigns.mode == "off"
+      assert flash(socket, :info) == nil
+
+      html = render_section(%{confirm_local?: true})
+      assert html =~ "Check mailboxes from this server?"
+      assert html =~ "go out from the IP address of the server this site runs on"
+      assert html =~ "Do not enable it if other sites share this IP address"
+      assert html =~ "tests whether its port 25 is open"
+      assert html =~ ~s|phx-click="confirm_switch_local"|
+      assert html =~ ~s|phx-click="cancel_switch_local"|
+      assert html =~ "Switch to this server"
+
+      socket = event(socket, "confirm_switch_local")
+
+      refute socket.assigns.confirm_local?
+      assert Config.smtp_mode_setting() == "local"
+      assert socket.assigns.mode == "local"
+      assert flash(socket, :info) =~ "from this server"
+    end
+
+    test "cancelling keeps the previous mode, also on the radio buttons" do
+      put_mode("runner")
+      socket = socket() |> event("set_mode", %{"mode" => "local"})
+
+      html = render_section(%{confirm_local?: true})
+      assert Regex.match?(~r/<input[^>]*value="local"[^>]*checked/s, html)
+
+      socket = event(socket, "cancel_switch_local")
+
+      refute socket.assigns.confirm_local?
+      assert Config.smtp_mode_setting() == "runner"
+      assert socket.assigns.mode == "runner"
+
+      html = render_section()
+      assert Regex.match?(~r/<input[^>]*value="runner"[^>]*checked/s, html)
+      refute Regex.match?(~r/<input[^>]*value="local"[^>]*checked/s, html)
+    end
+
+    test "a confirmation nobody asked for does nothing" do
+      socket = socket() |> event("confirm_switch_local")
+
+      assert Config.smtp_mode_setting() == "off"
+      assert flash(socket, :error) == "That action is not available."
+    end
+
+    test "choosing another mode while the question is open drops it" do
+      socket =
+        socket()
+        |> event("set_mode", %{"mode" => "local"})
+        |> event("set_mode", %{"mode" => "runner"})
+
+      refute socket.assigns.confirm_local?
+      assert Config.smtp_mode_setting() == "runner"
+
+      socket = event(socket, "confirm_switch_local")
+      assert Config.smtp_mode_setting() == "runner"
+      assert flash(socket, :error) == "That action is not available."
+    end
+
+    test "off and runner need no confirmation" do
+      put_mode("local")
+
+      socket = socket() |> event("set_mode", %{"mode" => "off"})
+      refute socket.assigns.confirm_local?
+      assert Config.smtp_mode_setting() == "off"
+
+      socket = event(socket, "set_mode", %{"mode" => "runner"})
+      refute socket.assigns.confirm_local?
+      assert Config.smtp_mode_setting() == "runner"
+    end
+
+    test "choosing local again while it is on asks nothing" do
+      put_mode("local")
+      socket = socket() |> event("set_mode", %{"mode" => "local"})
+
+      refute socket.assigns.confirm_local?
+      assert Config.smtp_mode_setting() == "local"
     end
   end
 

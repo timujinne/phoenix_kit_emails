@@ -94,6 +94,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     |> assign_new(:scope_state, fn assigns -> scope_state(assigns.phoenix_kit_current_scope) end)
     |> assign_new(:new_token, fn -> nil end)
     |> assign_new(:confirm_api?, fn -> false end)
+    |> assign_new(:confirm_local?, fn -> false end)
     |> assign_new(:form, fn -> form_params(current) end)
     |> assign_new(:errors, fn -> %{} end)
     |> assign_new(:advanced_open?, fn -> false end)
@@ -457,25 +458,23 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   ## --- Events ---
 
   @impl true
-  def handle_event("set_mode", %{"mode" => mode}, socket) do
-    case SmtpSettings.save_mode(mode, actor_opts(socket)) do
-      {:ok, %{mode: mode, drained: drained}} ->
-        {:noreply,
-         socket |> reload() |> sync_relay() |> put_flash(:info, mode_message(mode, drained))}
-
-      {:error, :runner_unavailable} ->
-        {:noreply,
-         socket
-         |> reload()
-         |> put_flash(
-           :error,
-           gettext("The runner needs the machine API of PhoenixKit 2.63 or newer.")
-         )}
-
-      {:error, _reason} ->
-        {:noreply, socket |> reload() |> put_flash(:error, gettext("Failed to save the mode"))}
-    end
+  def handle_event("set_mode", %{"mode" => "local"}, %{assigns: %{mode: mode}} = socket)
+      when mode != "local" do
+    {:noreply, assign(socket, :confirm_local?, true)}
   end
+
+  def handle_event("set_mode", %{"mode" => mode}, socket) do
+    {:noreply, socket |> assign(:confirm_local?, false) |> apply_mode(mode)}
+  end
+
+  def handle_event("cancel_switch_local", _params, socket),
+    do: {:noreply, assign(socket, :confirm_local?, false)}
+
+  def handle_event("confirm_switch_local", _params, %{assigns: %{confirm_local?: true}} = socket) do
+    {:noreply, socket |> assign(:confirm_local?, false) |> apply_mode("local")}
+  end
+
+  def handle_event("confirm_switch_local", _params, socket), do: {:noreply, refuse(socket)}
 
   def handle_event("validate", %{"smtp" => params}, socket) when is_map(params) do
     {:noreply, socket |> assign(:form, merge_form(socket.assigns.form, params)) |> assign_view()}
@@ -566,6 +565,24 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   def handle_event("confirm_enable_api", _params, socket), do: {:noreply, refuse(socket)}
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  defp apply_mode(socket, mode) do
+    case SmtpSettings.save_mode(mode, actor_opts(socket)) do
+      {:ok, %{mode: mode, drained: drained}} ->
+        socket |> reload() |> sync_relay() |> put_flash(:info, mode_message(mode, drained))
+
+      {:error, :runner_unavailable} ->
+        socket
+        |> reload()
+        |> put_flash(
+          :error,
+          gettext("The runner needs the machine API of PhoenixKit 2.63 or newer.")
+        )
+
+      {:error, _reason} ->
+        socket |> reload() |> put_flash(:error, gettext("Failed to save the mode"))
+    end
+  end
 
   defp advanced?(field), do: field in SmtpSettings.number_fields() or field == "selftest_host"
 

@@ -1,6 +1,8 @@
 <div class="space-y-6" id={@id}>
   <%!-- Who opens the SMTP connections. The change is saved at once (and a switch to
-       "off" settles what was waiting), like the switches of the sections next door. --%>
+       "off" settles what was waiting), like the switches of the sections next door.
+       Only "this server" asks first: until it is confirmed the radio shows the choice,
+       the saved mode does not change. --%>
   <form id={"#{@id}-mode"} phx-change="set_mode" phx-target={@myself}>
     <fieldset class="fieldset">
       <legend class="fieldset-legend text-lg font-semibold">
@@ -13,7 +15,7 @@
           name="mode"
           value="off"
           class="radio radio-sm mt-0.5 shrink-0"
-          checked={@mode == "off"}
+          checked={@mode == "off" and not @confirm_local?}
         />
         <span class="min-w-0 flex-1">{gettext("Off — the domain only (the result is \"Domain OK, no SMTP\")")}</span>
       </label>
@@ -24,7 +26,7 @@
           name="mode"
           value="local"
           class="radio radio-sm mt-0.5 shrink-0"
-          checked={@mode == "local"}
+          checked={@mode == "local" or @confirm_local?}
         />
         <span class="min-w-0 flex-1">{gettext("This server — connections go from the site's IP address")}</span>
       </label>
@@ -41,7 +43,7 @@
           name="mode"
           value="runner"
           class="radio radio-sm mt-0.5 shrink-0"
-          checked={@mode == "runner"}
+          checked={@mode == "runner" and not @confirm_local?}
           disabled={@api_unavailable?}
         />
         <span class="min-w-0 flex-1">{gettext("Runner on your computer")}</span>
@@ -351,6 +353,46 @@
 
     <button type="submit" class="btn btn-primary btn-sm">{gettext("Save")}</button>
   </form>
+
+  <%!-- Connections from the site's own IP address: ask first. --%>
+  <.modal
+    show={@confirm_local?}
+    on_close="cancel_switch_local"
+    id={"#{@id}-switch-local-modal"}
+    max_width="md"
+  >
+    <:title>
+      <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
+      {gettext("Check mailboxes from this server?")}
+    </:title>
+
+    <div class="space-y-2 text-sm">
+      <p>
+        {gettext(
+          "The connections to other mail hosts will go out from the IP address of the server this site runs on."
+        )}
+      </p>
+      <p>
+        {gettext(
+          "Do not enable it if other sites share this IP address: a mail host that blocks it blocks them too."
+        )}
+      </p>
+      <p>
+        {gettext(
+          "On switching, the server tests whether its port 25 is open; if it is closed, no mailbox can be checked from here."
+        )}
+      </p>
+    </div>
+
+    <:actions>
+      <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_switch_local" phx-target={@myself}>
+        {gettext("Cancel")}
+      </button>
+      <button type="button" class="btn btn-warning btn-sm" phx-click="confirm_switch_local" phx-target={@myself}>
+        {gettext("Switch to this server")}
+      </button>
+    </:actions>
+  </.modal>
 
   <%!-- Enabling the machine API turns on an API of the whole site: ask first. --%>
   <.modal

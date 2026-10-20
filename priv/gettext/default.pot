@@ -4073,3 +4073,23 @@ msgstr ""
 msgctxt "smtp local runner status"
 msgid "Working"
 msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:366
+#, elixir-autogen, elixir-format
+msgid "Check mailboxes from this server?"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:372
+#, elixir-autogen, elixir-format
+msgid "The connections to other mail hosts will go out from the IP address of the server this site runs on."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:382
+#, elixir-autogen, elixir-format
+msgid "On switching, the server tests whether its port 25 is open; if it is closed, no mailbox can be checked from here."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:392
+#, elixir-autogen, elixir-format
+msgid "Switch to this server"
+msgstr ""
