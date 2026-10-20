@@ -13,7 +13,8 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   its domain accepts mail, the mailbox is unchecked. `"valid"` only ever comes
   from an SMTP probe, which is off by default (`email_verify_smtp_mode`) and runs
   elsewhere: the server only queues the address (`Verification.SmtpQueue`) and a
-  runner on the user's machine opens the connection.
+  runner on the user's machine opens the connection - or, in the mode `local`, the
+  server's own built-in runner (`Verification.LocalRunner`).
 
   ## Batches
 
@@ -38,6 +39,7 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   alias PhoenixKit.Modules.Emails.Verification.Batch
   alias PhoenixKit.Modules.Emails.Verification.Batches
   alias PhoenixKit.Modules.Emails.Verification.Config
+  alias PhoenixKit.Modules.Emails.Verification.LocalRunner
   alias PhoenixKit.Modules.Emails.Verification.Normalizer
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
   alias PhoenixKit.Modules.Emails.Verification.Result
@@ -118,8 +120,15 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   # no row yet; the queue deduplicates by address.
   defp enqueue_pending({:ok, %Result{reason: "smtp_pending"} = result} = stored) do
     case SmtpQueue.enqueue(result) do
-      {:ok, _queued} -> stored
-      {:error, reason} -> {:error, reason}
+      {:ok, :queued} ->
+        LocalRunner.wake()
+        stored
+
+      {:ok, _already_queued} ->
+        stored
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

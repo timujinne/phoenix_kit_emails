@@ -8,11 +8,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
   fine; it then writes only the fields whose value differs from the one in force, so a
   default the form merely shows is never frozen into the settings. Errors are `%{field => reason}` with the reasons `:address`, `:helo`,
   `:integer` (not a whole number above zero) and `{:max, n}`; the section turns them
-  into text. `save_mode/2` is separate: the mode takes effect at once, and going to
-  `off` settles what is waiting in the SMTP queue (`SmtpQueue.drain_disabled/0`).
+  into text. `save_mode/2` is separate: the mode takes effect at once, going to
+  `off` settles what is waiting in the SMTP queue (`SmtpQueue.drain_disabled/0`) and
+  going to `local` starts the built-in runner (`LocalRunner.activate/0`).
   """
 
   alias PhoenixKit.Modules.Emails.Verification.Config
+  alias PhoenixKit.Modules.Emails.Verification.LocalRunner
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
   alias PhoenixKit.Settings
 
@@ -106,7 +108,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
   def save_mode(mode, opts) when mode in @modes do
     with :ok <- check_available(mode),
          {:ok, _setting} <- write("email_verify_smtp_mode", mode, opts) do
-      {:ok, %{mode: mode, drained: if(mode == "off", do: SmtpQueue.drain_disabled(), else: 0)}}
+      {:ok, %{mode: mode, drained: after_mode(mode)}}
     else
       {:error, :runner_unavailable} -> {:error, :runner_unavailable}
       {:error, _changeset} -> {:error, :not_saved}
@@ -114,6 +116,17 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
   end
 
   def save_mode(_mode, _opts), do: {:error, :invalid_mode}
+
+  # What a switch to `mode` sets going: `off` settles what waits (the count), `local`
+  # starts the built-in runner (with its port 25 self-test).
+  defp after_mode("off"), do: SmtpQueue.drain_disabled()
+
+  defp after_mode("local") do
+    LocalRunner.activate()
+    0
+  end
+
+  defp after_mode(_mode), do: 0
 
   defp check_available("runner") do
     if Config.machine_api_available?(), do: :ok, else: {:error, :runner_unavailable}

@@ -3,8 +3,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   The runners that connect to this site: who they are, whether they are alive, and
   the autopause that protects the IP of the machine they run on.
 
-  A runner is identified by the API key it authenticates with (one row per key).
-  Every `claim` is a heartbeat (`heartbeat/3`); every settled session feeds the
+  A runner is identified by the API key it authenticates with (one row per key). The
+  built-in runner of the mode `local` has no key: its one row carries the fixed
+  `local_key/0` instead (`heartbeat_local/2`). Every `claim` is a heartbeat
+  (`heartbeat/3`); every settled session feeds the
   autopause (`record_session/6`): five failed sessions in a row (a refused
   connection, or a block) on at least three different domains pause the runner for
   an hour, which means a closed port 25 or an IP on a blocklist. While paused, `claim`
@@ -31,6 +33,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   @broadcast_gap_s 5
   @online_factor 3
   @runner_protocol_version "1.0.0"
+  # The "key" of the built-in runner (mode `local`): no API key stands behind it.
+  @local_key "00000000-0000-0000-0000-000000000001"
+  # The built-in runner counts as stalled only after this long without a cycle while
+  # work waits: one cycle can take minutes (a session has a few minutes of its own).
+  @local_stall_s 600
 
   @type info :: %{
           optional(:name) => String.t() | nil,
@@ -91,6 +98,41 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   @spec heartbeat(map(), info(), DateTime.t()) :: Runner.t()
   def heartbeat(%{key_uuid: key_uuid} = actor, info \\ %{}, now \\ UtilsDate.utc_now())
       when is_binary(key_uuid) do
+    record_contact(key_uuid, Map.get(actor, :ip), info, now)
+  end
+
+  @doc """
+  The heartbeat of the built-in runner (mode `local`): the same as `heartbeat/3` for the
+  one row that has `local_key/0` instead of an API key. `info` is what the server says
+  about itself (`:name` the host, `:os`, `:helo_auto` the `EHLO` name in use, `:port25`
+  from its self-test).
+  """
+  @spec heartbeat_local(info(), DateTime.t()) :: Runner.t()
+  def heartbeat_local(info \\ %{}, now \\ UtilsDate.utc_now()),
+    do: record_contact(@local_key, nil, info, now)
+
+  @doc "The `api_key_uuid` of the built-in runner's row."
+  @spec local_key() :: String.t()
+  def local_key, do: @local_key
+
+  @doc "Whether `runner` is the built-in runner of the mode `local`."
+  @spec local?(Runner.t() | nil) :: boolean()
+  def local?(%Runner{api_key_uuid: @local_key}), do: true
+  def local?(_runner), do: false
+
+  @doc """
+  Forgets what the built-in runner's port 25 self-test found, so the next cycle runs it
+  again (a switch to the mode `local` does this).
+  """
+  @spec reset_local_selftest() :: :ok
+  def reset_local_selftest do
+    from(r in Runner, where: r.api_key_uuid == ^@local_key)
+    |> repo().update_all(set: [port25: "unknown", port25_checked_at: nil])
+
+    :ok
+  end
+
+  defp record_contact(key_uuid, ip, info, now) do
     now = DateTime.truncate(now, :second)
     previous = repo().get_by(Runner, api_key_uuid: key_uuid)
     port25 = valid_port25(Map.get(info, :port25))
@@ -102,7 +144,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
         version: clip(Map.get(info, :version), 32),
         os: clip(Map.get(info, :os), 255),
         helo_auto: clip(Map.get(info, :helo_auto), 255),
-        public_ip: clip(Map.get(actor, :ip), 45),
+        public_ip: clip(ip, 45),
         port25: port25,
         port25_checked_at: if(port25, do: now),
         last_seen_at: now,
@@ -158,7 +200,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   reaches `Config.runner_fail_sessions/0` on at least `Config.runner_fail_domains/0`
   distinct domains the runner is paused for `Config.runner_pause_s/0`.
 
-  `:local` (the built-in runner) has no row and no autopause.
+  The built-in runner (mode `local`) has a row of its own and the same autopause.
   """
   @spec record_session(term(), String.t(), map(), String.t(), non_neg_integer(), DateTime.t()) ::
           [map()]
@@ -236,8 +278,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
     * `:mode` - the stored mode; `:api_available` - whether this core has the
       machine API a runner needs
     * `:state` - `:never_connected`, `:online` (seen within three times
-      `idle_poll_s`) or `:offline`
-    * `:runner` - the latest runner's row as a map (`nil` before any contact)
+      `idle_poll_s`) or `:offline`. For the built-in runner (mode `local`) see
+      `local_responding?/3`: it works in bursts and rests with an empty queue, so
+      silence alone is not a fault
+    * `:runner` - the row of the runner of the stored mode as a map (`nil` before any
+      contact): the built-in runner in the mode `local`, otherwise the latest runner
+      with an API key
     * `:port25_blocked`, `:paused` (`%{reason:, until:}` or `nil`)
     * `:mail_from`, `:mail_from_source`, `:mail_from_missing`
     * `:owner` - whose key the runner works with: `nil`, or `%{key_uuid:,
@@ -250,13 +296,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   """
   @spec status(DateTime.t()) :: map()
   def status(now \\ UtilsDate.utc_now()) do
-    runner = latest()
+    mode = Config.smtp_mode_setting()
+    runner = latest(mode)
+    queue = SmtpQueue.counts()
     {mail_from, source} = Config.smtp_mail_from()
 
     %{
-      mode: Config.smtp_mode_setting(),
+      mode: mode,
       api_available: Config.machine_api_available?(),
-      state: state(runner, now),
+      state: state(runner, queue, now),
       runner: runner && Map.take(runner, runner_fields()),
       port25_blocked: match?(%Runner{port25: "blocked"}, runner),
       paused: paused(runner, now),
@@ -264,7 +312,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
       mail_from_source: source,
       mail_from_missing: is_nil(mail_from),
       owner: runner && owner(runner),
-      queue: SmtpQueue.counts()
+      queue: queue
     }
   end
 
@@ -272,20 +320,38 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
     do:
       ~w(uuid api_key_uuid name version os public_ip helo_auto port25 port25_checked_at last_seen_at jobs_done last_error paused_until pause_reason)a
 
-  defp latest do
+  defp latest("local"), do: repo().get_by(Runner, api_key_uuid: @local_key)
+
+  defp latest(_mode) do
     repo().one(
       from(r in Runner,
+        where: r.api_key_uuid != ^@local_key,
         order_by: [desc_nulls_last: r.last_seen_at, desc: r.inserted_at],
         limit: 1
       )
     )
   end
 
-  defp state(nil, _now), do: :never_connected
-  defp state(%Runner{last_seen_at: nil}, _now), do: :never_connected
+  defp state(nil, _queue, _now), do: :never_connected
+  defp state(%Runner{last_seen_at: nil}, _queue, _now), do: :never_connected
 
-  defp state(%Runner{last_seen_at: seen}, now) do
-    if online?(seen, now), do: :online, else: :offline
+  defp state(%Runner{last_seen_at: seen} = runner, queue, now) do
+    online? = if local?(runner), do: local_responding?(seen, now, queue), else: online?(seen, now)
+    if online?, do: :online, else: :offline
+  end
+
+  @doc """
+  Whether the built-in runner (mode `local`) is doing its job: it ran a cycle within the
+  last ten minutes, or nothing waits for it (it rests when the queue is empty).
+  `queue` is `%{queued:, leased:}`.
+  """
+  @spec local_responding?(DateTime.t() | nil, DateTime.t(), %{
+          queued: non_neg_integer(),
+          leased: non_neg_integer()
+        }) :: boolean()
+  def local_responding?(seen, now, %{queued: queued, leased: leased}) do
+    queued + leased == 0 or
+      (match?(%DateTime{}, seen) and DateTime.diff(now, seen, :second) < @local_stall_s)
   end
 
   @doc """
@@ -315,6 +381,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   def pause_of(%Runner{} = runner, now), do: paused(runner, now)
 
   ## --- The key's owner ---
+
+  defp owner(%Runner{api_key_uuid: @local_key}), do: nil
 
   defp owner(%Runner{api_key_uuid: key_uuid}) do
     if Config.machine_api_available?(), do: key_owner(key_uuid)

@@ -16,7 +16,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueItem do
       one-minute-then-five backoff, `email_verify_smtp_max_attempts`)
     * `not_before` - the queue does not hand it out earlier (retry waits)
     * `lease_token`, `leased_by`, `lease_expires_at` - the session that holds it:
-      one token per session, `leased_by` the runner's uuid (or `"local"`). A lease that
+      one token per session, `leased_by` the runner's uuid (the built-in runner of the mode `local` has a row too). A lease that
       expired unreported puts the row back to `queued` but keeps the token and
       `leased_by`, so that a late report still finds it until the row is leased again
       (a new token) or settled

@@ -64,7 +64,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   @max_entries 200
   @outcomes ~w(answered connect_failed timeout reset)
   @commands ~w(banner ehlo mail rcpt_probe)
-  @local "local"
 
   @type session :: %{
           lease: String.t(),
@@ -73,7 +72,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
           probe: String.t() | nil,
           rcpt: [%{id: String.t(), email: String.t()}]
         }
-  @type claimant :: Runner.t() | :local
+  @type claimant :: Runner.t()
   @type report_summary :: %{
           accepted: non_neg_integer(),
           ignored: non_neg_integer(),
@@ -131,6 +130,44 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
       |> Map.new()
 
     %{queued: Map.get(counts, "queued", 0), leased: Map.get(counts, "leased", 0)}
+  end
+
+  @doc """
+  How many sessions `claimant` holds a live lease on at `now` (the rows of one session
+  share a lease token). The built-in runner keeps its concurrency within a limit by it.
+  """
+  @spec sessions_held(claimant(), DateTime.t()) :: non_neg_integer()
+  def sessions_held(claimant, now \\ UtilsDate.utc_now()) do
+    id = claimant_id(claimant)
+
+    from(q in Item,
+      where: q.state == "leased" and q.leased_by == ^id and q.lease_expires_at > ^now,
+      select: count(q.lease_token, :distinct)
+    )
+    |> repo().one()
+  end
+
+  @doc """
+  When the queue next has something to hand out, as seconds from `now`: `0` when a
+  queued row is due, the wait for the earliest `not_before` otherwise, `nil` when no row
+  is queued. (A due row may still be held back by its domain's pause or interval.)
+  """
+  @spec next_due_in(DateTime.t()) :: non_neg_integer() | nil
+  def next_due_in(now \\ UtilsDate.utc_now()) do
+    from(q in Item,
+      where: q.state == "queued",
+      select: %{
+        queued: count(q.uuid),
+        due: filter(count(q.uuid), is_nil(q.not_before) or q.not_before <= ^now),
+        first: min(q.not_before)
+      }
+    )
+    |> repo().one()
+    |> case do
+      %{queued: 0} -> nil
+      %{due: due} when due > 0 -> 0
+      %{first: first} -> max(DateTime.diff(first, now, :second), 1)
+    end
   end
 
   @doc """
@@ -201,8 +238,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   ## --- Claim ---
 
   @doc """
-  Hands out up to `max_sessions` sessions (see the moduledoc) to `claimant`: a
-  `Runner` row, or `:local` for the built-in runner.
+  Hands out up to `max_sessions` sessions (see the moduledoc) to `claimant`, a
+  `Runner` row (the built-in runner of the mode `local` has one too).
 
     * `{:paused, reason}` - the runner is paused (autopause); nothing is leased
     * `{:ok, sessions}` - possibly empty. Always empty while no `MAIL FROM` is
@@ -252,7 +289,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   end
 
   defp claimant_id(%Runner{uuid: uuid}), do: uuid
-  defp claimant_id(:local), do: @local
 
   # Domains with something due, nobody holding a session of them, past their pause
   # and their spacing; oldest waiter first. More than asked for, as some are skipped.

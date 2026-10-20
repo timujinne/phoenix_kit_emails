@@ -13,7 +13,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `email_verify_enabled` - the feature switch (default `true`)
     * `email_verify_smtp_mode` - who opens the SMTP connections: `"off"` (default, no
       SMTP at all), `"runner"` (an agent on the user's machine, through the machine
-      API) or `"local"` (this server); anything else counts as `"off"`
+      API) or `"local"` (this server, through its built-in runner); anything else counts as
+      `"off"`
     * `email_verify_smtp_mail_from` - an override for the `MAIL FROM` address (empty
       by default: the site's sender address is used), see `smtp_mail_from/0`
     * `email_verify_smtp_helo` - the `EHLO` name; empty means "the reverse DNS of the
@@ -64,6 +65,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `:verification_resolver` - a `Verification.Resolver` module (default `Resolver.Inet`)
     * `:verification_lists_dir` - external dictionary directory; wins over the setting
     * `:verification_machine_api` - `false` pretends the core has no machine API
+    * `:verification_smtp_port` - the port the built-in runner (mode `local`) connects to
+      (default `25`; tests point it at a fake mail host)
+    * `:verification_smtp_loopback_only` - `true` makes the built-in runner raise instead
+      of connecting to anything but 127.0.0.0/8 and `::1` (the test config sets it)
+    * `:verification_local_sessions` - sessions the built-in runner runs at a time
+      (default `3`)
     * `:verification_confirm_pause_ms` - the pause before a negative DNS answer is
       asked a second time, in milliseconds (default `300`, at most `2000`, `0`
       switches it off; the test config sets `0`)
