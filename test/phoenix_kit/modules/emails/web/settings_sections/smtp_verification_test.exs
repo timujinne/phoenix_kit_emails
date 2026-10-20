@@ -1093,6 +1093,26 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert html =~ ~r/id="smtp-verification-advanced"[^>]*class="[^"]*hidden/
     end
 
+    test "tells the least time to finish a session and why" do
+      html = render_section()
+
+      assert html =~ ~s|id="smtp-verification-lease-hint"|
+      assert html =~ "A session can run up to 240 s"
+      assert html =~ "cannot be below 300 s"
+    end
+
+    test "a lease below the floor is an error on its own field, in the Advanced block" do
+      socket = event(socket(), "save", %{"smtp" => %{"smtp_lease_s" => "120"}})
+
+      assert socket.assigns.advanced_open?
+      assert socket.assigns.errors == %{"smtp_lease_s" => {:min, 300}}
+      assert flash(socket, :error) == "Some fields are not valid"
+      assert Settings.get_setting("email_verify_smtp_lease_s") == nil
+
+      html = render_section(%{errors: socket.assigns.errors, form: socket.assigns.form})
+      assert html =~ "At least 300."
+    end
+
     test "an error in the numbers opens it and a later save does not shut it" do
       socket = event(socket(), "save", %{"smtp" => %{"smtp_lease_s" => "0"}})
       assert socket.assigns.advanced_open?

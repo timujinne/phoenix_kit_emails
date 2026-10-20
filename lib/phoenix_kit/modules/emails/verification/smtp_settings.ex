@@ -7,7 +7,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
   `save/2` validates the whole form first and writes nothing unless every field is
   fine; it then writes only the fields whose value differs from the one in force, so a
   default the form merely shows is never frozen into the settings. Errors are `%{field => reason}` with the reasons `:address`, `:helo`,
-  `:integer` (not a whole number above zero) and `{:max, n}`; the section turns them
+  `:integer` (not a whole number above zero), `{:max, n}` and `{:min, n}` (the lease of
+  a session cannot be shorter than `Config.smtp_lease_floor_s/0`); the section turns them
   into text. `save_mode/2` is separate: the mode takes effect at once, going to
   `off` settles what is waiting in the SMTP queue (`SmtpQueue.drain_disabled/0`) and
   going to `local` starts the built-in runner (`LocalRunner.activate/0`).
@@ -47,7 +48,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
     {"selftest_host", "email_verify_smtp_selftest_host", :helo}
   ]
 
-  @type errors :: %{optional(String.t()) => :address | :helo | :integer | {:max, pos_integer()}}
+  @type errors :: %{
+          optional(String.t()) =>
+            :address | :helo | :integer | {:max, pos_integer()} | {:min, pos_integer()}
+        }
 
   @doc "The names of the numeric fields, in the order of the form."
   @spec number_fields() :: [String.t()]
@@ -141,7 +145,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
     * `"mail_from"` - empty, or an address `Config.usable_sender_address/1` accepts
     * `"helo"` and `"selftest_host"` - empty, or a name `Config.helo_name?/1` accepts
     * the fields of `number_fields/0` - a whole number from 1 (addresses per session:
-      up to 100)
+      up to 100; time to finish a session: from `Config.smtp_lease_floor_s/0`)
 
   `{:ok, current()}` or `{:error, errors}` (nothing written for invalid fields;
   `%{"base" => :not_saved}` when the store itself refused a write, in which case the
@@ -158,7 +162,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
 
   # Every present field is checked, so that the form shows all the wrong ones at once.
   defp checked(params) do
-    numbers = Enum.map(@numbers, fn {field, setting, max} -> {field, setting, {:number, max}} end)
+    numbers =
+      Enum.map(@numbers, fn {field, setting, max} ->
+        {field, setting, {:number, minimum(field), max}}
+      end)
 
     results =
       (@texts ++ numbers)
@@ -198,7 +205,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
     |> Map.merge(Map.new(current.numbers, fn {field, number} -> {field, to_string(number)} end))
   end
 
-  defp check({:number, max}, value), do: check_number(max, value)
+  defp check({:number, min, max}, value), do: check_number(min, max, value)
   defp check(kind, value), do: check_text(kind, value)
 
   defp check_text(kind, value) when is_binary(value) do
@@ -221,15 +228,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
     if Config.helo_name?(text), do: {:ok, text}, else: {:error, :helo}
   end
 
-  defp check_number(max, value) when is_binary(value) do
+  defp check_number(min, max, value) when is_binary(value) do
     case Integer.parse(String.trim(value)) do
+      {number, ""} when number > 0 and number < min -> {:error, {:min, min}}
       {number, ""} when number > 0 and number <= max -> {:ok, Integer.to_string(number)}
       {number, ""} when number > max and max < @largest -> {:error, {:max, max}}
       _ -> {:error, :integer}
     end
   end
 
-  defp check_number(_max, _value), do: {:error, :integer}
+  defp check_number(_min, _max, _value), do: {:error, :integer}
+
+  # A session may run up to its hard limit, so its lease cannot be shorter than that.
+  defp minimum("smtp_lease_s"), do: Config.smtp_lease_floor_s()
+  defp minimum(_field), do: 1
 
   # The store refuses an empty value: clearing an override deletes the setting, and
   # clearing one that was never stored is not an error.

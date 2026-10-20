@@ -191,6 +191,41 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettingsTest do
       assert {:ok, _} = SmtpSettings.save(Map.put(params, "rcpt_per_session", "100"))
     end
 
+    test "a lease below the floor is refused with the floor, the floor itself is fine" do
+      floor = Config.smtp_lease_floor_s()
+      params = SmtpSettings.current() |> form()
+
+      for below <- ["1", "120", Integer.to_string(floor - 1)] do
+        assert {:error, %{"smtp_lease_s" => {:min, ^floor}} = errors} =
+                 SmtpSettings.save(Map.put(params, "smtp_lease_s", below))
+
+        assert map_size(errors) == 1
+      end
+
+      assert {:ok, _} =
+               SmtpSettings.save(Map.put(params, "smtp_lease_s", Integer.to_string(floor)))
+
+      assert {:ok, _} = SmtpSettings.save(Map.put(params, "smtp_lease_s", "900"))
+      assert Config.smtp_lease_s() == 900
+    end
+
+    test "a lease below the floor writes nothing, not even the other fields" do
+      params =
+        SmtpSettings.current()
+        |> form()
+        |> Map.merge(%{"smtp_lease_s" => "100", "helo" => "new.acme-mail.test"})
+
+      assert {:error, %{"smtp_lease_s" => {:min, _}}} = SmtpSettings.save(params)
+      assert Config.smtp_helo() == nil
+      assert Settings.get_setting("email_verify_smtp_lease_s") == nil
+    end
+
+    test "a stored lease below the floor is shown, and kept in force, as the floor" do
+      put("email_verify_smtp_lease_s", "60")
+
+      assert SmtpSettings.current().numbers["smtp_lease_s"] == Config.smtp_lease_floor_s()
+    end
+
     test "nothing is written when one field is wrong" do
       put("email_verify_smtp_helo", "keep.acme-mail.test")
 
@@ -215,11 +250,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettingsTest do
     end
 
     test "a field missing from the params keeps its value" do
-      put("email_verify_smtp_lease_s", "120")
+      put("email_verify_smtp_lease_s", "400")
 
       assert {:ok, _} = SmtpSettings.save(%{"mail_from" => "verify@acme-mail.test"})
 
-      assert Config.smtp_lease_s() == 120
+      assert Config.smtp_lease_s() == 400
       assert Config.smtp_mail_from() == {"verify@acme-mail.test", :override}
     end
 

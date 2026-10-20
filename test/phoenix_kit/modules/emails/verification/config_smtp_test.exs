@@ -230,6 +230,36 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
     end
   end
 
+  describe "the lease of a session" do
+    test "the floor is the session's hard limit plus a margin" do
+      assert Config.session_hard_limit_s() == 240
+      assert Config.smtp_lease_floor_s() == Config.session_hard_limit_s() + 60
+      assert Config.smtp_lease_floor_s() == 300
+    end
+
+    test "the hard limit is the one both runners enforce" do
+      source = File.read!("priv/smtp_runner/pk-smtp-runner.ps1")
+      assert [_, ms] = Regex.run(~r/HardMs\s*=\s*(\d+)/, source)
+      assert String.to_integer(ms) == Config.session_hard_limit_s() * 1000
+
+      assert File.read!("lib/phoenix_kit/modules/emails/verification/smtp/direct.ex") =~
+               "@hard_ms Config.session_hard_limit_s() * 1000"
+    end
+
+    test "a setting below the floor reads as the floor, one above it as itself" do
+      for below <- ["1", "120", "299"] do
+        put("email_verify_smtp_lease_s", below)
+        assert Config.smtp_lease_s() == Config.smtp_lease_floor_s(), below
+      end
+
+      put("email_verify_smtp_lease_s", "300")
+      assert Config.smtp_lease_s() == 300
+
+      put("email_verify_smtp_lease_s", "900")
+      assert Config.smtp_lease_s() == 900
+    end
+  end
+
   describe "what the settings form checks with" do
     test "usable_sender_address/1 normalises an address and refuses placeholders" do
       assert Config.usable_sender_address("Verify@Acme-Mail.TEST") ==

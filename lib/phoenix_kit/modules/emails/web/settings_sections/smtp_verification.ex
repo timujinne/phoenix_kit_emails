@@ -224,6 +224,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     |> assign(:number_inputs, number_inputs(socket.assigns.form, socket.assigns.errors))
     |> assign(:error_messages, error_messages(socket.assigns.errors))
     |> assign(:advanced_summary, advanced_summary(socket.assigns.form))
+    |> assign(:lease_floor_s, Config.smtp_lease_floor_s())
+    |> assign(:session_limit_s, Config.session_hard_limit_s())
   end
 
   defp can_api?(%Scope{} = scope), do: Scope.can?(scope, "api")
@@ -443,6 +445,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
 
   defp error_text(:integer, _field), do: gettext("A whole number above zero.")
   defp error_text({:max, max}, _field), do: gettext("At most %{max}.", max: max)
+  defp error_text({:min, min}, _field), do: gettext("At least %{min}.", min: min)
   defp error_text(:not_saved, _field), do: gettext("The settings could not be saved.")
 
   defp advanced_summary(form) do

@@ -141,7 +141,7 @@ All stored via PhoenixKit Settings with module `"email_system"`:
 - `email_verify_smtp_mode` — `off` (default) / `runner` / `local`
 - `email_verify_smtp_mail_from` — override of the MAIL FROM address (empty by default: the site's sender, `Mailer.get_from_email/0`; placeholder addresses count as not configured and no session starts); `email_verify_smtp_helo` — EHLO name (empty = the runner's reverse DNS; only a plain host name or an `[x.x.x.x]` literal is passed on, anything else reads as empty); the MAIL FROM handed out is normalised (ASCII, domain lowercase and punycode; a non-ASCII local part would need SMTPUTF8 and counts as not configured)
 - `email_verify_rcpt_per_session` / `email_verify_domain_interval_s` — addresses per session, seconds between sessions to one domain (default: 10 / 10)
-- `email_verify_smtp_lease_s` / `email_verify_smtp_max_attempts` — how long a runner holds a session, lost sessions before `smtp_unavailable` (default: 300 / 5)
+- `email_verify_smtp_lease_s` / `email_verify_smtp_max_attempts` — how long a runner holds a session, lost sessions before `smtp_unavailable` (default: 300 / 5); the lease is never below `Config.smtp_lease_floor_s/0` (the 240 s hard limit of a session plus 60 s) and the form refuses less
 - `email_verify_smtp_connect_timeout_s` / `email_verify_smtp_read_timeout_s` / `email_verify_smtp_idle_poll_s` — handed to the runner (default: 20 / 30 / 30)
 - `email_verify_domain_block_threshold` / `email_verify_domain_block_window_min` / `email_verify_domain_pause_min` — blocks that pause a domain, the window, the pause (default: 2 / 60 / 60)
 - `email_verify_runner_fail_sessions` / `email_verify_runner_fail_domains` / `email_verify_runner_pause_min` — runner autopause (default: 5 / 3 / 60)

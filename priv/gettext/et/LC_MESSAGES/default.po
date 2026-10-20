@@ -4154,3 +4154,13 @@ msgstr "Et tokenit protsesside loendis ei näidataks, määra see enne ja käivi
 #, elixir-autogen, elixir-format
 msgid "Or with the token in an environment variable, not on the command line:"
 msgstr "Või tokeniga keskkonnamuutujas, mitte käsureal:"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:448
+#, elixir-autogen, elixir-format
+msgid "At least %{min}."
+msgstr "Vähemalt %{min}."
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:333
+#, elixir-autogen, elixir-format
+msgid "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s."
+msgstr "Seanss võib kesta kuni %{limit} s, seega ei saa seansi lõpetamise aeg olla lühem kui %{floor} s."

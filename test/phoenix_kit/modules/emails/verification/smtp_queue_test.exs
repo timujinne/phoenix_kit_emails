@@ -16,6 +16,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
   alias PhoenixKit.Modules.Emails.Verification.Batch
   alias PhoenixKit.Modules.Emails.Verification.Batches
   alias PhoenixKit.Modules.Emails.Verification.BatchItem
+  alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.DomainCache
   alias PhoenixKit.Modules.Emails.Verification.Result
   alias PhoenixKit.Modules.Emails.Verification.Runner
@@ -132,6 +133,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
                Verification.verify("info@" <> domain, smtp: :enqueue)
 
       assert Enum.map(items(domain), & &1.state) |> Enum.sort() == ["cancelled", "queued"]
+    end
+  end
+
+  describe "claim: lease length" do
+    test "a lease setting below the floor still holds the rows for the floor", %{runner: runner} do
+      put("email_verify_smtp_lease_s", "30")
+      domain = unique_domain()
+      queue(domain, ["one"])
+
+      assert [%{domain: ^domain}] = claim!(runner)
+
+      assert Enum.all?(
+               items(domain),
+               &(DateTime.diff(&1.lease_expires_at, @now) == Config.smtp_lease_floor_s())
+             )
     end
   end
 

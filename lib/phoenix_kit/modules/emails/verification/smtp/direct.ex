@@ -43,7 +43,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
   @default_port 25
   @max_hosts 2
   @text_limit 512
-  @hard_ms 240_000
+  @hard_ms Config.session_hard_limit_s() * 1000
   @quit_ms 3_000
   @send_timeout_ms 10_000
   @max_line 4096

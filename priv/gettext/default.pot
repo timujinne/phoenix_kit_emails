@@ -4103,3 +4103,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Or with the token in an environment variable, not on the command line:"
 msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:448
+#, elixir-autogen, elixir-format
+msgid "At least %{min}."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:333
+#, elixir-autogen, elixir-format
+msgid "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s."
+msgstr ""

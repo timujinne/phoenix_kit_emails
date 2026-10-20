@@ -24,7 +24,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `email_verify_domain_interval_s` - least gap between two sessions to one domain
       (default `10`)
     * `email_verify_smtp_lease_s` - how long a runner holds a session before it is
-      taken back (default `300`)
+      taken back (default `300`; never less than `smtp_lease_floor_s/0`, so a session
+      that runs as long as it is allowed to cannot outlive its lease)
     * `email_verify_smtp_max_attempts` - sessions lost to an expired lease before the
       address is given up as `smtp_unavailable` (default `5`)
     * `email_verify_smtp_connect_timeout_s` / `email_verify_smtp_read_timeout_s` -
@@ -87,6 +88,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
 
   @smtp_modes ~w(off runner local)
   @placeholder_domains ~w(localhost example.com example.org example.net)
+
+  @session_hard_limit_s 240
+  @lease_margin_s 60
 
   @default_dns_timeout_ms 3_000
   @default_confirm_pause_ms 300
@@ -228,9 +232,25 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @spec domain_interval_s() :: pos_integer()
   def domain_interval_s, do: positive_integer("email_verify_domain_interval_s", 10)
 
-  @doc "Seconds a runner may hold a session."
+  @doc """
+  The longest one SMTP session runs, seconds: both the PowerShell runner and
+  the built-in runner stop a session at this limit, whatever the connect and read timeouts add up to.
+  """
+  @spec session_hard_limit_s() :: pos_integer()
+  def session_hard_limit_s, do: @session_hard_limit_s
+
+  @doc """
+  The least a lease may be, seconds: the hard limit of a session plus a margin for the
+  report to come back. A shorter lease would expire under a session that is still allowed
+  to run, and the address would be handed out again.
+  """
+  @spec smtp_lease_floor_s() :: pos_integer()
+  def smtp_lease_floor_s, do: @session_hard_limit_s + @lease_margin_s
+
+  @doc "Seconds a runner may hold a session: the setting, but not below `smtp_lease_floor_s/0`."
   @spec smtp_lease_s() :: pos_integer()
-  def smtp_lease_s, do: positive_integer("email_verify_smtp_lease_s", 300)
+  def smtp_lease_s,
+    do: max(positive_integer("email_verify_smtp_lease_s", 300), smtp_lease_floor_s())
 
   @doc "Sessions lost to an expired lease before an address is given up."
   @spec smtp_max_attempts() :: pos_integer()
