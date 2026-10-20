@@ -176,9 +176,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
 
   @doc false
   # The MX answer for `domain`: the persistent cache, then the resolver. Also used by
-  # the SMTP queue when it hands a domain to a runner.
+  # the SMTP queue when it hands a domain to a runner, which passes `dns: false` when
+  # it has no time left to ask: a cache miss is then `:no_dns`.
   @spec resolve_mx(String.t(), keyword()) ::
           {{:ok, Resolver.resolution()} | {:error, Resolver.resolve_error()}, String.t()}
+          | {:no_dns, String.t()}
   def resolve_mx(domain, opts \\ []) do
     now = UtilsDate.utc_now()
 
@@ -187,10 +189,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.Pipeline do
         {resolution, "cache"}
 
       :miss ->
-        resolution = Resolver.resolve(domain, resolver_opts(opts))
-        :ok = DomainCache.store_mx(domain, resolution, now)
-        {resolution, "dns"}
+        if Keyword.get(opts, :dns, true), do: ask_dns(domain, opts, now), else: {:no_dns, "cache"}
     end
+  end
+
+  defp ask_dns(domain, opts, now) do
+    resolution = Resolver.resolve(domain, resolver_opts(opts))
+    :ok = DomainCache.store_mx(domain, resolution, now)
+    {resolution, "dns"}
   end
 
   # The anti-hijack list is a closure: the probe is made only if the MX answer

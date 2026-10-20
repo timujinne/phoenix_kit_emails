@@ -191,6 +191,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
       assert Config.grey_max_attempts() == 3
       assert Config.smtp_lease_s() == 300
       assert Config.smtp_max_attempts() == 5
+      assert Config.smtp_queue_max_age_s() == 48 * 3_600
+      assert Config.claim_dns_budget_ms() == 10_000
       assert Config.smtp_connect_timeout_s() == 20
       assert Config.smtp_read_timeout_s() == 30
       assert Config.idle_poll_s() == 30
@@ -209,7 +211,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
       put("email_verify_domain_interval_s", "30")
       put("email_verify_smtp_idle_poll_s", "5")
       put("email_verify_domain_pause_min", "10")
+      put("email_verify_smtp_queue_max_age_h", "6")
+      put("email_verify_smtp_claim_dns_budget_ms", "2500")
 
+      assert Config.smtp_queue_max_age_s() == 6 * 3_600
+      assert Config.claim_dns_budget_ms() == 2_500
       assert Config.smtp_helo() == "mail.acme-mail.test"
       assert Config.smtp_selftest_host_setting() == "mx.acme-mail.test"
       assert Config.rcpt_per_session() == 4

@@ -43,7 +43,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   import Ecto.Query
 
   alias PhoenixKit.Modules.Emails.Verification
+  alias PhoenixKit.Modules.Emails.Verification.Batch
   alias PhoenixKit.Modules.Emails.Verification.Batches
+  alias PhoenixKit.Modules.Emails.Verification.BatchItem
   alias PhoenixKit.Modules.Emails.Verification.Classifier
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Dictionaries
@@ -61,6 +63,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   @transport_backoff_s [60, 300]
   @text_limit 512
   @max_entries 200
+  @drain_chunk 200
+  # An item parked this recently may still be on its way through the worker: not stranded.
+  @stranded_grace_s 60
   @outcomes ~w(answered connect_failed timeout reset)
   @commands ~w(banner ehlo mail rcpt_probe)
 
@@ -114,6 +119,25 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   @spec live?(String.t()) :: boolean()
   def live?(email) when is_binary(email) do
     repo().exists?(from(q in Item, where: q.email == ^email and q.state in ["queued", "leased"]))
+  end
+
+  @doc false
+  # Returns once no transaction that is settling a live row of `email` is in flight
+  # (a report, an expiry, a drain: each locks the queue rows of its addresses until it
+  # commits). A caller that parked an address calls it before it reads the verdict: the
+  # settling transaction may have looked for parked items just before they were
+  # parked and so will not finish this one, but the verdict it commits is final.
+  @spec wait_settled(String.t()) :: :ok
+  def wait_settled(email) when is_binary(email) do
+    _ =
+      from(q in Item,
+        where: q.email == ^email and q.state in ["queued", "leased"],
+        lock: "FOR SHARE",
+        select: 1
+      )
+      |> repo().all()
+
+    :ok
   end
 
   @doc "Rows by state: `%{queued:, leased:}`."
@@ -277,12 +301,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
 
   defp lease_sessions(claimant, max_sessions, now) do
     claimant_id = claimant_id(claimant)
+    dns_until = System.monotonic_time(:millisecond) + Config.claim_dns_budget_ms()
 
     max_sessions
     |> candidate_domains(now)
     |> Enum.reduce_while([], fn domain, sessions ->
       sessions =
-        case lease_domain(domain, claimant_id, now) do
+        case lease_domain(domain, claimant_id, dns_until, now) do
           {:ok, session} -> sessions ++ [session]
           :skip -> sessions
         end
@@ -314,8 +339,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
     |> repo().all()
   end
 
-  defp lease_domain(domain, claimant_id, now) do
-    case mx_hosts(domain) do
+  defp lease_domain(domain, claimant_id, dns_until, now) do
+    case mx_hosts(domain, dns_until) do
       {:ok, hosts} -> lease_rows(domain, hosts, claimant_id, now)
       {:dead, _reason} -> settle_dead_domain(domain, now)
       :transient -> :skip
@@ -323,10 +348,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   end
 
   # From the cache, then DNS (the MX was cached when the address was queued, so DNS
-  # is the exception). A definitive negative answer means the domain lost its mail
-  # host since; a transient failure leaves the rows queued for the next claim.
-  defp mx_hosts(domain) do
-    case Pipeline.resolve_mx(domain, []) do
+  # is the exception). DNS is asked only until `dns_until` (a monotonic time in
+  # milliseconds): a claim is an HTTP request, and a slow or dead resolver must not keep
+  # it for a lookup per domain; the domains left over wait for the next claim, while
+  # the ones whose MX is cached are still handed out. A definitive negative answer means
+  # the domain lost its mail host since; a transient failure leaves the rows queued for
+  # the next claim.
+  defp mx_hosts(domain, dns_until) do
+    dns? = System.monotonic_time(:millisecond) < dns_until
+
+    case Pipeline.resolve_mx(domain, dns: dns?) do
       {{:ok, %{hosts: [_ | _] = hosts}}, _source} ->
         {:ok, hosts |> Enum.map(& &1.host) |> Enum.take(@max_mx_hosts)}
 
@@ -336,7 +367,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
       {{:error, reason}, _source} ->
         {:dead, reason}
 
-      _other ->
+      _no_dns_or_other ->
         :transient
     end
   end
@@ -452,27 +483,31 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   end
 
   # The domain has no mail host any more: nothing to ask, the address cannot receive.
+  # Settled a chunk per transaction: the domain may have thousands of rows, and this
+  # runs inside a claim.
   defp settle_dead_domain(domain, now) do
     verdict = %{status: "invalid", reason: "no_mx", level: "mx", catch_all: nil}
 
-    {:ok, batches} =
+    {:ok, {count, batches}} =
       repo().transaction(fn ->
-        from(q in Item,
-          where: q.domain == ^domain and q.state == "queued",
-          order_by: [asc: q.inserted_at, asc: q.uuid],
-          lock: "FOR UPDATE SKIP LOCKED"
-        )
-        |> repo().all()
-        |> settle_rows(verdict, now)
+        rows =
+          from(q in Item,
+            where: q.domain == ^domain and q.state == "queued",
+            order_by: [asc: q.inserted_at, asc: q.uuid],
+            limit: ^@drain_chunk,
+            lock: "FOR UPDATE SKIP LOCKED"
+          )
+          |> repo().all()
+
+        {length(rows), settle_rows(rows, verdict, now)}
       end)
 
     broadcast_batches(batches)
-    :skip
+    if count == 0, do: :skip, else: settle_dead_domain(domain, now)
   end
 
   ## --- Mode off ---
 
-  @drain_chunk 200
   @disabled_verdict %{status: "not_sure", reason: "smtp_disabled", level: "mx", catch_all: nil}
 
   @doc """
@@ -560,6 +595,110 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
     else
       requeue(row, [lease_expiries: expiries], nil, "lease_expired", now, keep_lease: true)
       []
+    end
+  end
+
+  @unavailable_verdict %{
+    status: "not_sure",
+    reason: "smtp_unavailable",
+    level: "mx",
+    catch_all: nil
+  }
+
+  @doc """
+  Gives up the rows that have waited in the queue longer than
+  `email_verify_smtp_queue_max_age_h` (counted from when they were queued, whoever has
+  or has not been asking for them): they are settled as `not_sure` / `smtp_unavailable`,
+  the verdict of an address that exhausted its leases, and the batches awaiting them
+  move on. A row a runner holds is left to it (`expire_leases/1` takes it back when
+  the lease runs out). Returns how many rows it settled.
+  """
+  @spec expire_stale(DateTime.t()) :: non_neg_integer()
+  def expire_stale(now \\ UtilsDate.utc_now()) do
+    cutoff = DateTime.add(now, -Config.smtp_queue_max_age_s(), :second)
+    expire_stale_chunks(cutoff, now, 0)
+  end
+
+  defp expire_stale_chunks(cutoff, now, total) do
+    {:ok, {count, batches}} =
+      repo().transaction(fn ->
+        rows =
+          from(q in Item,
+            where: q.state == "queued" and q.inserted_at <= ^cutoff,
+            order_by: [asc: q.inserted_at, asc: q.uuid],
+            limit: ^@drain_chunk,
+            lock: "FOR UPDATE SKIP LOCKED"
+          )
+          |> repo().all()
+
+        {length(rows), settle_rows(rows, @unavailable_verdict, now)}
+      end)
+
+    broadcast_batches(batches)
+    if count == 0, do: total, else: expire_stale_chunks(cutoff, now, total + count)
+  end
+
+  @doc """
+  Finishes the batch items that wait for an address the queue no longer holds: its
+  verdict is final, or no live row is left (a report and the worker that parked the
+  item passed each other, or the row was dropped). The item gets the stored verdict,
+  or `not_sure` / `smtp_unavailable` when there is none. Only items of open batches
+  that have waited a minute are looked at. Returns how many addresses it finished.
+  """
+  @spec repair_stranded(DateTime.t()) :: non_neg_integer()
+  def repair_stranded(now \\ UtilsDate.utc_now()) do
+    cutoff = DateTime.add(now, -@stranded_grace_s, :second)
+    repair_chunks(cutoff, now, 0)
+  end
+
+  defp repair_chunks(cutoff, now, total) do
+    {:ok, {count, batches}} =
+      repo().transaction(fn ->
+        emails = stranded_emails(cutoff)
+        :ok = Batches.lock_awaiting(emails)
+        batches = Enum.flat_map(emails, &repair(&1, now))
+        {length(batches), batches}
+      end)
+
+    broadcast_batches(batches)
+    if count == 0, do: total, else: repair_chunks(cutoff, now, total + count)
+  end
+
+  defp stranded_emails(cutoff) do
+    live = from(q in Item, where: q.email == parent_as(:item).email, select: 1)
+    live = where(live, [q], q.state in ["queued", "leased"])
+
+    from(i in BatchItem,
+      as: :item,
+      join: b in Batch,
+      on: b.uuid == i.batch_uuid and b.state in ["queued", "running"],
+      where: i.state == "awaiting_smtp" and i.updated_at <= ^cutoff,
+      where: not exists(live),
+      distinct: true,
+      order_by: i.email,
+      limit: ^@drain_chunk,
+      select: i.email
+    )
+    |> repo().all()
+  end
+
+  # The batches the address finished. Looked at again under the batch locks: the queue
+  # may have taken the address in the meantime.
+  defp repair(email, now) do
+    if live?(email) do
+      []
+    else
+      status =
+        case Verification.statuses_for([email]) do
+          %{^email => %{status: status, reason: reason}} when reason != "smtp_pending" ->
+            status
+
+          _pending_or_missing ->
+            :ok = Verification.record_smtp_result(email, @unavailable_verdict, %{}, now)
+            @unavailable_verdict.status
+        end
+
+      Batches.settle_awaiting(email, status)
     end
   end
 

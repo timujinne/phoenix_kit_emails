@@ -361,6 +361,120 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       assert {:ok, []} = SmtpQueue.claim(runner, 4, DateTime.utc_now())
       assert item("a@" <> domain).state == "queued"
     end
+
+    test "a dead domain with more rows than one chunk is settled a chunk at a time", %{
+      runner: runner
+    } do
+      domain = unique_domain()
+      FakeResolver.put(domain, mx: {:error, :nxdomain})
+
+      rows =
+        for n <- 1..250 do
+          email = "u#{n}@" <> domain
+          %{email: email, checked_as: email, domain: domain}
+        end
+
+      Repo.insert_all(Item, rows)
+      count_chunks()
+
+      assert {:ok, []} = SmtpQueue.claim(runner, 4, DateTime.utc_now())
+
+      # 200 rows, 50 rows, nothing left: one transaction each, not one for the lot.
+      assert chunks() == 3
+
+      assert Repo.aggregate(
+               from(i in Item, where: i.domain == ^domain and i.state == "done"),
+               :count
+             ) ==
+               250
+
+      assert Repo.aggregate(
+               from(r in Result, where: r.domain == ^domain and r.reason == "no_mx"),
+               :count
+             ) ==
+               250
+    end
+  end
+
+  # Counts the statements that take a chunk of queued rows of a domain under lock.
+  defp count_chunks do
+    test = self()
+    id = {:chunks, make_ref()}
+
+    :telemetry.attach(
+      id,
+      [:phoenix_kit_emails, :test, :repo, :query],
+      fn _event, _measurements, meta, _config ->
+        if self() == test and meta.query =~ "FOR UPDATE SKIP LOCKED" and
+             meta.query =~ "\"domain\" = $1",
+           do: send(test, :chunk)
+      end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(id) end)
+  end
+
+  defp chunks(count \\ 0) do
+    receive do
+      :chunk -> chunks(count + 1)
+    after
+      0 -> count
+    end
+  end
+
+  describe "claim: the DNS budget" do
+    # Domains whose cached MX has run out and whose resolver is slow and dead.
+    defp stale_domains(count, prefix) do
+      for n <- 1..count do
+        domain = unique_domain(prefix)
+        queue(domain, ~w(a))
+
+        Repo.update_all(from(d in DomainCache, where: d.domain == ^domain),
+          set: [mx_checked_at: DateTime.add(DateTime.utc_now(), -30 * 86_400)]
+        )
+
+        Repo.update_all(from(i in Item, where: i.domain == ^domain),
+          set: [inserted_at: DateTime.add(DateTime.utc_now(), -3_600 + n, :second)]
+        )
+
+        FakeResolver.put(domain,
+          mx: fn ->
+            Process.sleep(200)
+            {:error, :timeout}
+          end
+        )
+
+        domain
+      end
+    end
+
+    test "a claim stops asking DNS once the budget is spent and leaves the rest queued", %{
+      runner: runner
+    } do
+      put("email_verify_smtp_claim_dns_budget_ms", "500")
+      domains = stale_domains(8, "slow")
+      before = length(FakeResolver.calls())
+
+      {micros, {:ok, []}} =
+        :timer.tc(fn -> SmtpQueue.claim(runner, 8, DateTime.utc_now()) end)
+
+      asked = length(FakeResolver.calls()) - before
+      assert asked in 1..5
+      assert micros < 1_500_000
+      assert Enum.all?(domains, &(hd(items(&1)).state == "queued"))
+    end
+
+    test "domains whose MX is cached are still leased after the budget is spent", %{
+      runner: runner
+    } do
+      put("email_verify_smtp_claim_dns_budget_ms", "100")
+      stale_domains(3, "slow")
+      fresh = unique_domain("fresh")
+      queue(fresh, ~w(a))
+
+      assert {:ok, [%{domain: ^fresh}]} = SmtpQueue.claim(runner, 8, DateTime.utc_now())
+    end
   end
 
   describe "claim: the catch-all probe" do
@@ -501,6 +615,143 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
 
       assert 0 = SmtpQueue.expire_leases(DateTime.add(@now, 299))
       assert hd(items(domain)).state == "leased"
+    end
+  end
+
+  describe "expire_stale" do
+    defp age(domain, local, hours) do
+      Repo.update_all(from(i in Item, where: i.email == ^(local <> "@" <> domain)),
+        set: [inserted_at: DateTime.add(DateTime.utc_now(), -hours * 3_600, :second)]
+      )
+    end
+
+    test "settles a row queued longer than the maximum age and finishes its batch" do
+      domain = unique_domain()
+      queue(domain, ~w(old young))
+      age(domain, "old", 49)
+      age(domain, "young", 47)
+      batch_uuid = awaiting_batch("old@" <> domain)
+
+      assert 1 = SmtpQueue.expire_stale(DateTime.utc_now())
+
+      assert item("old@" <> domain).state == "done"
+      assert %Result{status: "not_sure", reason: "smtp_unavailable"} = result("old@" <> domain)
+      assert item("young@" <> domain).state == "queued"
+
+      batch = Verification.get_batch(batch_uuid)
+      assert {batch.state, batch.processed, batch.awaiting_smtp} == {"done", 1, 0}
+      assert batch.counts == %{"not_sure" => 1}
+    end
+
+    test "the maximum age is a setting" do
+      put("email_verify_smtp_queue_max_age_h", "2")
+      domain = unique_domain()
+      queue(domain, ~w(a b))
+      age(domain, "a", 3)
+      age(domain, "b", 1)
+
+      assert 1 = SmtpQueue.expire_stale(DateTime.utc_now())
+      assert item("a@" <> domain).state == "done"
+      assert item("b@" <> domain).state == "queued"
+    end
+
+    test "a row a runner holds is left alone", %{runner: runner} do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      [_session] = claim!(runner, 4, DateTime.utc_now())
+      age(domain, "a", 100)
+
+      assert 0 = SmtpQueue.expire_stale(DateTime.utc_now())
+      assert item("a@" <> domain).state == "leased"
+    end
+
+    test "settles more rows than one chunk" do
+      domain = unique_domain()
+
+      old = DateTime.add(DateTime.utc_now(), -100 * 3_600, :second) |> DateTime.truncate(:second)
+
+      rows =
+        for n <- 1..250 do
+          email = "u#{n}@" <> domain
+          %{email: email, checked_as: email, domain: domain, inserted_at: old, updated_at: old}
+        end
+
+      Repo.insert_all(Item, rows)
+
+      assert 250 = SmtpQueue.expire_stale(DateTime.utc_now())
+    end
+  end
+
+  describe "repair_stranded" do
+    test "finishes an item whose address has a final verdict and no live row" do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      email = "a@" <> domain
+      batch_uuid = awaiting_batch(email)
+
+      # The queue row was settled in a report that did not see the parked item.
+      :ok =
+        Verification.record_smtp_result(
+          email,
+          %{status: "valid", reason: "smtp_ok", level: "smtp", catch_all: false},
+          %{},
+          @now
+        )
+
+      Repo.update_all(from(i in Item, where: i.email == ^email), set: [state: "done"])
+      later = DateTime.add(DateTime.utc_now(), 3_600, :second)
+
+      assert 1 = SmtpQueue.repair_stranded(later)
+
+      batch = Verification.get_batch(batch_uuid)
+      assert {batch.state, batch.processed, batch.awaiting_smtp} == {"done", 1, 0}
+      assert batch.counts == %{"valid" => 1}
+    end
+
+    test "settles an item that waits for a row that is gone as not_sure / smtp_unavailable" do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      email = "a@" <> domain
+      batch_uuid = awaiting_batch(email)
+      Repo.update_all(from(i in Item, where: i.email == ^email), set: [state: "cancelled"])
+      later = DateTime.add(DateTime.utc_now(), 3_600, :second)
+
+      assert 1 = SmtpQueue.repair_stranded(later)
+
+      assert %Result{status: "not_sure", reason: "smtp_unavailable"} = result(email)
+      assert Verification.get_batch(batch_uuid).state == "done"
+    end
+
+    test "leaves an item whose address is still in the queue" do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      batch_uuid = awaiting_batch("a@" <> domain)
+      later = DateTime.add(DateTime.utc_now(), 3_600, :second)
+
+      assert 0 = SmtpQueue.repair_stranded(later)
+      assert Verification.get_batch(batch_uuid).state == "running"
+    end
+
+    test "leaves an item that was parked a moment ago" do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      email = "a@" <> domain
+      batch_uuid = awaiting_batch(email)
+      Repo.update_all(from(i in Item, where: i.email == ^email), set: [state: "done"])
+
+      assert 0 = SmtpQueue.repair_stranded(DateTime.utc_now())
+      assert Verification.get_batch(batch_uuid).state == "running"
+    end
+
+    test "leaves an item of a cancelled batch" do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      email = "a@" <> domain
+      batch_uuid = awaiting_batch(email)
+      {:ok, _} = Verification.cancel_batch(batch_uuid)
+      later = DateTime.add(DateTime.utc_now(), 3_600, :second)
+
+      assert 0 = SmtpQueue.repair_stranded(later)
     end
   end
 

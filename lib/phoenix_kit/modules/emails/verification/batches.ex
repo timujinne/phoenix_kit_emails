@@ -385,7 +385,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     |> repo().update_all(inc: [awaiting_smtp: 1], set: [updated_at: now])
   end
 
+  # A report that is settling the address right now may have looked for parked items
+  # before this one was parked: wait for it to commit, then read the verdict.
   defp settle_if_final(batch_uuid, email) do
+    :ok = SmtpQueue.wait_settled(email)
+
     case Verification.statuses_for([email]) do
       %{^email => %{status: status, reason: reason}} when reason != "smtp_pending" ->
         settle_item(batch_uuid, email, status)

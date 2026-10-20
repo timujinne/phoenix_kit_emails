@@ -87,6 +87,17 @@ port 25 is open. A site error makes it wait 5 s, doubling up to 60 s; so does an
 site that needs a newer script, stops it with a message. When the site pauses it (too many
 refusals or a blocked IP) it says so once and keeps checking in until the pause ends.
 
+## When the runner is away
+
+The site does not wait for a runner for ever. A job the runner took and did not report is given
+back after its lease ends, and after the allowed number of lost sessions the address gets the
+verdict `not_sure` / `smtp_unavailable`. An address no runner has taken within
+`email_verify_smtp_queue_max_age_h` hours (default 48) gets the same verdict, and the batches
+waiting for it finish. A background job on the site does this, so it works with no runner
+connected. When the site's name server is slow or down, a request for jobs spends at most
+`email_verify_smtp_claim_dns_budget_ms` (default 10000) milliseconds on lookups and hands out
+what it has; the other addresses wait for the next request.
+
 ## What is sent to the site
 
 - With every call: the script version, the Windows version and PowerShell version, the computer

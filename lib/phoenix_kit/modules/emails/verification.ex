@@ -42,6 +42,7 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   alias PhoenixKit.Modules.Emails.Verification.LocalRunner
   alias PhoenixKit.Modules.Emails.Verification.Normalizer
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
+  alias PhoenixKit.Modules.Emails.Verification.QueueSweepWorker
   alias PhoenixKit.Modules.Emails.Verification.Result
   alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
@@ -122,6 +123,7 @@ defmodule PhoenixKit.Modules.Emails.Verification do
     case SmtpQueue.enqueue(result) do
       {:ok, :queued} ->
         LocalRunner.wake()
+        QueueSweepWorker.schedule()
         stored
 
       {:ok, _already_queued} ->

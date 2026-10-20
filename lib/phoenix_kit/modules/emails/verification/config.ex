@@ -29,6 +29,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
       that runs as long as it is allowed to cannot outlive its lease)
     * `email_verify_smtp_max_attempts` - sessions lost to an expired lease before the
       address is given up as `smtp_unavailable` (default `5`)
+    * `email_verify_smtp_queue_max_age_h` - hours an address may wait in the SMTP queue
+      before it is given up as `smtp_unavailable`, whether or not a runner is alive
+      (default `48`)
+    * `email_verify_smtp_claim_dns_budget_ms` - how long one claim may spend on DNS for
+      domains whose cached MX has run out; past it the other such domains stay queued
+      for the next claim (default `10000`)
     * `email_verify_smtp_connect_timeout_s` / `email_verify_smtp_read_timeout_s` -
       handed to the runner (default `20` / `30`)
     * `email_verify_smtp_idle_poll_s` - the runner's pause on an empty answer; the runner
@@ -256,6 +262,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @doc "Sessions lost to an expired lease before an address is given up."
   @spec smtp_max_attempts() :: pos_integer()
   def smtp_max_attempts, do: positive_integer("email_verify_smtp_max_attempts", 5)
+
+  @doc "Seconds an address may wait in the SMTP queue before it is given up."
+  @spec smtp_queue_max_age_s() :: pos_integer()
+  def smtp_queue_max_age_s, do: hours("email_verify_smtp_queue_max_age_h", 48)
+
+  @doc "Milliseconds one claim may spend on DNS lookups."
+  @spec claim_dns_budget_ms() :: pos_integer()
+  def claim_dns_budget_ms, do: positive_integer("email_verify_smtp_claim_dns_budget_ms", 10_000)
 
   @doc "The runner's connect timeout, seconds."
   @spec smtp_connect_timeout_s() :: pos_integer()
