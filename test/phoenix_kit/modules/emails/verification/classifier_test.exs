@@ -10,9 +10,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
   alias PhoenixKit.Modules.Emails.Verification.Classifier
 
   @phrases %{
-    grey: ["try again later", "greylisted"],
-    quota: ["over quota", "mailbox full"],
-    block: ["blacklist", "dnsbl", "5 7 1", "denied by policy"],
+    grey: ["fixture grey phrase", "fixture grey other"],
+    quota: ["fixture quota phrase", "fixture quota other"],
+    block: ["fixture block phrase", "fixture block other"],
     user_unknown: ["user unknown", "5.1.1", "invalid recipient"]
   }
 
@@ -104,7 +104,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
     test "a probe refused with a block text proves nothing" do
       session =
         session([%{id: "a", code: 250, text: "ok"}],
-          steps: [@banner, @ehlo, @mail, probe(550, "5.7.1 blocked, see dnsbl")]
+          steps: [@banner, @ehlo, @mail, probe(550, "blocked, fixture block other")]
         )
 
       result = classify(session, ["a"], catch_all: nil)
@@ -113,10 +113,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
       assert final(result.verdicts["a"]) == {"valid", "smtp_ok", "smtp", nil}
     end
 
+    test "a probe refused with an enhanced status 5.7.x proves nothing either" do
+      session =
+        session([%{id: "a", code: 250, text: "ok"}],
+          steps: [@banner, @ehlo, @mail, probe(550, "5.7.1 relay denied")]
+        )
+
+      assert classify(session, ["a"], catch_all: nil).domain.catch_all == nil
+    end
+
     test "a temporary refusal of the probe proves nothing either, the cached value still decides" do
       session =
         session([%{id: "a", code: 250, text: "ok"}],
-          steps: [@banner, @ehlo, @mail, probe(450, "try again later")]
+          steps: [@banner, @ehlo, @mail, probe(450, "fixture grey phrase")]
         )
 
       cached = classify(session, ["a"], catch_all: true)
@@ -141,12 +150,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
     end
 
     test "a quota phrase is temp / mailbox_full" do
-      {verdict, _} = one(552, "5.2.2 Mailbox is over quota")
+      {verdict, _} = one(552, "5.2.2 Mailbox fixture quota phrase")
       assert final(verdict) == {"temp", "mailbox_full", "smtp", nil}
     end
 
     test "a block phrase is not_sure / smtp_blocked, and it counts as a block and a failed session" do
-      {verdict, result} = one(554, "5.7.1 Service unavailable; client host blocked by DNSBL")
+      {verdict, result} = one(554, "5.7.1 Service unavailable; fixture block phrase")
 
       assert final(verdict) == {"not_sure", "smtp_blocked", "smtp", nil}
       assert result.domain.blocked
@@ -154,11 +163,51 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
     end
 
     test "phrases match whole words in any punctuation and case" do
-      {verdict, _} = one(550, "Denied-By-Policy: ref 123")
+      {verdict, _} = one(550, "Fixture-Block-Phrase: ref 123")
       assert verdict.reason == "smtp_blocked"
 
-      {verdict, _} = one(550, "predenied by policy")
+      {verdict, _} = one(550, "prefixture block phrase")
       assert verdict.reason == "mailbox_unknown"
+    end
+
+    test "an enhanced status 5.7.x is a block unless the text says the mailbox does not exist" do
+      for text <- [
+            "5.7.1 reverse DNS for your IP does not exist",
+            "550 5.7.25 sender rejected",
+            "554 5.7.0 Message refused",
+            "550-5.7.1 fixture text"
+          ] do
+        {verdict, result} = one(550, text)
+        assert final(verdict) == {"not_sure", "smtp_blocked", "smtp", nil}, text
+        assert result.domain.blocked
+        assert result.failed
+      end
+
+      {verdict, _} = one(550, "5.7.1 user unknown")
+      assert verdict.reason == "mailbox_unknown"
+    end
+
+    test "5.7.x inside another number is not an enhanced status" do
+      for text <- ["550 code 15.7.1 gone", "550 5.7 gone", "550 5.17.1 gone", "550 5.7.1234 gone"] do
+        {verdict, _} = one(550, text)
+        assert verdict.reason == "mailbox_unknown", text
+      end
+    end
+
+    test "a policy text that merely says something does not exist is not a user-unknown text" do
+      {verdict, _} = one(550, "reverse DNS for your IP does not exist, fixture block phrase")
+      assert verdict.reason == "smtp_blocked"
+
+      for text <- [
+            "550 5.1.1 The email account does not exist",
+            "550 The mailbox does not exist",
+            "550 user does not exist here",
+            "550 recipient does not exist",
+            "550 account does not exist"
+          ] do
+        {verdict, _} = one(550, text)
+        assert verdict.reason == "mailbox_unknown", text
+      end
     end
 
     test "any IP address in the text is a block" do
@@ -183,8 +232,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
     test "a user-unknown text is never a block, even with an IP address or a block phrase" do
       for text <- [
             "550 5.1.1 <a@b.ee>: user unknown (client 203.0.113.9)",
-            "550 invalid recipient, see blacklist policy",
-            "550 5.1.1 relay denied by policy"
+            "550 invalid recipient, see fixture block phrase",
+            "550 5.1.1 relay fixture block other"
           ] do
         {verdict, result} = one(550, text)
         assert final(verdict) == {"invalid", "mailbox_unknown", "smtp", nil}, text
@@ -198,16 +247,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
     end
 
     test "quota wins over block and an IP address, as in the original engine" do
-      {verdict, _} = one(552, "mailbox full for 203.0.113.9, listed on blacklist")
+      {verdict, _} = one(552, "fixture quota phrase for 203.0.113.9, fixture block phrase")
       assert verdict.reason == "mailbox_full"
     end
 
     test "a greylist phrase on a 5xx asks to retry; a user-unknown text still wins" do
-      {verdict, result} = one(550, "Greylisted, please try again later")
+      {verdict, result} = one(550, "Fixture grey phrase, please wait")
       assert %{action: :retry, kind: :grey} = verdict
-      assert result.domain.grey_message == "Greylisted, please try again later"
+      assert result.domain.grey_message == "Fixture grey phrase, please wait"
 
-      {verdict, _} = one(550, "5.1.1 user unknown, try again later")
+      {verdict, _} = one(550, "5.1.1 user unknown, fixture grey phrase")
       assert verdict.reason == "mailbox_unknown"
     end
 
@@ -219,7 +268,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
 
   describe "RCPT deferred with a 4xx" do
     test "asks to retry, keeps the grey text on the domain, and is temp / greylisted at last" do
-      {verdict, result} = one(451, "4.7.1 Greylisted, please try again later")
+      {verdict, result} = one(451, "4.7.1 Fixture grey phrase, please wait")
 
       assert verdict.action == :retry
       assert verdict.kind == :grey
@@ -231,7 +280,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
                catch_all: nil
              }
 
-      assert result.domain.grey_message == "4.7.1 Greylisted, please try again later"
+      assert result.domain.grey_message == "4.7.1 Fixture grey phrase, please wait"
       refute result.domain.blocked
       refute result.failed
     end
@@ -261,11 +310,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
     end
 
     test "a 4xx defers every address like a greylist" do
-      steps = [@banner, @ehlo, %{cmd: "mail", code: 450, text: "4.7.1 try again later"}]
+      steps = [@banner, @ehlo, %{cmd: "mail", code: 450, text: "4.7.1 fixture grey phrase"}]
       result = classify(session([], steps: steps), ["a"])
 
       assert %{action: :retry, kind: :grey} = result.verdicts["a"]
-      assert result.domain.grey_message == "4.7.1 try again later"
+      assert result.domain.grey_message == "4.7.1 fixture grey phrase"
     end
   end
 
@@ -347,9 +396,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
       rcpt = [
         %{id: "ok", code: 250, text: "ok"},
         %{id: "gone", code: 550, text: "5.1.1 user unknown"},
-        %{id: "full", code: 552, text: "mailbox full"},
-        %{id: "wait", code: 451, text: "try again later"},
-        %{id: "block", code: 554, text: "listed on dnsbl"}
+        %{id: "full", code: 552, text: "fixture quota phrase"},
+        %{id: "wait", code: 451, text: "fixture grey phrase"},
+        %{id: "block", code: 554, text: "listed, fixture block phrase"}
       ]
 
       result = classify(session(rcpt), Enum.map(rcpt, & &1.id), catch_all: false)
@@ -361,7 +410,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
       assert result.verdicts["block"].reason == "smtp_blocked"
       assert result.domain.blocked
       assert result.failed
-      assert result.domain.grey_message == "try again later"
+      assert result.domain.grey_message == "fixture grey phrase"
     end
 
     test "the verdicts are exactly the ids asked about" do
@@ -376,13 +425,26 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
 
       assert Map.keys(phrases) |> Enum.sort() == [:block, :grey, :quota, :user_unknown]
       assert "user unknown" in phrases.user_unknown
-      assert length(phrases.user_unknown) == 10
+      assert "mailbox does not exist" in phrases.user_unknown
+      refute "does not exist" in phrases.user_unknown
+      refute "mailbox unavailable" in phrases.user_unknown
+      assert length(phrases.user_unknown) == 12
+    end
+
+    test "the shipped user-unknown list leaves a policy text alone" do
+      {verdict, _} =
+        one_with(Classifier.phrases(), 550, "5.7.1 reverse DNS for your IP does not exist")
+
+      assert verdict.reason == "smtp_blocked"
+
+      {verdict, _} = one_with(Classifier.phrases(), 550, "mailbox unavailable")
+      assert verdict.reason == "mailbox_unknown"
     end
 
     test "with no block phrases loaded only an IP address blocks" do
       empty = %{grey: [], quota: [], block: [], user_unknown: ["5.1.1"]}
 
-      {verdict, _} = one_with(empty, 550, "blocked by dnsbl")
+      {verdict, _} = one_with(empty, 550, "fixture block phrase")
       assert verdict.reason == "mailbox_unknown"
 
       {verdict, _} = one_with(empty, 550, "blocked at 203.0.113.9")
@@ -390,8 +452,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.ClassifierTest do
     end
 
     test "a phrase written with punctuation matches the normalised text" do
-      phrases = %{grey: [], quota: [], block: ["5.7.1"], user_unknown: []}
-      {verdict, _} = one_with(phrases, 550, "5.7.1 rejected")
+      phrases = %{grey: [], quota: [], block: ["x.y.z"], user_unknown: []}
+      {verdict, _} = one_with(phrases, 550, "x.y.z rejected")
       assert verdict.reason == "smtp_blocked"
     end
 

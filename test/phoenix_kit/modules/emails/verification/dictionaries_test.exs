@@ -30,8 +30,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
       end
     end
 
-    test "the user-unknown phrases ship with ten generic entries" do
-      assert Dictionaries.size(:smtp_user_unknown) == 10
+    test "the user-unknown phrases ship with twelve generic entries" do
+      assert Dictionaries.size(:smtp_user_unknown) == 12
 
       phrases = Dictionaries.phrases(:smtp_user_unknown)
       assert "user unknown" in phrases
@@ -181,9 +181,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
         "Typos_Sorted.txt" => ["@gmai.example", "@gmial.example"],
         "FakeAddresses_Sorted.txt" => ["@fixture-fake.example", "nobodyhome@", "x@y.example"],
         "CurseWords_Sorted.txt" => ["blorp", "rude word"],
-        "Greylisting_Sorted.txt" => ["Try Again Later", "please wait "],
-        "MailboxQuota_Sorted.txt" => ["over quota"],
-        "Blocking_Sorted.txt" => ["Relay access denied", "5 7 1"]
+        "Greylisting_Sorted.txt" => ["Fixture Grey Two", "fixture grey one "],
+        "MailboxQuota_Sorted.txt" => ["fixture quota one"],
+        "Blocking_Sorted.txt" => ["Fixture Block Two", "fixture block one"]
       }
 
       for {name, lines} <- files, do: File.write!(Path.join(dir, name), crlf.(lines))
@@ -220,9 +220,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
     end
 
     test "the SMTP phrase lists are exposed, trimmed and lowercased" do
-      assert Dictionaries.phrases(:smtp_grey) == ["please wait", "try again later"]
-      assert Dictionaries.phrases(:smtp_quota) == ["over quota"]
-      assert Dictionaries.phrases(:smtp_block) == ["5 7 1", "relay access denied"]
+      assert Dictionaries.phrases(:smtp_grey) == ["fixture grey one", "fixture grey two"]
+      assert Dictionaries.phrases(:smtp_quota) == ["fixture quota one"]
+      assert Dictionaries.phrases(:smtp_block) == ["fixture block one", "fixture block two"]
     end
 
     test "our own file names work too, next to the Kellerman ones", %{tmp_dir: dir} do
@@ -236,7 +236,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
       assert Dictionaries.disposable?("own-dead.example")
       assert Dictionaries.disposable?("fixture-throwaway.example")
       assert "own phrase" in Dictionaries.phrases(:smtp_block)
-      assert "relay access denied" in Dictionaries.phrases(:smtp_block)
+      assert "fixture block two" in Dictionaries.phrases(:smtp_block)
     end
 
     test "a leading dot and a byte-order mark are tolerated in our own file too", %{tmp_dir: dir} do

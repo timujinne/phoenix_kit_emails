@@ -32,7 +32,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
   | `RCPT` 250/251, domain catch-all | `not_sure` / `catch_all` |
   | `RCPT` 5xx, quota phrase | `temp` / `mailbox_full` |
   | `RCPT` 5xx, greylist phrase | retry later (like a 4xx) |
-  | `RCPT` 5xx, block phrase or any IP address in the text, and not a user-unknown text | `not_sure` / `smtp_blocked`, one block for the domain |
+  | `RCPT` 5xx, block phrase, any IP address or an enhanced status 5.7.x in the text, and not a user-unknown text | `not_sure` / `smtp_blocked`, one block for the domain |
   | `RCPT` 5xx, anything else | `invalid` / `mailbox_unknown` |
   | `RCPT` 4xx | retry later; once the attempts are spent `temp` / `greylisted` |
   | `MAIL FROM` 5xx | `not_sure` / `mail_from_rejected` |
@@ -46,6 +46,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
   "5.1.1", ...) is never a greylist or a block, so a refusal that merely quotes
   an IP address is still an unknown mailbox. IP addresses are removed from the text
   before the user-unknown phrases are looked for (so `5.1.1.9` is not `5.1.1`).
+  A 5xx whose enhanced status is 5.7.x (security or policy) and which holds no
+  user-unknown phrase is a block, never an unknown mailbox: a refusal such as
+  "5.7.1 reverse DNS for your IP does not exist" is about the sender.
 
   ## Output
 
@@ -235,11 +238,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
     end
   end
 
-  # A block phrase or any IP address in the text - unless the text says the mailbox
-  # does not exist.
+  # A block phrase, any IP address or an enhanced status 5.7.x (a policy refusal) in
+  # the text - unless the text says the mailbox does not exist.
   defp block_text?(text, ctx) do
     not unknown_user?(text, ctx) and
-      (matches?(normalized(text), ctx.phrases.block) or contains_ip?(text))
+      (matches?(normalized(text), ctx.phrases.block) or contains_ip?(text) or
+         policy_status?(text))
   end
 
   defp unknown_user?(text, ctx),
@@ -298,6 +302,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
   defp matches?(text_norm, phrases), do: Enum.any?(phrases, &String.contains?(text_norm, &1))
 
   @ip_candidate ~r/[0-9a-fA-F:.]{3,45}/
+  @policy_status ~r/(?<![0-9.])5\.7\.[0-9]{1,3}(?![0-9.])/
+
+  # RFC 3463 class 5, subject 7: "security or policy status". An address in the text
+  # is cut out first, so the start of `5.7.1.9` is not read as a status.
+  defp policy_status?(text) when is_binary(text),
+    do: Regex.match?(@policy_status, strip_ips(text))
+
+  defp policy_status?(_text), do: false
 
   defp contains_ip?(text) when is_binary(text) do
     @ip_candidate |> Regex.scan(text) |> List.flatten() |> Enum.any?(&ip?/1)

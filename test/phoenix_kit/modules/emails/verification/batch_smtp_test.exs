@@ -118,7 +118,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
     batch = start_batch(domain, ~w(a))
 
     {:ok, [session]} = SmtpQueue.claim(runner, 4, @now)
-    SmtpQueue.report(runner, [report(session, %{0 => {451, "try again later"}})], @now)
+    SmtpQueue.report(runner, [report(session, %{0 => {451, "fixture grey phrase"}})], @now)
 
     waiting = reload(batch)
     assert {waiting.state, waiting.processed, waiting.awaiting_smtp} == {"running", 0, 1}

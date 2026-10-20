@@ -29,9 +29,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
 
   # Fixture phrases, never the owner's private lists.
   @phrases %{
-    grey: ["try again later", "greylisted"],
-    quota: ["mailbox full"],
-    block: ["dnsbl"],
+    grey: ["fixture grey phrase", "fixture grey other"],
+    quota: ["fixture quota phrase"],
+    block: ["fixture block phrase"],
     user_unknown: ["user unknown", "5.1.1", "no such user"]
   }
 
@@ -558,7 +558,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       replies = %{
         by_email["ok@" <> domain] => {250, "ok"},
         by_email["gone@" <> domain] => {550, "5.1.1 user unknown"},
-        by_email["full@" <> domain] => {552, "mailbox full"}
+        by_email["full@" <> domain] => {552, "fixture quota phrase"}
       }
 
       report!(runner, session, replies, probe: {550, "no such user"})
@@ -598,7 +598,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       queue(domain, ~w(a))
       [session] = claim!(runner)
 
-      report!(runner, session, %{0 => {451, "4.7.1 greylisted, try again later"}},
+      report!(runner, session, %{0 => {451, "4.7.1 fixture grey phrase"}},
         probe: {550, "no such user"}
       )
 
@@ -609,7 +609,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       assert result("a@" <> domain).reason == "smtp_pending"
 
       grey = domain_row(domain)
-      assert grey.grey_message =~ "greylisted"
+      assert grey.grey_message =~ "fixture grey phrase"
       assert grey.grey_at == @now
 
       assert {:ok, []} = SmtpQueue.claim(runner, 4, DateTime.add(@now, 20 * 60 - 1))
@@ -624,7 +624,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       for attempt <- 1..3 do
         now = DateTime.add(@now, attempt * 3600)
         [session] = claim!(runner, 4, now)
-        report!(runner, session, %{0 => {451, "try again later"}}, now: now)
+        report!(runner, session, %{0 => {451, "fixture grey phrase"}}, now: now)
       end
 
       assert %Item{state: "done", attempts: 3} = hd(items(domain))
@@ -827,12 +827,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       put("email_verify_rcpt_per_session", "1")
 
       [s1] = claim!(runner)
-      report!(runner, s1, %{0 => {554, "listed on dnsbl"}})
+      report!(runner, s1, %{0 => {554, "listed, fixture block phrase"}})
       assert domain_row(domain).paused_until == nil
 
       t2 = DateTime.add(@now, 5)
       [s2] = claim!(runner, 4, t2)
-      report!(runner, s2, %{0 => {554, "listed on dnsbl"}}, now: t2)
+      report!(runner, s2, %{0 => {554, "listed, fixture block phrase"}}, now: t2)
 
       row = domain_row(domain)
       assert DateTime.diff(row.paused_until, t2) == 3600
@@ -846,11 +846,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       queue(domain, ~w(a b))
 
       [s1] = claim!(runner)
-      report!(runner, s1, %{0 => {554, "listed on dnsbl"}})
+      report!(runner, s1, %{0 => {554, "listed, fixture block phrase"}})
 
       t2 = DateTime.add(@now, 2 * 3600)
       [s2] = claim!(runner, 4, t2)
-      report!(runner, s2, %{0 => {554, "listed on dnsbl"}}, now: t2)
+      report!(runner, s2, %{0 => {554, "listed, fixture block phrase"}}, now: t2)
 
       assert domain_row(domain).paused_until == nil
     end
@@ -944,7 +944,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       queue(domain, ~w(a b))
       [session] = claim!(runner)
 
-      replies = %{0 => {550, "5.1.1 user unknown"}, 1 => {451, "try again later"}}
+      replies = %{0 => {550, "5.1.1 user unknown"}, 1 => {451, "fixture grey phrase"}}
       report!(runner, session, replies, probe: {550, "x"})
 
       assert Repo.get!(Runner, runner.uuid).jobs_done == 1
