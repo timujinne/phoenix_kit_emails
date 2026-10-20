@@ -78,9 +78,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Classifier do
 
   @type step :: %{cmd: String.t(), code: integer(), text: String.t()}
   @type session :: %{
-          outcome: String.t(),
-          steps: [step()],
-          rcpt: [%{id: term(), code: integer(), text: String.t()}]
+          required(:outcome) => String.t(),
+          required(:steps) => [step()],
+          required(:rcpt) => [%{id: term(), code: integer(), text: String.t()}],
+          optional(atom()) => term()
         }
   @type phrases :: %{
           grey: [String.t()],

@@ -49,7 +49,7 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
     alias PhoenixKit.Modules.Emails.Verification.Runners
     alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
 
-    @scope "emails.smtp_runner:run"
+    @scope Runners.scope()
     @max_report 50
     @max_sessions 20
     @outcomes ~w(answered connect_failed timeout reset)

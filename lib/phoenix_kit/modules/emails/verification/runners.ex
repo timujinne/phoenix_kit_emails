@@ -26,6 +26,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
+  @scope "emails.smtp_runner:run"
   @topic "email_verify:runner"
   @broadcast_gap_s 5
   @online_factor 3
@@ -37,6 +38,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
           optional(:helo_auto) => String.t() | nil,
           optional(:port25) => String.t() | nil
         }
+
+  @doc "The API scope of the runner's key (`emails.smtp_runner:run`)."
+  @spec scope() :: String.t()
+  def scope, do: @scope
 
   ## --- PubSub ---
 
@@ -227,7 +232,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
     * `:owner` - whose key the runner works with: `nil`, or `%{key_uuid:,
       key_name:, user_uuid:, email:, name:, active:, emails_permission:, warning:}`;
       `warning` is `nil`, `:key_revoked`, `:key_expired`, `:owner_inactive` or
-      `:no_emails_permission` (the runner will stop, issue a new token)
+      `:no_emails_permission` (the runner will stop, issue a new token);
+      `emails_permission` is whether the owner can still hold the runner scope, that
+      is, still holds the `emails` permission
     * `:queue` - `%{queued:, leased:}`
   """
   @spec status(DateTime.t()) :: map()
@@ -297,12 +304,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   defp key_owner(key_uuid) do
     alias PhoenixKit.API.Keys
     alias PhoenixKit.Users.Auth
-    alias PhoenixKit.Users.Auth.Scope
 
     with %{} = key <- Keys.get_key(key_uuid),
          %{} = user <- Auth.get_user(key.user_uuid) do
       active = user.is_active != false
-      permitted = active and Scope.can?(Scope.for_user(user, narrow: false), "emails")
+      permitted = active and @scope in Keys.allowed_scopes_for(user)
 
       %{
         key_uuid: key.uuid,
