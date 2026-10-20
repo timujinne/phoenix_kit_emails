@@ -54,9 +54,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"batch_uuid" => batch_uuid}} = job) do
-    case address(job.args) do
+    case member(job.args) do
       nil -> {:cancel, :not_a_member}
-      email -> batch_uuid |> run(email, job) |> settle(job, batch_uuid, email)
+      {email, item} -> batch_uuid |> run(email, item, job) |> settle(job, batch_uuid, email)
     end
   rescue
     error ->
@@ -66,24 +66,32 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
 
   def perform(%Oban.Job{}), do: {:cancel, :malformed_args}
 
-  # The address the job is about: the item's, or the job's own in the shape of an
-  # earlier version. A job with neither is malformed.
-  defp address(%{"batch_uuid" => batch_uuid, "item_uuid" => item_uuid}),
-    do: Batches.item_email(batch_uuid, item_uuid)
+  # What the job is about: the address with the item it was read from, or - in the
+  # shape of an earlier version, which carries the address itself - the address alone
+  # (the item is looked up by it later). A job with neither is malformed.
+  defp member(%{"batch_uuid" => batch_uuid, "item_uuid" => item_uuid}) do
+    case Batches.get_item_by_uuid(batch_uuid, item_uuid) do
+      %BatchItem{email: email} = item -> {email, item}
+      nil -> nil
+    end
+  end
 
-  defp address(%{"email" => email}) when is_binary(email), do: email
-  defp address(_args), do: nil
+  defp member(%{"email" => email}) when is_binary(email), do: {email, nil}
+  defp member(_args), do: nil
 
   # A crash in the lookup itself leaves nothing to count.
   defp rescue_address(args) do
-    address(args)
+    case member(args) do
+      {email, _item} -> email
+      nil -> nil
+    end
   rescue
     _ -> nil
   end
 
-  defp run(batch_uuid, email, job) do
+  defp run(batch_uuid, email, item, job) do
     with {:ok, _batch} <- open_batch(batch_uuid),
-         {:ok, _item} <- pending_item(batch_uuid, email),
+         {:ok, _item} <- pending_item(batch_uuid, email, item),
          {:ok, result} <- Verification.verify(email, smtp: :enqueue) do
       case Retry.decide(result, snoozed(job)) do
         {:snooze, seconds} ->
@@ -122,13 +130,17 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
     end
   end
 
-  defp pending_item(batch_uuid, email) do
-    case Batches.get_item(batch_uuid, email) do
-      nil -> {:cancel, :not_a_member}
-      %BatchItem{state: state} when state in ["done", "awaiting_smtp"] -> :finished
-      %BatchItem{} = item -> {:ok, item}
-    end
-  end
+  defp pending_item(batch_uuid, email, nil),
+    do: batch_uuid |> Batches.get_item(email) |> check_item()
+
+  defp pending_item(_batch_uuid, _email, %BatchItem{} = item), do: check_item(item)
+
+  defp check_item(nil), do: {:cancel, :not_a_member}
+
+  defp check_item(%BatchItem{state: state}) when state in ["done", "awaiting_smtp"],
+    do: :finished
+
+  defp check_item(%BatchItem{} = item), do: {:ok, item}
 
   defp await(batch_uuid, email) do
     case Batches.await_smtp(batch_uuid, email) do

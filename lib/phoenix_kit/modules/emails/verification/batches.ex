@@ -38,7 +38,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   Jobs enqueued by an earlier version carry the addresses in their args
   (`BatchStartWorker` with `"emails"`, `VerifyEmailWorker` with `"email"`); both workers
-  still accept that shape (`lay_out/2`) so that nothing already queued is lost.
+  still accept that shape (`lay_out/2`) so that nothing already queued is lost. The
+  other direction does not hold: a node still on the old code cancels a job of this
+  version as malformed, so a rolling deploy should drain the queue first. Oban also
+  keeps the text of a job's errors, and a database error can quote a row: keep the
+  `errors` of `oban_jobs` out of anywhere they should not reach.
   """
 
   import Ecto.Query
@@ -100,17 +104,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   # Whatever goes wrong - the database, no Oban instance running - the caller gets
   # an error tuple, and the transaction leaves no batch behind.
+  # No deadline: the whole transaction shares one, and laying out 100,000 items can
+  # take longer than the pool's default 15 s on a slow or busy database. Each query
+  # still has its own.
   defp insert_with_job(changeset, keys) do
-    repo().transaction(fn ->
-      with {:ok, batch} <- repo().insert(changeset),
-           :ok <- insert_items(batch.uuid, keys),
-           batch = %{batch | total: sync_total(batch.uuid, UtilsDate.utc_now())},
-           {:ok, _job} <- enqueue_start(batch) do
-        batch
-      else
-        {:error, reason} -> repo().rollback(reason)
-      end
-    end)
+    repo().transaction(
+      fn ->
+        with {:ok, batch} <- repo().insert(changeset),
+             :ok <- insert_items(batch.uuid, keys),
+             batch = %{batch | total: sync_total(batch.uuid, UtilsDate.utc_now())},
+             {:ok, _job} <- enqueue_start(batch) do
+          batch
+        else
+          {:error, reason} -> repo().rollback(reason)
+        end
+      end,
+      timeout: :infinity
+    )
   rescue
     error ->
       warn_start_failed(Exception.message(error))
@@ -262,16 +272,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   ## --- Counting (VerifyEmailWorker) ---
 
-  @doc "The address of the item `item_uuid` of the batch, if it is a member."
-  @spec item_email(String.t(), term()) :: String.t() | nil
-  def item_email(batch_uuid, item_uuid) do
+  @doc "The item `item_uuid` of the batch, if it is a member."
+  @spec get_item_by_uuid(String.t(), term()) :: BatchItem.t() | nil
+  def get_item_by_uuid(batch_uuid, item_uuid) do
     with {:ok, item_uuid} <- Ecto.UUID.cast(item_uuid),
          {:ok, batch_uuid} <- Ecto.UUID.cast(batch_uuid) do
       repo().one(
-        from(i in BatchItem,
-          where: i.uuid == ^item_uuid and i.batch_uuid == ^batch_uuid,
-          select: i.email
-        )
+        from(i in BatchItem, where: i.uuid == ^item_uuid and i.batch_uuid == ^batch_uuid)
       )
     else
       :error -> nil

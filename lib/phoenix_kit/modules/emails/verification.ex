@@ -215,7 +215,10 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   The addresses are normalised and deduplicated (blank or unstorable entries are
   dropped) and the batch is stored as `"queued"` with that `total`, together with its
-  items; a `BatchStartWorker` does the rest. `source_type` is one of
+  items; a `BatchStartWorker` does the rest. The items are inserted before this
+  returns, so the call blocks for as long as that takes (a few seconds for the
+  maximum of 100,000 addresses): a LiveView should not call it from its own process
+  for a large list. `source_type` is one of
   `Batch.source_types/0`, `source_ref` the consumer's own handle: text, an atom, an
   integer (stored as text) or `nil`. At most `max_batch_size/0` distinct addresses.
 

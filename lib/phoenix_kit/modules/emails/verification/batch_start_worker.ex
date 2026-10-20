@@ -10,8 +10,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchStartWorker do
 
   Runs on the `:email_verification` queue, which the host's Oban config must
   declare (see `PhoenixKit.Modules.Emails.Verification.queue_configured?/0`).
-  Running it again is harmless: only the items still pending and without a job get one. If the last attempt fails too the batch is cancelled:
-  without its items it could never finish.
+  Running it again is harmless: only the items still pending and without a job get one.
+  If the last attempt fails too the batch is cancelled: its verify jobs could not be
+  enqueued, so it could never finish.
   """
 
   use Oban.Worker, queue: :email_verification, max_attempts: 3
@@ -48,22 +49,29 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchStartWorker do
 
   # The list has done its work; the job row (and its history) need not keep it.
   defp forget_addresses(%Oban.Job{id: id}) when is_integer(id) do
-    config = Oban.config()
-
-    Oban.Repo.update_all(
-      config,
-      from(j in Oban.Job,
-        where: j.id == ^id,
-        update: [set: [args: fragment("? - 'emails'", j.args)]]
-      ),
-      []
+    from(j in Oban.Job,
+      where: j.id == ^id,
+      update: [set: [args: fragment("? - 'emails'", j.args)]]
     )
+    |> PhoenixKit.RepoHelper.repo().update_all([], prefix: Oban.config().prefix)
 
     :ok
   rescue
-    _ -> :ok
+    error ->
+      Logger.warning(
+        "[Emails.Verification] could not remove the address list from a start job: " <>
+          Batches.mask_addresses(Exception.message(error))
+      )
+
+      :ok
   catch
-    :exit, _ -> :ok
+    :exit, reason ->
+      Logger.warning(
+        "[Emails.Verification] could not remove the address list from a start job: " <>
+          Batches.mask_addresses(inspect(reason))
+      )
+
+      :ok
   end
 
   defp forget_addresses(_job), do: :ok
