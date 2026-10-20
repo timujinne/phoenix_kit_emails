@@ -6,8 +6,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetup do
   is off by default (`api_admin_enabled`), can be switched off per module
   (`api_disabled_modules`) and per tool (`api_disabled_tools`). `preconditions/0` says
   which of these hold the runner back, `enable_machine_api/1` flips the first of them
-  with the same call as Settings -> API, and `command/2` is the line a runner is
-  started with.
+  with the same call as Settings -> API, `server_url/0` is the address a runner is given
+  and `command/2` the line it is started with.
 
   The two lists are read from the settings as they are (newline-separated names), so the
   page also works on a core that predates `api_disabled_modules`.
@@ -15,6 +15,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetup do
 
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Settings
+  alias PhoenixKit.Utils.Routes
 
   @module_key "emails"
   @tools ["emails.claim_smtp_jobs", "emails.report_smtp_results"]
@@ -86,6 +87,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetup do
       actor_uuid: actor_uuid,
       source: "settings"
     )
+  end
+
+  @doc """
+  The address a runner is given with `-Server`: the site plus the kit's URL prefix, because
+  core mounts the machine API under it (`<site>/phoenix_kit/api/admin/v1/...`). A kit mounted
+  at the root adds nothing.
+  """
+  @spec server_url() :: String.t()
+  def server_url, do: Routes.base_url() <> prefix()
+
+  defp prefix do
+    case Routes.url_prefix() do
+      root when root in ["", "/"] -> ""
+      prefix -> String.trim_trailing(prefix, "/")
+    end
   end
 
   @doc "The command that starts the runner on the user's machine."

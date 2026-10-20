@@ -25,6 +25,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Runner
   alias PhoenixKit.Modules.Emails.Verification.Runners
+  alias PhoenixKit.Modules.Emails.Verification.RunnerSetup
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay
@@ -33,7 +34,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Roles
-  alias PhoenixKit.Utils.Routes
   alias PhoenixKitEmails.Test.FakeResolver
   alias PhoenixKitEmails.Test.Repo
 
@@ -258,7 +258,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     test "the instruction names the site's own address and the download route", %{scope: scope} do
       html = render_section(%{phoenix_kit_current_scope: scope})
 
-      assert html =~ "-Server " <> Routes.base_url()
+      assert html =~ "-Server " <> RunnerSetup.server_url()
+      assert RunnerSetup.server_url() =~ ~r{/phoenix_kit\z}
       assert html =~ ~s|href="#{Emails.Paths.runner_script()}"|
       assert html =~ " download"
     end
@@ -845,7 +846,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
       assert token =~ ~r/\Apk_[0-9a-f]{8}_[A-Za-z0-9_-]{43}\z/
       assert command =~ "-Token #{token}"
-      assert command =~ "-Server #{Routes.base_url()}"
+      assert command =~ "-Server #{RunnerSetup.server_url()}"
       assert command =~ "pk-smtp-runner.ps1"
       assert name =~ ~r/\ASMTP runner \(\d{4}-\d{2}-\d{2}\)\z/
 

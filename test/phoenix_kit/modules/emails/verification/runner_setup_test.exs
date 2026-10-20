@@ -14,6 +14,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetupTest do
   alias PhoenixKit.Settings
   alias PhoenixKit.Settings.History
   alias PhoenixKit.Settings.Queries
+  alias PhoenixKit.Utils.Routes
 
   setup do
     setup_api()
@@ -92,6 +93,46 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetupTest do
 
       assert [latest | _] = History.list("api_admin_enabled")
       assert latest.actor_uuid == user.uuid
+    end
+  end
+
+  describe "server_url/0" do
+    setup do
+      previous = Application.get_env(:phoenix_kit, :url_prefix)
+      PhoenixKit.Config.clear_url_prefix_cache()
+
+      on_exit(fn ->
+        if is_nil(previous),
+          do: Application.delete_env(:phoenix_kit, :url_prefix),
+          else: Application.put_env(:phoenix_kit, :url_prefix, previous)
+
+        PhoenixKit.Config.clear_url_prefix_cache()
+      end)
+
+      :ok
+    end
+
+    defp with_prefix(prefix) do
+      Application.put_env(:phoenix_kit, :url_prefix, prefix)
+      PhoenixKit.Config.clear_url_prefix_cache()
+    end
+
+    test "carries the kit's URL prefix: the machine API lives under it" do
+      with_prefix("/phoenix_kit")
+      assert RunnerSetup.server_url() == Routes.base_url() <> "/phoenix_kit"
+    end
+
+    test "a prefix with a trailing slash has none in the address" do
+      with_prefix("/admin-kit/")
+      assert RunnerSetup.server_url() == Routes.base_url() <> "/admin-kit"
+    end
+
+    test "a kit mounted at the root adds nothing" do
+      with_prefix("/")
+      assert RunnerSetup.server_url() == Routes.base_url()
+
+      with_prefix("")
+      assert RunnerSetup.server_url() == Routes.base_url()
     end
   end
 

@@ -49,7 +49,6 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
-  alias PhoenixKit.Utils.Routes
 
   # The status is read again on every Nth tick, in case an announcement was missed.
   @reload_every 12
@@ -167,7 +166,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   end
 
   defp site_url do
-    Routes.base_url()
+    RunnerSetup.server_url()
   rescue
     _ -> ""
   end
