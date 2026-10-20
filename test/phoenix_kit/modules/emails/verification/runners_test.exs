@@ -45,6 +45,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
     end
   end
 
+  describe "online?/3" do
+    test "a runner is online within three idle polls of its last contact" do
+      assert Runners.online?(@now, DateTime.add(@now, 89), 30)
+      refute Runners.online?(@now, DateTime.add(@now, 90), 30)
+      refute Runners.online?(nil, @now, 30)
+    end
+
+    test "the idle poll defaults to the setting" do
+      put_setting("email_verify_smtp_idle_poll_s", "10")
+
+      assert Runners.online?(@now, DateTime.add(@now, 29))
+      refute Runners.online?(@now, DateTime.add(@now, 30))
+    end
+  end
+
   describe "heartbeat/3" do
     test "creates the row on first contact and updates it after", %{actor: actor, key: key} do
       info = %{

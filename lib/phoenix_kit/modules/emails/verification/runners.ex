@@ -285,10 +285,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   defp state(%Runner{last_seen_at: nil}, _now), do: :never_connected
 
   defp state(%Runner{last_seen_at: seen}, now) do
-    if DateTime.diff(now, seen, :second) < @online_factor * Config.idle_poll_s(),
-      do: :online,
-      else: :offline
+    if online?(seen, now), do: :online, else: :offline
   end
+
+  @doc """
+  Whether a runner last seen at `seen` is online at `now`: it was seen within three
+  times `idle_poll_s` (the pause it takes on an empty answer). The UI asks again as time
+  passes without reading the row.
+  """
+  @spec online?(DateTime.t() | nil, DateTime.t(), pos_integer()) :: boolean()
+  def online?(seen, now, idle_poll_s \\ Config.idle_poll_s())
+  def online?(nil, _now, _idle_poll_s), do: false
+
+  def online?(%DateTime{} = seen, now, idle_poll_s),
+    do: DateTime.diff(now, seen, :second) < @online_factor * idle_poll_s
 
   defp paused(%Runner{paused_until: %DateTime{} = until, pause_reason: reason}, now) do
     if DateTime.compare(until, now) == :gt, do: %{reason: reason, until: until}
