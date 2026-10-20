@@ -147,19 +147,21 @@ database, with their rows:
 - `phoenix_kit_email_verify_batches.awaiting_smtp` - a counter column on a table of the
   earlier version.
 
-If you also want that data gone, remove it yourself, after the rollback and once no batch is
-still waiting for SMTP results (switch the SMTP mode to `off` first: that settles every
-queued address). Replace `public` with the schema of the install if it uses another prefix:
+If you also want that data gone, remove it yourself, in this order:
+
+1. Switch the SMTP mode to `off` and wait until no batch is still waiting for SMTP results
+   (switching to `off` settles every queued address).
+2. Roll back the migration and deploy the older version of the module. Do not run the SQL
+   while a version with the SMTP stage is still deployed: it reads and writes these objects.
+3. Take a backup, then run the SQL below. None of it can be undone, and running `up` again
+   creates the objects empty. Replace `public` with the schema of the install if it uses
+   another prefix.
 
 ```sql
 DROP TABLE IF EXISTS public.phoenix_kit_email_verify_smtp_queue;
 DROP TABLE IF EXISTS public.phoenix_kit_email_verify_runners;
 ALTER TABLE public.phoenix_kit_email_verify_batches DROP COLUMN IF EXISTS awaiting_smtp;
 ```
-
-Take a backup first; none of this can be undone, and running `up` again creates the objects
-empty. Do not run it while a version of the module with the SMTP stage is still deployed: it
-reads and writes these objects.
 
 Data retention: the module does not purge the queue. Rows in the `done` and `cancelled` states
 are kept for ever, and a runner row stays after its key is revoked. This is a known gap. On a
