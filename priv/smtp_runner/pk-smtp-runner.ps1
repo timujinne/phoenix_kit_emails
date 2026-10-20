@@ -293,9 +293,12 @@ $SmtpLib = {
 
     function Test-Timeout {
         param($Failure)
-        $inner = $Failure.InnerException
-        if ($inner -is [System.Net.Sockets.SocketException]) {
-            return ($inner.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut)
+        # The socket error sits below the IOException (and below the PowerShell wrapper of a
+        # method call): walk the chain, the words of the message depend on the system language.
+        for ($e = $Failure; $e; $e = $e.InnerException) {
+            if ($e -is [System.Net.Sockets.SocketException]) {
+                return ($e.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut)
+            }
         }
         $Failure.Message -match 'timed out'
     }
@@ -835,6 +838,10 @@ function Invoke-Install {
         Write-RunnerLog -Message '-Install works on Windows only (Task Scheduler and DPAPI). Nothing was changed. On other systems start the runner from your own service manager. / Только для Windows.' -Color Red -NoStamp
         return 1
     }
+    if (-not $PSCommandPath) {
+        Write-RunnerLog -Message 'Save the script to a file before -Install: it cannot copy itself when it is piped or pasted. Nothing was changed. / Сохраните скрипт в файл перед -Install. Ничего не изменено.' -Color Red -NoStamp
+        return 1
+    }
 
     # One claim without sessions before anything is written: a wrong or revoked token would
     # install a task that stops at every logon. A site that cannot be reached right now
@@ -995,6 +1002,11 @@ function Write-SessionLog {
     foreach ($r in @($Result.rcpt)) {
         $item = $script:Emails[$Job.Lease + '|' + $r.id]
         if ($item) { Write-RunnerLog -Message ('  ' + $item + ' -> ' + $r.code) -Color DarkGray }
+    }
+    # The session is over: forget all its addresses, also the ones a short result did not name.
+    $prefix = $Job.Lease + '|'
+    foreach ($key in @($script:Emails.Keys)) {
+        if ($key.StartsWith($prefix, [System.StringComparison]::Ordinal)) { $script:Emails.Remove($key) }
     }
 }
 

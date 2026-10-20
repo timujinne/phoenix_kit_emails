@@ -751,3 +751,109 @@ Describe 'the loop' {
         ($s.Commands | Where-Object { $_ -match 'DATA|evil' }) | Should -BeNullOrEmpty
     }
 }
+
+Describe 'the timeout check of a read' {
+    BeforeAll {
+        # The real function of the script (it lives inside the SMTP library block).
+        $errors = $null; $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:RunnerScript, [ref]$tokens, [ref]$errors)
+        $found = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-Timeout' }, $true)
+        . ([scriptblock]::Create($found.Extent.Text))
+
+        # Reads from a peer on 127.0.0.1 and returns what the read throws, as the runner sees it
+        # (the exception of the catch block, one PowerShell layer above the IOException).
+        function Get-ReadFailure([bool]$Reset) {
+            $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, 0)
+            $listener.Start()
+            $client = New-Object System.Net.Sockets.TcpClient
+            try {
+                $client.Connect([System.Net.IPAddress]::Loopback, $listener.LocalEndpoint.Port)
+                $peer = $listener.AcceptTcpClient()
+                if ($Reset) {
+                    $peer.Client.Close(0)
+                    Start-Sleep -Milliseconds 100
+                }
+                $stream = $client.GetStream()
+                $stream.ReadTimeout = 300
+                try { [void]$stream.Read((New-Object byte[] 16), 0, 16) } catch { return $_.Exception }
+                $null
+            }
+            finally { $client.Close(); $listener.Stop() }
+        }
+    }
+
+    It 'knows a read timeout by the socket error, not by the words of the message' {
+        $failure = Get-ReadFailure $false
+        $failure | Should -Not -BeNullOrEmpty
+        $socket = $failure
+        while ($socket -and $socket -isnot [System.Net.Sockets.SocketException]) { $socket = $socket.InnerException }
+        $socket.SocketErrorCode | Should -Be ([System.Net.Sockets.SocketError]::TimedOut)
+        # A localized system message: no English words, the socket error is the only evidence.
+        $localized = New-Object System.Exception('Zeitueberschreitung beim Lesen', (New-Object System.IO.IOException('lokalisiert', $socket)))
+        Test-Timeout $localized | Should -BeTrue
+        Test-Timeout $failure | Should -BeTrue
+    }
+
+    It 'does not call a reset a timeout' {
+        $failure = Get-ReadFailure $true
+        $failure | Should -Not -BeNullOrEmpty
+        Test-Timeout $failure | Should -BeFalse
+    }
+
+    It 'falls back to the text for an error without a socket error' {
+        Test-Timeout (New-Object System.TimeoutException('The operation timed out')) | Should -BeTrue
+        Test-Timeout (New-Object System.IO.IOException('closed')) | Should -BeFalse
+    }
+}
+
+Describe 'the address map of the loop' {
+    BeforeAll {
+        $errors = $null; $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:RunnerScript, [ref]$tokens, [ref]$errors)
+        $found = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Write-SessionLog' }, $true)
+        . ([scriptblock]::Create($found.Extent.Text))
+        function Write-RunnerLog { param([string]$Message, [string]$Color, [switch]$NoStamp) $global:PkTestLog += $Message }
+    }
+
+    BeforeEach { $global:PkTestLog = @() }
+    AfterAll { Remove-Variable -Name PkTestLog -Scope Global -ErrorAction SilentlyContinue }
+
+    It 'forgets the addresses of a logged session, the ones missing from its result too' {
+        $script:Emails = @{ 'L1|1' = 'a@example.test'; 'L1|2' = 'b@example.test'; 'L1|3' = 'c@example.test'; 'L2|1' = 'd@example.test' }
+        $job = @{ Lease = 'L1'; Domain = 'example.test'; Count = 3 }
+        $result = @{ outcome = 'ok'; mx_used = 'mx.example.test'; rcpt = @(@{ id = 1; code = 250 }, @{ id = 2; code = 550 }) }
+        Write-SessionLog $result $job
+        $global:PkTestLog -join "`n" | Should -Match 'a@example.test -> 250'
+        $script:Emails.Count | Should -Be 1
+        $script:Emails.ContainsKey('L2|1') | Should -BeTrue
+    }
+}
+
+Describe 'the install of a script that is not a file' {
+    BeforeAll {
+        $errors = $null; $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:RunnerScript, [ref]$tokens, [ref]$errors)
+        $found = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-Install' }, $true)
+        . ([scriptblock]::Create($found.Extent.Text))
+        function Test-Windows { $true }
+        function Write-RunnerLog { param([string]$Message, [string]$Color, [switch]$NoStamp) $global:PkTestLog += $Message }
+        function Send-Claim { throw 'the site must not be asked before the script is known to be a file' }
+        function Initialize-TlsProtocol { }
+        $global:PkTestDir = Join-Path $TestDrive 'install'
+        function Get-InstallDir { $global:PkTestDir }
+    }
+
+    BeforeEach { $global:PkTestLog = @() }
+    AfterAll {
+        Remove-Variable -Name PkTestLog, PkTestDir -Scope Global -ErrorAction SilentlyContinue
+        Remove-Item Function:\Test-Windows, Function:\Write-RunnerLog, Function:\Send-Claim, Function:\Initialize-TlsProtocol, Function:\Get-InstallDir -ErrorAction SilentlyContinue
+    }
+
+    It 'refuses before anything is written when there is no script file to copy' {
+        $PSCommandPath = ''
+        $code = Invoke-Install -BaseUrl 'https://acme-mail.test' -PlainToken $script:Token
+        $code | Should -Be 1
+        $global:PkTestLog -join "`n" | Should -Match 'Save the script to a file'
+        Test-Path -LiteralPath $global:PkTestDir | Should -BeFalse
+    }
+}
