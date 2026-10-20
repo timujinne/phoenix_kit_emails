@@ -163,6 +163,57 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
   end
 
+  describe "reading only what the mode shows" do
+    test "off and local read nothing about the runner or the core" do
+      put_setting("api_admin_enabled", "false")
+      {key, _token} = runner_key(elem(user_with(["emails"]), 0))
+      heartbeat(key, 5)
+
+      for mode <- ["off", "local"] do
+        put_mode(mode)
+        socket = socket()
+
+        assert socket.assigns.preconditions == []
+        assert socket.assigns.active_keys == 0
+        assert socket.assigns.status.runner == nil
+        assert socket.assigns.relay == nil
+      end
+    end
+
+    test "runner reads them" do
+      put_setting("api_admin_enabled", "false")
+      put_mode("runner")
+      {key, _token} = runner_key(elem(user_with(["emails"]), 0))
+      heartbeat(key, 5)
+
+      socket = socket()
+
+      assert :api_admin_disabled in socket.assigns.preconditions
+      assert socket.assigns.active_keys == 1
+      assert socket.assigns.status.runner.name == "NEWSERVER"
+    end
+
+    test "going to runner starts the relay of a connected page and going away stops it" do
+      connected = %Phoenix.LiveView.Socket{
+        assigns: %{__changed__: %{}, flash: %{}},
+        transport_pid: self()
+      }
+
+      {:ok, socket} = SmtpVerification.update(%{id: "smtp-verification"}, connected)
+      assert socket.assigns.relay == nil
+
+      socket = event(socket, "set_mode", %{"mode" => "runner"})
+      relay = socket.assigns.relay
+      assert is_pid(relay)
+      assert Process.alive?(relay)
+
+      ref = Process.monitor(relay)
+      socket = event(socket, "set_mode", %{"mode" => "off"})
+      assert socket.assigns.relay == nil
+      assert_receive {:DOWN, ^ref, :process, ^relay, _}, 1_000
+    end
+  end
+
   describe "mode local" do
     test "selects this server and shows no runner panel" do
       put_mode("local")
@@ -170,6 +221,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
       assert Regex.match?(~r/<input[^>]*value="local"[^>]*checked/s, html)
       refute html =~ "Issue a new token"
+    end
+
+    test "says that nothing checks the addresses on the server yet" do
+      assert render_section() =~ "has no checker on the server yet"
     end
 
     test "the sender and HELO fields are there, the runner's instruction is not" do
@@ -642,11 +697,135 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       refute socket.assigns.advanced_open?
     end
 
+    test "an invalid save keeps only the fields of the form" do
+      socket =
+        socket()
+        |> event("save", %{
+          "smtp" => %{"mail_from" => "nope", "evil" => String.duplicate("x", 1000)}
+        })
+
+      refute Map.has_key?(socket.assigns.form, "evil")
+      assert socket.assigns.form["mail_from"] == "nope"
+    end
+
+    test "saving the form as it was shown stores nothing: the defaults are not frozen" do
+      put_mode("local")
+      form = socket().assigns.form
+
+      socket = event(socket(), "save", %{"smtp" => form})
+
+      assert flash(socket, :info) == "Settings saved"
+      assert Settings.get_setting("email_verify_rcpt_per_session") == nil
+      assert Settings.get_setting("email_verify_domain_interval_s") == nil
+      assert Settings.get_setting("email_verify_smtp_helo") == nil
+    end
+
+    test "only the changed field is written" do
+      put_mode("local")
+      form = Map.put(socket().assigns.form, "rcpt_per_session", "20")
+
+      event(socket(), "save", %{"smtp" => form})
+
+      assert Settings.get_setting("email_verify_rcpt_per_session") == "20"
+      assert Settings.get_setting("email_verify_grey_retry_minutes") == nil
+    end
+
+    test "it is recorded who changed the sender", %{scope: scope, admin: admin} do
+      put_mode("local")
+      socket = socket(%{phoenix_kit_current_scope: scope})
+
+      event(socket, "save", %{"smtp" => %{"mail_from" => "verify@hydroforce.ee"}})
+
+      assert [latest | _] = History.list("email_verify_smtp_mail_from")
+      assert latest.actor_uuid == admin.uuid
+    end
+
+    test "a store that refuses is reported on the form" do
+      put_mode("local")
+
+      html = render_section(%{errors: %{"base" => :not_saved}})
+
+      assert html =~ "The settings could not be saved."
+    end
+
     test "the mode is not part of the form" do
       put_mode("local")
       _socket = socket() |> event("save", %{"smtp" => %{"mail_from" => "verify@hydroforce.ee"}})
 
       assert Config.smtp_mode_setting() == "local"
+    end
+  end
+
+  describe "validate and the Advanced block" do
+    setup do
+      put_mode("local")
+      :ok
+    end
+
+    test "what is typed is kept in the form, not written", %{} do
+      socket =
+        socket()
+        |> event("validate", %{
+          "_target" => ["smtp", "mail_from"],
+          "smtp" => %{"mail_from" => "verify@hydroforce.ee", "rcpt_per_session" => "7"}
+        })
+
+      assert socket.assigns.form["mail_from"] == "verify@hydroforce.ee"
+      assert socket.assigns.form["rcpt_per_session"] == "7"
+      assert Config.smtp_mail_from() == {"mail@hydroforce.ee", :site_sender}
+      assert Config.rcpt_per_session() == 10
+    end
+
+    test "unknown or non-text fields are not kept" do
+      socket =
+        socket()
+        |> event("validate", %{
+          "smtp" => %{"evil" => "x", "helo" => %{"a" => 1}, "grey_max_attempts" => "4"}
+        })
+
+      refute Map.has_key?(socket.assigns.form, "evil")
+      assert socket.assigns.form["helo"] == ""
+      assert socket.assigns.form["grey_max_attempts"] == "4"
+    end
+
+    test "the block opens and shuts on the server" do
+      socket = socket()
+      refute socket.assigns.advanced_open?
+
+      socket = event(socket, "toggle_advanced")
+      assert socket.assigns.advanced_open?
+
+      html = render_section(%{advanced_open?: true})
+      assert html =~ ~s|aria-expanded="true"|
+      refute html =~ ~r/id="smtp-verification-advanced"[^>]*class="[^"]*hidden/
+
+      refute event(socket, "toggle_advanced").assigns.advanced_open?
+    end
+
+    test "is not a <details>, whose open state a patch would reset" do
+      html = render_section()
+
+      refute html =~ "<details"
+      assert html =~ ~s|aria-expanded="false"|
+      assert html =~ ~r/id="smtp-verification-advanced"[^>]*class="[^"]*hidden/
+    end
+
+    test "an error in the numbers opens it and a later save does not shut it" do
+      socket = event(socket(), "save", %{"smtp" => %{"smtp_lease_s" => "0"}})
+      assert socket.assigns.advanced_open?
+
+      socket = event(socket, "save", %{"smtp" => %{"mail_from" => "nope"}})
+      assert socket.assigns.advanced_open?
+    end
+
+    test "the form is wired to validate and the hints are tied to their fields" do
+      html = render_section()
+
+      assert html =~ ~s|phx-change="validate"|
+      assert html =~ ~s|aria-describedby="smtp-verification-mail-from-hint"|
+      assert html =~ ~s|id="smtp-verification-mail-from-hint"|
+      assert html =~ ~s|aria-describedby="smtp-verification-helo-hint"|
+      assert html =~ ~s|id="smtp-verification-helo-hint"|
     end
   end
 
@@ -769,7 +948,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       socket = event(socket, "issue_token")
 
       assert Repo.all(Key) == []
-      assert flash(socket, :error) == "You are not allowed to do that."
+
+      assert flash(socket, :error) ==
+               "The runner needs the machine API of PhoenixKit 2.63 or newer."
     end
   end
 
@@ -980,6 +1161,40 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert Enum.join(socket.assigns.view.segments, " ") =~ "Offline"
     end
 
+    test "a pause that has ended is gone on the next tick", %{admin: admin} do
+      {key, _token} = runner_key(admin)
+      runner = heartbeat(key, 5)
+
+      Repo.update_all(from(r in Runner, where: r.uuid == ^runner.uuid),
+        set: [paused_until: DateTime.add(DateTime.utc_now(), 60), pause_reason: "x"]
+      )
+
+      socket = socket()
+      assert socket.assigns.view.paused
+
+      # The row is not read again on a tick: the pause it held has run out by the clock.
+      ended = %{socket.assigns.status.paused | until: DateTime.add(DateTime.utc_now(), -1)}
+      status = %{socket.assigns.status | paused: ended}
+      socket = %{socket | assigns: %{socket.assigns | status: status}}
+
+      {:ok, socket} =
+        SmtpVerification.update(%{id: "smtp-verification", relay_event: :tick}, socket)
+
+      assert socket.assigns.view.paused == nil
+    end
+
+    test "only the state is a live region, not the clock", %{admin: admin} do
+      {key, _token} = runner_key(admin)
+      heartbeat(key, 5)
+
+      html = render_section()
+
+      assert html =~
+               ~r/<span class="sr-only" role="status" aria-live="polite">\s*Online\s*<\/span>/
+
+      assert length(Regex.scan(~r/aria-live/, html)) == 1
+    end
+
     test "the status is read again on every twelfth tick", %{admin: admin} do
       socket = socket()
       assert socket.assigns.view.state == :never
@@ -1071,7 +1286,31 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       pid = spawn(fn -> Process.sleep(:infinity) end)
       on_exit(fn -> Process.exit(pid, :kill) end)
 
-      assert Relay.scope_of(pid) == nil
+      assert Relay.scope_of(pid, attempts: 2, timeout: 30, backoff_ms: 5) == nil
+    end
+
+    test "asks again when the page was busy the first time" do
+      scope = scope_of(elem(user_with(["emails"]), 0))
+
+      {:ok, view} =
+        Agent.start_link(fn -> %{socket: %{assigns: %{phoenix_kit_current_scope: scope}}} end)
+
+      Agent.cast(view, fn state ->
+        Process.sleep(60)
+        state
+      end)
+
+      assert Relay.scope_of(view, attempts: 1, timeout: 20, backoff_ms: 5) == nil
+      assert Relay.scope_of(view, attempts: 3, timeout: 100, backoff_ms: 5) == scope
+    end
+
+    test "stop ends a relay, and a relay that is gone is not an error" do
+      {:ok, relay} = Relay.start(self(), SmtpVerification, "smtp-verification", false)
+      ref = Process.monitor(relay)
+
+      assert Relay.stop(relay) == :ok
+      assert_receive {:DOWN, ^ref, :process, ^relay, _}, 1_000
+      assert Relay.stop(relay) == :ok
     end
 
     test "turns a runner announcement into an update of the section" do

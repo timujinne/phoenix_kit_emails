@@ -25,6 +25,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay 
   alias PhoenixKit.Users.Auth.Scope
 
   @tick_ms 5_000
+  @scope_attempts 3
+  @scope_timeout_ms 2_000
+  @scope_backoff_ms 250
 
   @doc """
   Starts a relay for the LiveView `view` and the component `{component, id}`. With
@@ -36,6 +39,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay 
     GenServer.start(__MODULE__, {view, component, id, fetch_scope?, tick_ms})
   end
 
+  @doc "Stops a relay started with `start/5`; nothing happens when it is gone already."
+  @spec stop(pid()) :: :ok
+  def stop(relay) when is_pid(relay) do
+    GenServer.stop(relay, :normal)
+  catch
+    :exit, _ -> :ok
+  end
+
   @doc """
   The signed-in admin's scope (`:phoenix_kit_current_scope`) of the LiveView `view`, or
   `nil` when it cannot be read.
@@ -45,16 +56,32 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay 
   asks for the state from another process (a process cannot ask itself). The state is
   that of a `Phoenix.LiveView.Channel`: a map with a `:socket`. Anything else, or no
   answer in two seconds, is `nil`, and the section then does not offer what needs a
-  person's rights.
+  person's rights. A page that is busy when asked (no answer in time) is asked again,
+  a few times, with a short pause (`:attempts`, `:timeout`, `:backoff_ms`).
+
+  This lookup is a stopgap: it goes away when core passes `phoenix_kit_current_scope` to
+  the settings sections itself.
   """
-  @spec scope_of(pid()) :: Scope.t() | nil
-  def scope_of(view) when is_pid(view) do
-    case :sys.get_state(view, 2_000) do
+  @spec scope_of(pid(), keyword()) :: Scope.t() | nil
+  def scope_of(view, opts \\ []) when is_pid(view) do
+    attempts = Keyword.get(opts, :attempts, @scope_attempts)
+    timeout = Keyword.get(opts, :timeout, @scope_timeout_ms)
+    backoff = Keyword.get(opts, :backoff_ms, @scope_backoff_ms)
+    ask(view, attempts, timeout, backoff)
+  end
+
+  defp ask(view, attempts, timeout, backoff) do
+    case :sys.get_state(view, timeout) do
       %{socket: %{assigns: %{phoenix_kit_current_scope: %Scope{} = scope}}} -> scope
       _ -> nil
     end
   catch
-    :exit, _ -> nil
+    :exit, {:timeout, _} when attempts > 1 ->
+      Process.sleep(backoff)
+      ask(view, attempts - 1, timeout, backoff)
+
+    :exit, _ ->
+      nil
   end
 
   @impl true

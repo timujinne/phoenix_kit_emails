@@ -83,3 +83,9 @@ config :phoenix_kit_emails, verification_resolver: PhoenixKitEmails.Test.FakeRes
 # Users are registered for real in the tests of the API and the settings section (each
 # needs a password hash): the cheapest bcrypt cost keeps those tests fast.
 config :bcrypt_elixir, log_rounds: 4
+
+# The endpoint behind the LiveView tests of the settings sections (nothing listens).
+config :phoenix_kit_emails, PhoenixKitEmails.Test.LiveEndpoint,
+  server: false,
+  secret_key_base: "test_secret_key_base_at_least_64_bytes_long_for_phoenix_kit_emails_live",
+  live_view: [signing_salt: "emails_live_test"]

@@ -34,6 +34,11 @@
           "Do not enable it if other sites share this IP address: a mail host that blocks it blocks them too."
         )}
       </p>
+      <p class="text-xs text-base-content/70 ml-9">
+        {gettext(
+          "This version has no checker on the server yet: addresses wait in the queue until another mode is chosen."
+        )}
+      </p>
 
       <label class="label cursor-pointer justify-start gap-3 py-1">
         <input
@@ -110,7 +115,9 @@
       </div>
 
       <%!-- Status --%>
-      <div role="status" aria-live="polite" class="flex items-center gap-2 text-sm">
+      <div class="flex items-center gap-2 text-sm">
+        <%!-- Only the state is announced to a screen reader, not the clock that ticks. --%>
+        <span class="sr-only" role="status" aria-live="polite">{@view.state_text}</span>
         <span class={["inline-block size-2.5 rounded-full shrink-0", @view.dot]} aria-hidden="true">
         </span>
         <span :if={@view.paused} class="font-medium">
@@ -223,10 +230,15 @@
   <form
     :if={@mode != "off"}
     id={"#{@id}-settings"}
+    phx-change="validate"
     phx-submit="save"
     phx-target={@myself}
     class="space-y-4"
   >
+    <p :if={@error_messages["base"]} role="alert" class="text-sm text-error">
+      {@error_messages["base"]}
+    </p>
+
     <.input
       id={"#{@id}-mail-from"}
       name="smtp[mail_from]"
@@ -236,8 +248,9 @@
       placeholder={@site_sender || ""}
       errors={List.wrap(@error_messages["mail_from"])}
       autocomplete="off"
+      aria-describedby={"#{@id}-mail-from-hint"}
     />
-    <p class="text-xs text-base-content/70 -mt-3">
+    <p id={"#{@id}-mail-from-hint"} class="text-xs text-base-content/70 -mt-3">
       {gettext("Empty: the sender address of the site is used.")}
       <%= case @view.mail_from_source do %>
         <% :override -> %>
@@ -258,19 +271,35 @@
       placeholder={gettext("automatic")}
       errors={List.wrap(@error_messages["helo"])}
       autocomplete="off"
+      aria-describedby={"#{@id}-helo-hint"}
     />
-    <p class="text-xs text-base-content/70 -mt-3">
+    <p id={"#{@id}-helo-hint"} class="text-xs text-base-content/70 -mt-3">
       {gettext(
         "Empty: the reverse DNS name of the runner's IP address (the name of this server in the \"this server\" mode)."
       )}
     </p>
 
-    <details class="collapse collapse-arrow bg-base-200/40" open={@advanced_open?}>
-      <summary class="collapse-title text-sm font-semibold">
-        {gettext("Advanced")}
-        <span class="font-normal text-base-content/70">({@advanced_summary})</span>
-      </summary>
-      <div class="collapse-content">
+    <%!-- Open or shut is an assign, not a <details>: a patch of the section (the runner's
+         status moves every few seconds) would shut a DOM-only state. --%>
+    <div class="rounded-box bg-base-200/40">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between gap-2 p-4 text-left text-sm font-semibold"
+        phx-click="toggle_advanced"
+        phx-target={@myself}
+        aria-expanded={to_string(@advanced_open?)}
+        aria-controls={"#{@id}-advanced"}
+      >
+        <span>
+          {gettext("Advanced")}
+          <span class="font-normal text-base-content/70">({@advanced_summary})</span>
+        </span>
+        <.icon
+          name={if @advanced_open?, do: "hero-chevron-up", else: "hero-chevron-down"}
+          class="w-4 h-4 shrink-0"
+        />
+      </button>
+      <div id={"#{@id}-advanced"} class={["px-4 pb-4", not @advanced_open? && "hidden"]}>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 pt-2">
           <.input
             :for={input <- @number_inputs}
@@ -296,7 +325,7 @@
           />
         </div>
       </div>
-    </details>
+    </div>
 
     <button type="submit" class="btn btn-primary btn-sm">{gettext("Save")}</button>
   </form>

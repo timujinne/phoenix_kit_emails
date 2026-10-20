@@ -22,6 +22,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
 
   ## Live updates
 
+  Core mounts every section on every visit of the page, in a hidden tab, so the relay
+  (and the reads about the runner) exist only while the mode is `runner`: it starts when
+  the mode becomes `runner` and stops when it leaves it.
+
+  The status line and the form live in one component, and a patch resets whatever the
+  browser holds on its own (a `<details>` that was opened, a typed value in a field that
+  is not focused). So the form keeps its values on the server (`phx-change="validate"`)
+  and the "Advanced" block is an assign, not a `<details>`.
+
   The relay process subscribes to the runner topic and sends `relay_event: :runner`
   when the runner changes (the status is read again) and `relay_event: :tick` every few
   seconds (only the clock moves; the status is read again about once a minute).
@@ -54,7 +63,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     socket =
       if socket.assigns[:loaded?],
         do: refresh_scope(socket, assigns),
-        else: socket |> load() |> start_relay()
+        else: socket |> load() |> sync_relay()
 
     {:ok, socket}
   end
@@ -91,6 +100,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   defp scope_state(%Scope{}), do: :known
   defp scope_state(_scope), do: :pending
 
+  # The relay (live updates, the admin's scope) is needed only while the mode is
+  # `runner`: core mounts every section on every visit of the page, in a hidden tab.
+  defp sync_relay(%{assigns: %{mode: "runner", relay: nil}} = socket), do: start_relay(socket)
+
+  defp sync_relay(%{assigns: %{mode: mode, relay: relay}} = socket)
+       when mode != "runner" and is_pid(relay) do
+    Relay.stop(relay)
+    assign(socket, :relay, nil)
+  end
+
+  defp sync_relay(socket), do: socket
+
   defp start_relay(socket) do
     if connected?(socket) do
       fetch? = socket.assigns.scope_state == :pending
@@ -103,17 +124,40 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
 
   # Everything that comes from the database. `view` is what the template shows; it is
   # computed again on every tick from the same data, so the clock moves without a read.
+  #
+  # The runner's row, its owner, the queue, the core-side preconditions and the keys are
+  # read only while the mode is `runner`; in the other modes the card is not shown.
   defp reload(socket) do
-    status = Verification.runner_status()
+    runner? = Config.smtp_mode_setting() == "runner"
+    status = if runner?, do: Verification.runner_status(), else: light_status()
 
     socket
     |> assign(:status, status)
     |> assign(:idle_poll_s, Config.idle_poll_s())
     |> assign(:site_sender, Config.site_sender_address())
-    |> assign(:preconditions, RunnerSetup.preconditions())
-    |> assign(:active_keys, active_keys())
+    |> assign(:preconditions, if(runner?, do: RunnerSetup.preconditions(), else: []))
+    |> assign(:active_keys, if(runner?, do: active_keys(), else: 0))
     |> assign(:now, UtilsDate.utc_now())
     |> assign_view()
+  end
+
+  # What `Verification.runner_status/0` says, without the reads about the runner.
+  defp light_status do
+    {mail_from, source} = Config.smtp_mail_from()
+
+    %{
+      mode: Config.smtp_mode_setting(),
+      api_available: Config.machine_api_available?(),
+      state: :never_connected,
+      runner: nil,
+      port25_blocked: false,
+      paused: nil,
+      mail_from: mail_from,
+      mail_from_source: source,
+      mail_from_missing: is_nil(mail_from),
+      owner: nil,
+      queue: %{queued: 0, leased: 0}
+    }
   end
 
   defp active_keys do
@@ -172,6 +216,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   defp can_api?(_scope), do: false
 
   defp build_view(status, now, idle_poll_s) do
+    paused = live_pause(status.paused, now)
     runner = status.runner
     online? = runner != nil and Runners.online?(runner.last_seen_at, now, idle_poll_s)
 
@@ -182,11 +227,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
         true -> :offline
       end
 
+    segments = segments(state, runner, status, now)
+    paused_view = paused_view(paused)
+
     %{
       state: state,
-      paused: paused_view(status.paused),
-      dot: dot_class(state, status.paused),
-      segments: segments(state, runner, status, now),
+      paused: paused_view,
+      dot: dot_class(state, paused),
+      segments: segments,
+      state_text: state_text(paused_view, segments),
       port25_blocked?: status.port25_blocked,
       mail_from: status.mail_from,
       mail_from_source: status.mail_from_source,
@@ -194,6 +243,17 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
       owner: owner_view(status.owner)
     }
   end
+
+  # A pause that has ended by `now` is gone, whatever the last read of the row said.
+  defp live_pause(%{until: %DateTime{} = until} = paused, now) do
+    if DateTime.compare(until, now) == :gt, do: paused
+  end
+
+  defp live_pause(_paused, _now), do: nil
+
+  # What a screen reader is told when it changes (not the clock, which moves every tick).
+  defp state_text(%{reason: reason}, _segments), do: gettext("Paused: %{reason}", reason: reason)
+  defp state_text(nil, segments), do: hd(segments)
 
   defp paused_view(nil), do: nil
   defp paused_view(%{reason: reason}), do: %{reason: reason || gettext("no reason recorded")}
@@ -349,9 +409,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
 
   @impl true
   def handle_event("set_mode", %{"mode" => mode}, socket) do
-    case SmtpSettings.save_mode(mode) do
+    case SmtpSettings.save_mode(mode, actor_opts(socket)) do
       {:ok, %{mode: mode, drained: drained}} ->
-        {:noreply, socket |> reload() |> put_flash(:info, mode_message(mode, drained))}
+        {:noreply,
+         socket |> reload() |> sync_relay() |> put_flash(:info, mode_message(mode, drained))}
 
       {:error, :runner_unavailable} ->
         {:noreply,
@@ -367,8 +428,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     end
   end
 
+  def handle_event("validate", %{"smtp" => params}, socket) when is_map(params) do
+    {:noreply, socket |> assign(:form, merge_form(socket.assigns.form, params)) |> assign_view()}
+  end
+
+  def handle_event("toggle_advanced", _params, socket),
+    do: {:noreply, assign(socket, :advanced_open?, not socket.assigns.advanced_open?)}
+
   def handle_event("save", %{"smtp" => params}, socket) when is_map(params) do
-    case SmtpSettings.save(params) do
+    case SmtpSettings.save(params, actor_opts(socket)) do
       {:ok, current} ->
         {:noreply,
          socket
@@ -380,12 +448,13 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
       {:error, errors} ->
         {:noreply,
          socket
-         |> assign(
-           :form,
-           Map.merge(socket.assigns.form, Map.filter(params, &is_binary(elem(&1, 1))))
-         )
+         |> assign(:form, merge_form(socket.assigns.form, params))
          |> assign(:errors, errors)
-         |> assign(:advanced_open?, Enum.any?(errors, fn {field, _} -> advanced?(field) end))
+         |> assign(
+           :advanced_open?,
+           socket.assigns.advanced_open? or
+             Enum.any?(errors, fn {field, _} -> advanced?(field) end)
+         )
          |> assign_view()
          |> put_flash(:error, gettext("Some fields are not valid"))}
     end
@@ -451,6 +520,22 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
 
   defp advanced?(field), do: field in SmtpSettings.number_fields() or field == "selftest_host"
 
+  # Only the fields of the form are kept from what the browser sent.
+  defp merge_form(form, params) do
+    known = ["mail_from", "helo", "selftest_host" | SmtpSettings.number_fields()]
+    Map.merge(form, params |> Map.take(known) |> Map.filter(&is_binary(elem(&1, 1))))
+  end
+
+  # Who changed the settings, for the settings history (known once the admin was read).
+  defp actor_opts(%{assigns: %{phoenix_kit_current_scope: %Scope{} = scope}}) do
+    case Scope.user_uuid(scope) do
+      uuid when is_binary(uuid) -> [actor_uuid: uuid, source: "settings"]
+      _ -> []
+    end
+  end
+
+  defp actor_opts(_socket), do: []
+
   defp issue_token(socket, scope) do
     case RunnerKeys.issue(scope) do
       {:ok, %{key: key, token: token, revoked: revoked, left: left}} ->
@@ -515,11 +600,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   defp with_api_access(socket, fun) do
     scope = socket.assigns.phoenix_kit_current_scope
 
-    with true <- Config.machine_api_available?(),
+    with {:api, true} <- {:api, Config.machine_api_available?()},
          %Scope{} <- scope,
          {:ok, fresh} <- PhoenixKit.API.Access.fresh_scope(scope) do
       {:noreply, fun.(socket, fresh)}
     else
+      {:api, false} -> {:noreply, put_flash(socket, :error, issue_error(:unavailable))}
       _ -> {:noreply, put_flash(socket, :error, gettext("You are not allowed to do that."))}
     end
   end

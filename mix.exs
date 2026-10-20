@@ -128,7 +128,9 @@ defmodule PhoenixKitEmails.MixProject do
       # Dev/test
       {:ex_doc, "~> 0.39", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      # Parses the page of a LiveView under test (`live_isolated/3`).
+      {:lazy_html, "~> 0.1", only: :test}
     ]
   end
 
