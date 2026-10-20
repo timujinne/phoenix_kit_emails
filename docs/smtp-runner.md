@@ -113,6 +113,42 @@ Hints are printed in English and Russian. The port 25 check connects to the site
 server (the first MX of the sender's domain, or the host set in the advanced settings), reads
 the greeting and says `QUIT`.
 
+## Rolling back the SMTP tables
+
+The migration that creates the SMTP storage (V5) is rolled back by `down` only as far as the
+version marker: it never drops a table or a column. After a rollback the tables stay in the
+database, with their rows:
+
+- `phoenix_kit_email_verify_smtp_queue` - one row per address that waited for an SMTP
+  session (e-mail addresses, the lease of the runner that held them);
+- `phoenix_kit_email_verify_runners` - one row per runner key (the runner's name, its public
+  IP address and host names);
+- `phoenix_kit_email_verify_batches.awaiting_smtp` - a counter column on a table of the
+  earlier version.
+
+If you also want that data gone, remove it yourself, after the rollback and once no batch is
+still waiting for SMTP results (switch the SMTP mode to `off` first: that settles every
+queued address). Replace `public` with the schema of the install if it uses another prefix:
+
+```sql
+DROP TABLE IF EXISTS public.phoenix_kit_email_verify_smtp_queue;
+DROP TABLE IF EXISTS public.phoenix_kit_email_verify_runners;
+ALTER TABLE public.phoenix_kit_email_verify_batches DROP COLUMN IF EXISTS awaiting_smtp;
+```
+
+Take a backup first; none of this can be undone, and running `up` again creates the objects
+empty. Do not run it while a version of the module with the SMTP stage is still deployed: it
+reads and writes these objects.
+
+Data retention: the module does not purge the queue. Rows in the `done` and `cancelled` states
+are kept for ever, and a runner row stays after its key is revoked. This is a known gap. On a
+busy site, clear old rows with a job of your own, for example:
+
+```sql
+DELETE FROM public.phoenix_kit_email_verify_smtp_queue
+WHERE state IN ('done', 'cancelled') AND updated_at < now() - interval '90 days';
+```
+
 ## Development
 
 The script is `priv/smtp_runner/pk-smtp-runner.ps1`, one file, with a UTF-8 byte order mark
