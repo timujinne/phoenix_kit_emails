@@ -314,17 +314,17 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "ready: the built-in runner has run and nothing waits" do
-      Runners.heartbeat_local(%{name: "docker1", port25: "open"}, DateTime.utc_now())
+      Runners.heartbeat_local(%{name: "mailhost", port25: "open"}, DateTime.utc_now())
       html = render_section()
 
       assert html =~ "Ready"
-      assert html =~ "docker1"
+      assert html =~ "mailhost"
       assert html =~ "port 25 open"
       refute html =~ "Not responding"
     end
 
     test "working: addresses wait in the queue" do
-      Runners.heartbeat_local(%{name: "docker1", port25: "open"}, DateTime.utc_now())
+      Runners.heartbeat_local(%{name: "mailhost", port25: "open"}, DateTime.utc_now())
       domain = unique_domain()
       FakeResolver.put(domain, mx: {:ok, [%{host: "mx.#{domain}", pref: 10}]})
       {:ok, _} = Verification.verify("info@#{domain}", smtp: :enqueue)
@@ -336,7 +336,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "not responding: work waits and the last cycle is long ago" do
-      Runners.heartbeat_local(%{name: "docker1"}, DateTime.add(DateTime.utc_now(), -3600))
+      Runners.heartbeat_local(%{name: "mailhost"}, DateTime.add(DateTime.utc_now(), -3600))
       domain = unique_domain()
       FakeResolver.put(domain, mx: {:ok, [%{host: "mx.#{domain}", pref: 10}]})
       {:ok, _} = Verification.verify("info@#{domain}", smtp: :enqueue)
@@ -348,7 +348,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "a closed port 25 is said so" do
-      Runners.heartbeat_local(%{name: "docker1", port25: "blocked"}, DateTime.utc_now())
+      Runners.heartbeat_local(%{name: "mailhost", port25: "blocked"}, DateTime.utc_now())
       html = render_section()
 
       assert html =~ "port 25 closed"
@@ -364,7 +364,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "a pause shows its reason and the button to resume" do
-      runner = Runners.heartbeat_local(%{name: "docker1"}, DateTime.utc_now())
+      runner = Runners.heartbeat_local(%{name: "mailhost"}, DateTime.utc_now())
 
       Repo.update_all(from(r in Runner, where: r.uuid == ^runner.uuid),
         set: [
@@ -739,16 +739,16 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "the built-in runner's status reads in Russian and in Estonian" do
       put_mode("local")
-      Runners.heartbeat_local(%{name: "docker1", port25: "open"}, DateTime.utc_now())
+      Runners.heartbeat_local(%{name: "mailhost", port25: "open"}, DateTime.utc_now())
 
       Gettext.put_locale(PhoenixKit.Modules.Emails.Gettext, "ru")
       html = render_section()
-      assert html =~ "Готов · docker1 · порт 25 открыт · в очереди 0"
+      assert html =~ "Готов · mailhost · порт 25 открыт · в очереди 0"
       assert html =~ "имя в EHLO"
 
       Gettext.put_locale(PhoenixKit.Modules.Emails.Gettext, "et")
       html = render_section()
-      assert html =~ "Valmis · docker1"
+      assert html =~ "Valmis · mailhost"
       assert html =~ "EHLO nimi"
     end
 
@@ -1167,8 +1167,13 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert html =~ "The token is shown once"
       assert html =~ ~s|phx-hook="CopyToClipboard"|
       assert html =~ "Command for PowerShell"
-      assert html =~ "Or with the token in an environment variable, not on the command line"
+      assert html =~ "Or pass the token on the command line"
       assert html =~ "$env:PK_SMTP_RUNNER_TOKEN=&#39;#{token}&#39;"
+
+      # The environment-variable form comes first, the -Token form below it.
+      {env_at, _} = :binary.match(html, "-new-env-command")
+      {cmd_at, _} = :binary.match(html, ~s|-new-command"|)
+      assert env_at < cmd_at
     end
 
     test "the instruction of a runner that is not yet connected names the environment variable",
@@ -1178,8 +1183,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       html = render_section(%{phoenix_kit_current_scope: scope})
 
       assert html =~ "-Token &lt;token&gt;"
-      assert html =~ "PK_SMTP_RUNNER_TOKEN"
-      assert html =~ "without -Token"
+      assert html =~ "Or pass the token on the command line"
+
+      # The environment-variable form is shown first, the -Token form below it.
+      {env_at, _} = :binary.match(html, "PK_SMTP_RUNNER_TOKEN")
+      {token_at, _} = :binary.match(html, "-Token &lt;token&gt;")
+      assert env_at < token_at
     end
 
     test "the token is not kept anywhere once it is dismissed", %{socket: socket} do

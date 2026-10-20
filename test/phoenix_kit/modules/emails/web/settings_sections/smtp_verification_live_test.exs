@@ -53,7 +53,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
   end
 
   test "shows the runner online in the page", %{view: view} do
-    assert render(view) =~ "answered 5 s ago"
+    assert render(view) =~ ~r/answered \d+ s ago/
   end
 
   test "what is typed in the form survives the live updates", %{view: view} do

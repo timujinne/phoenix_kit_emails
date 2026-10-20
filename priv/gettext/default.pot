@@ -4096,17 +4096,12 @@ msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:239
 #, elixir-autogen, elixir-format
-msgid "To keep the token out of the process list, set it first and run the same command without -Token:"
+msgid "Or pass the token on the command line (it can then be seen in the process list):"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex
 #, elixir-autogen, elixir-format
 msgid "A command typed in the console may be kept in the console history (older PowerShell versions save every line). Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
-msgstr ""
-
-#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:499
-#, elixir-autogen, elixir-format
-msgid "Or with the token in an environment variable, not on the command line:"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:448

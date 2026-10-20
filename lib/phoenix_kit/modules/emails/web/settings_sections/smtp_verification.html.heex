@@ -237,11 +237,12 @@
           </li>
           <li>
             {gettext("Start it in PowerShell, with the token issued here:")}
-            <pre class="bg-base-300/60 rounded p-2 mt-1 text-xs overflow-x-auto"><code>powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server {@site_url} -Token &lt;token&gt;</code></pre>
+            <pre class="bg-base-300/60 rounded p-2 mt-1 text-xs overflow-x-auto"><code>$env:PK_SMTP_RUNNER_TOKEN='&lt;token&gt;'
+powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server {@site_url}</code></pre>
             <p class="text-xs text-base-content/70 mt-1">
-              {gettext("To keep the token out of the process list, set it first and run the same command without -Token:")}
-              <code class="font-mono">$env:PK_SMTP_RUNNER_TOKEN='&lt;token&gt;'</code>
+              {gettext("Or pass the token on the command line (it can then be seen in the process list):")}
             </p>
+            <pre class="bg-base-300/60 rounded p-2 mt-1 text-xs overflow-x-auto"><code>powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server {@site_url} -Token &lt;token&gt;</code></pre>
             <p class="text-xs text-base-content/70 mt-1">
               {gettext(
                 "A command typed in the console may be kept in the console history (older PowerShell versions save every line). Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
@@ -498,38 +499,14 @@
       </div>
 
       <div class="space-y-1">
-        <label class="label" for={"#{@id}-new-command"}>
-          <span class="font-semibold">{gettext("Command for PowerShell")}</span>
-        </label>
-        <div class="flex items-start gap-2">
-          <textarea
-            id={"#{@id}-new-command"}
-            readonly
-            rows="3"
-            spellcheck="false"
-            class="textarea w-full font-mono text-xs"
-          >{@new_token.command}</textarea>
-          <button
-            type="button"
-            id={"#{@id}-copy-command"}
-            class="btn btn-sm btn-outline"
-            phx-hook="CopyToClipboard"
-            data-copy-target={"##{@id}-new-command"}
-          >
-            <span data-copy-idle>{gettext("Copy")}</span>
-            <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
-          </button>
-        </div>
         <label class="label" for={"#{@id}-new-env-command"}>
-          <span class="text-xs">
-            {gettext("Or with the token in an environment variable, not on the command line:")}
-          </span>
+          <span class="font-semibold">{gettext("Command for PowerShell")}</span>
         </label>
         <div class="flex items-start gap-2">
           <textarea
             id={"#{@id}-new-env-command"}
             readonly
-            rows="2"
+            rows="3"
             spellcheck="false"
             class="textarea w-full font-mono text-xs"
           >{@new_token.env_command}</textarea>
@@ -539,6 +516,28 @@
             class="btn btn-sm btn-outline"
             phx-hook="CopyToClipboard"
             data-copy-target={"##{@id}-new-env-command"}
+          >
+            <span data-copy-idle>{gettext("Copy")}</span>
+            <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
+          </button>
+        </div>
+        <label class="label" for={"#{@id}-new-command"}>
+          <span class="text-xs">{gettext("Or pass the token on the command line (it can then be seen in the process list):")}</span>
+        </label>
+        <div class="flex items-start gap-2">
+          <textarea
+            id={"#{@id}-new-command"}
+            readonly
+            rows="2"
+            spellcheck="false"
+            class="textarea w-full font-mono text-xs"
+          >{@new_token.command}</textarea>
+          <button
+            type="button"
+            id={"#{@id}-copy-command"}
+            class="btn btn-sm btn-outline"
+            phx-hook="CopyToClipboard"
+            data-copy-target={"##{@id}-new-command"}
           >
             <span data-copy-idle>{gettext("Copy")}</span>
             <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
