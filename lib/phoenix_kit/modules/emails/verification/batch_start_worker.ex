@@ -1,12 +1,16 @@
 defmodule PhoenixKit.Modules.Emails.Verification.BatchStartWorker do
   @moduledoc """
-  Lays a batch out: inserts its items and enqueues one `VerifyEmailWorker` per
-  address (`Batches.lay_out/2`).
+  Lays a batch out: enqueues one `VerifyEmailWorker` per pending item
+  (`Batches.lay_out/1`). The items were inserted when the batch was started, so the
+  args carry the batch uuid and nothing else - no personal data lands in `oban_jobs`.
+
+  A job from an earlier version has the address list in its args (`"emails"`) and the
+  batch has no items yet: `Batches.lay_out/2` inserts them, and the list is removed
+  from the job's args once it has been used.
 
   Runs on the `:email_verification` queue, which the host's Oban config must
   declare (see `PhoenixKit.Modules.Emails.Verification.queue_configured?/0`).
-  Running it again is harmless: items already there are kept, and only the ones
-  still pending get a job. If the last attempt fails too the batch is cancelled:
+  Running it again is harmless: only the items still pending and without a job get one. If the last attempt fails too the batch is cancelled:
   without its items it could never finish.
   """
 
@@ -14,17 +18,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchStartWorker do
 
   require Logger
 
+  import Ecto.Query
+
   alias PhoenixKit.Modules.Emails.Verification.Batch
   alias PhoenixKit.Modules.Emails.Verification.Batches
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"batch_uuid" => uuid, "emails" => emails}} = job)
-      when is_list(emails) do
+  def perform(%Oban.Job{args: %{"batch_uuid" => uuid} = args} = job) when is_binary(uuid) do
     case Batches.get(uuid) do
       nil -> {:cancel, :batch_not_found}
       %Batch{state: "cancelled"} -> {:cancel, :batch_cancelled}
       %Batch{state: "done"} -> :ok
-      %Batch{} = batch -> Batches.lay_out(batch, emails)
+      %Batch{} = batch -> lay_out(batch, args, job)
     end
   rescue
     error ->
@@ -33,6 +38,35 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchStartWorker do
   end
 
   def perform(%Oban.Job{}), do: {:cancel, :malformed_args}
+
+  defp lay_out(batch, %{"emails" => emails}, job) when is_list(emails) do
+    :ok = Batches.lay_out(batch, emails)
+    forget_addresses(job)
+  end
+
+  defp lay_out(batch, _args, _job), do: Batches.lay_out(batch)
+
+  # The list has done its work; the job row (and its history) need not keep it.
+  defp forget_addresses(%Oban.Job{id: id}) when is_integer(id) do
+    config = Oban.config()
+
+    Oban.Repo.update_all(
+      config,
+      from(j in Oban.Job,
+        where: j.id == ^id,
+        update: [set: [args: fragment("? - 'emails'", j.args)]]
+      ),
+      []
+    )
+
+    :ok
+  rescue
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
+  end
+
+  defp forget_addresses(_job), do: :ok
 
   defp give_up_on_last_attempt(%Oban.Job{attempt: attempt, max_attempts: max} = job, error)
        when attempt >= max do

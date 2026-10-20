@@ -18,9 +18,10 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   ## Batches
 
-  `start_batch/4` verifies a whole list in the background: it returns at once
-  and a `BatchStartWorker` lays the list out, then one `VerifyEmailWorker` per
-  address does the checking. Progress is broadcast on `batch_topic/1`; see
+  `start_batch/4` verifies a whole list in the background: it stores the batch with
+  one item per address and returns, and a `BatchStartWorker` enqueues one
+  `VerifyEmailWorker` per item to do the checking. The jobs carry uuids, never
+  addresses. Progress is broadcast on `batch_topic/1`; see
   `Verification.Batches`. The workers run on the Oban queue
   `:email_verification`, which this module declares through `oban_queues/0` (limit
   5 = checks running at once, per node). A host whose Oban config predates that
@@ -213,8 +214,8 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   Starts verifying `emails` in the background and returns the stored batch.
 
   The addresses are normalised and deduplicated (blank or unstorable entries are
-  dropped) and the batch is stored as `"queued"` with that `total`; a
-  `BatchStartWorker` does the rest. `source_type` is one of
+  dropped) and the batch is stored as `"queued"` with that `total`, together with its
+  items; a `BatchStartWorker` does the rest. `source_type` is one of
   `Batch.source_types/0`, `source_ref` the consumer's own handle: text, an atom, an
   integer (stored as text) or `nil`. At most `max_batch_size/0` distinct addresses.
 

@@ -45,7 +45,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
     :ok = perform_job(BatchStartWorker, job.args)
 
     for email <- emails do
-      assert :ok = perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email})
+      assert :ok = perform_job(VerifyEmailWorker, verify_args(batch.uuid, email))
     end
 
     batch
@@ -135,7 +135,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
       Enum.find(all_enqueued(worker: BatchStartWorker), &(&1.args["batch_uuid"] == batch.uuid))
 
     perform_job(BatchStartWorker, job.args)
-    perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => "a@" <> domain})
+    perform_job(VerifyEmailWorker, verify_args(batch.uuid, "a@" <> domain))
 
     assert_received {:email_verify_batch, %{awaiting_smtp: 1, processed: 0}}
     assert Map.has_key?(Batches.snapshot(reload(batch)), :awaiting_smtp)
@@ -178,7 +178,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
     batch = start_batch(domain, ~w(a))
     email = "a@" <> domain
 
-    assert :ok = perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email})
+    assert :ok = perform_job(VerifyEmailWorker, verify_args(batch.uuid, email))
     assert reload(batch).awaiting_smtp == 1
   end
 
@@ -206,10 +206,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
     perform_job(BatchStartWorker, job.args)
 
     assert :ok =
-             perform_job(VerifyEmailWorker, %{
-               "batch_uuid" => second.uuid,
-               "email" => "a@" <> domain
-             })
+             perform_job(VerifyEmailWorker, verify_args(second.uuid, "a@" <> domain))
 
     again = reload(second)
 
@@ -369,7 +366,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
         end
       )
 
-      perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email})
+      perform_job(VerifyEmailWorker, verify_args(batch.uuid, email))
     end
 
     defp laid_out_batch(domain, locals) do
@@ -420,7 +417,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
       {:ok, [_session]} = SmtpQueue.claim(runner, 4, @now)
 
       assert {:cancel, :batch_cancelled} =
-               perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email})
+               perform_job(VerifyEmailWorker, verify_args(batch.uuid, email))
 
       assert %{state: "leased"} = Repo.get_by!(SmtpQueueItem, email: email)
     end
@@ -437,9 +434,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
     Verification.cancel_batch(batch.uuid)
 
     assert {:cancel, :batch_cancelled} =
-             perform_job(VerifyEmailWorker, %{
-               "batch_uuid" => batch.uuid,
-               "email" => "a@" <> domain
-             })
+             perform_job(VerifyEmailWorker, verify_args(batch.uuid, "a@" <> domain))
   end
 end

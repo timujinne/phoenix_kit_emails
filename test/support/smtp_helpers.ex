@@ -6,9 +6,11 @@ defmodule PhoenixKitEmails.Test.SmtpHelpers do
   """
 
   alias PhoenixKit.Modules.Emails.Verification
+  alias PhoenixKit.Modules.Emails.Verification.BatchItem
   alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Settings
   alias PhoenixKitEmails.Test.FakeResolver
+  alias PhoenixKitEmails.Test.Repo
 
   @doc "Sets a setting of the e-mail system."
   def put(key, value), do: Settings.update_setting_with_module(key, value, "email_system")
@@ -35,6 +37,12 @@ defmodule PhoenixKitEmails.Test.SmtpHelpers do
       {:ok, result} = Verification.verify(local <> "@" <> domain, smtp: :enqueue)
       result
     end
+  end
+
+  @doc "The args of the `VerifyEmailWorker` job for the item of `email` in the batch."
+  def verify_args(batch_uuid, email) do
+    item = Repo.get_by!(BatchItem, batch_uuid: batch_uuid, email: email)
+    %{"batch_uuid" => batch_uuid, "item_uuid" => item.uuid}
   end
 
   @doc "A connected runner (its heartbeat has been recorded)."

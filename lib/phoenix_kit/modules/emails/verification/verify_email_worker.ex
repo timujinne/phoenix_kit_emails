@@ -32,14 +32,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   or the reason of the `"temp"` verdict it already had, e.g. `"dns_error"`), so
   that `Verification.summary/1` agrees with the batch's counts.
 
-  At most one job per batch and address exists at a time (`unique` on both args,
+  The job's args are the batch uuid and the item uuid; the address is read from the
+  item, so it never lands in `oban_jobs`. A job from an earlier version has the address
+  itself (`"email"`) and is still accepted.
+
+  At most one job per batch and item exists at a time (`unique` on both args,
   across every incomplete state).
   """
 
   use Oban.Worker,
     queue: :email_verification,
     max_attempts: 3,
-    unique: [keys: [:batch_uuid, :email], period: :infinity, states: :incomplete]
+    unique: [keys: [:batch_uuid, :item_uuid], period: :infinity, states: :incomplete]
 
   alias PhoenixKit.Modules.Emails.Verification
   alias PhoenixKit.Modules.Emails.Verification.Batch
@@ -49,17 +53,35 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"batch_uuid" => _, "email" => _}} = job) do
-    job |> run() |> settle(job)
+  def perform(%Oban.Job{args: %{"batch_uuid" => batch_uuid}} = job) do
+    case address(job.args) do
+      nil -> {:cancel, :not_a_member}
+      email -> batch_uuid |> run(email, job) |> settle(job, batch_uuid, email)
+    end
   rescue
     error ->
-      settle({:error, error}, job)
+      settle({:error, error}, job, job.args["batch_uuid"], rescue_address(job.args))
       reraise error, __STACKTRACE__
   end
 
   def perform(%Oban.Job{}), do: {:cancel, :malformed_args}
 
-  defp run(%Oban.Job{args: %{"batch_uuid" => batch_uuid, "email" => email}} = job) do
+  # The address the job is about: the item's, or the job's own in the shape of an
+  # earlier version. A job with neither is malformed.
+  defp address(%{"batch_uuid" => batch_uuid, "item_uuid" => item_uuid}),
+    do: Batches.item_email(batch_uuid, item_uuid)
+
+  defp address(%{"email" => email}) when is_binary(email), do: email
+  defp address(_args), do: nil
+
+  # A crash in the lookup itself leaves nothing to count.
+  defp rescue_address(args) do
+    address(args)
+  rescue
+    _ -> nil
+  end
+
+  defp run(batch_uuid, email, job) do
     with {:ok, _batch} <- open_batch(batch_uuid),
          {:ok, _item} <- pending_item(batch_uuid, email),
          {:ok, result} <- Verification.verify(email, smtp: :enqueue) do
@@ -82,15 +104,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   end
 
   # A failure on the last attempt will not be retried: count the address now.
-  defp settle(
-         {:error, _reason} = error,
-         %Oban.Job{args: %{"batch_uuid" => batch_uuid, "email" => email}} = job
-       ) do
-    if job.attempt >= job.max_attempts, do: Batches.give_up(batch_uuid, email)
+  defp settle({:error, _reason} = error, %Oban.Job{} = job, batch_uuid, email) do
+    if job.attempt >= job.max_attempts and is_binary(email),
+      do: Batches.give_up(batch_uuid, email)
+
     error
   end
 
-  defp settle(outcome, _job), do: outcome
+  defp settle(outcome, _job, _batch_uuid, _email), do: outcome
 
   defp open_batch(batch_uuid) do
     case Batches.get(batch_uuid) do

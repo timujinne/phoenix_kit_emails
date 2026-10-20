@@ -7,11 +7,14 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   ## Life of a batch
 
     1. `start/4` normalises and deduplicates the addresses, stores the batch
-       (`"queued"`, with its `total`) and enqueues a `BatchStartWorker` carrying
-       the addresses - both in one transaction, so there is no batch without its
-       job. The caller gets the batch back at once, however long the list is.
-    2. `BatchStartWorker` calls `lay_out/2`: one item per address, the batch
-       becomes `"running"`, and one `VerifyEmailWorker` job per pending item.
+       (`"queued"`), lays its items out (one row per address, inserted in chunks;
+       `total` is the number of items) and enqueues a `BatchStartWorker` that
+       carries nothing but the batch uuid - all in one transaction, so there is
+       no batch without its items and its job. The addresses live in the items
+       table only, never in `oban_jobs`.
+    2. `BatchStartWorker` calls `lay_out/1`: the batch becomes `"running"`, and
+       one `VerifyEmailWorker` job (batch uuid and item uuid) is enqueued per
+       pending item.
     3. Each `VerifyEmailWorker` ends with `record_result/3`, which marks its item
        done and counts it into the batch in one transaction. The counters move in
        SQL (`processed + 1`, the status's entry in `counts`), so concurrent jobs
@@ -33,11 +36,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
 
   A batch holds at most `max_size/0` distinct addresses.
 
-  > #### The addresses wait in `oban_jobs` {: .warning}
-  >
-  > The `BatchStartWorker` job carries the whole address list in its args until
-  > Oban prunes it - the price of returning from `start/4` without inserting
-  > thousands of rows. Configure `Oban.Plugins.Pruner` accordingly.
+  Jobs enqueued by an earlier version carry the addresses in their args
+  (`BatchStartWorker` with `"emails"`, `VerifyEmailWorker` with `"email"`); both workers
+  still accept that shape (`lay_out/2`) so that nothing already queued is lost.
   """
 
   import Ecto.Query
@@ -102,7 +103,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   defp insert_with_job(changeset, keys) do
     repo().transaction(fn ->
       with {:ok, batch} <- repo().insert(changeset),
-           {:ok, _job} <- enqueue_start(batch, keys) do
+           :ok <- insert_items(batch.uuid, keys),
+           batch = %{batch | total: sync_total(batch.uuid, UtilsDate.utc_now())},
+           {:ok, _job} <- enqueue_start(batch) do
         batch
       else
         {:error, reason} -> repo().rollback(reason)
@@ -126,8 +129,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     Logger.warning("[Emails.Verification] could not start a batch: " <> mask_addresses(detail))
   end
 
-  defp enqueue_start(batch, keys) do
-    %{"batch_uuid" => batch.uuid, "emails" => keys}
+  defp enqueue_start(batch) do
+    %{"batch_uuid" => batch.uuid}
     |> BatchStartWorker.new()
     |> Oban.insert()
   end
@@ -155,23 +158,55 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   ## --- Laying out (BatchStartWorker) ---
 
   @doc """
-  Marks the batch running, inserts an item per address (the ones already there
-  are left alone), sets `total` to the number of items and enqueues a
-  `VerifyEmailWorker` for every item that is still pending. Safe to run again
-  after a partial failure.
-
-  The items are the truth about who is in the batch: the case-insensitive column
-  can merge addresses that `start/4` told apart, and `total` follows it - or
-  `processed` could never reach it.
+  Marks the batch running and enqueues a `VerifyEmailWorker` for every item that is
+  still pending and has no job yet. Safe to run again after a partial failure.
   """
-  @spec lay_out(Batch.t(), [String.t()]) :: :ok
-  def lay_out(%Batch{uuid: uuid}, emails) do
+  @spec lay_out(Batch.t()) :: :ok
+  def lay_out(%Batch{uuid: uuid}) do
     now = UtilsDate.utc_now()
 
     {started, _} =
       from(b in Batch, where: b.uuid == ^uuid and b.state == "queued")
       |> repo().update_all(set: [state: "running", started_at: now, updated_at: now])
 
+    from(i in BatchItem,
+      where: i.batch_uuid == ^uuid and i.state == "pending",
+      select: {i.uuid, i.email}
+    )
+    |> repo().all()
+    |> without_queued(uuid, started == 1)
+    |> Enum.chunk_every(@job_chunk)
+    |> Enum.each(fn chunk ->
+      chunk
+      |> Enum.map(fn {item_uuid, _email} ->
+        VerifyEmailWorker.new(%{"batch_uuid" => uuid, "item_uuid" => item_uuid})
+      end)
+      |> Oban.insert_all()
+    end)
+
+    broadcast(uuid)
+  end
+
+  @doc """
+  The way a `BatchStartWorker` job from an earlier version is laid out: its args carry
+  the addresses, and the batch has no items yet. Inserts the items (the ones already
+  there are left alone), sets `total` to the number of items, then goes on as
+  `lay_out/1`.
+
+  The items are the truth about who is in the batch: the case-insensitive column
+  can merge addresses that `start/4` told apart, and `total` follows it - or
+  `processed` could never reach it.
+  """
+  @spec lay_out(Batch.t(), [String.t()]) :: :ok
+  def lay_out(%Batch{uuid: uuid} = batch, emails) do
+    :ok = insert_items(uuid, emails)
+    sync_total(uuid, UtilsDate.utc_now())
+    lay_out(batch)
+  end
+
+  # In chunks, on conflict nothing: the case-insensitive unique index folds the
+  # addresses that differ only in case (or in what the database thinks is case).
+  defp insert_items(uuid, emails) do
     emails
     |> Enum.chunk_every(@item_chunk)
     |> Enum.each(fn chunk ->
@@ -182,30 +217,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
         conflict_target: [:batch_uuid, :email]
       )
     end)
-
-    sync_total(uuid, now)
-
-    from(i in BatchItem, where: i.batch_uuid == ^uuid and i.state == "pending", select: i.email)
-    |> repo().all()
-    |> without_queued(uuid, started == 1)
-    |> Enum.chunk_every(@job_chunk)
-    |> Enum.each(fn chunk ->
-      chunk
-      |> Enum.map(&VerifyEmailWorker.new(%{"batch_uuid" => uuid, "email" => &1}))
-      |> Oban.insert_all()
-    end)
-
-    broadcast(uuid)
   end
 
   # The first run has no jobs yet, so there is nothing to look up.
-  defp without_queued(emails, _uuid, true), do: emails
+  defp without_queued(items, _uuid, true), do: items
 
-  defp without_queued(emails, uuid, false) do
-    queued = queued_emails(uuid)
-    Enum.reject(emails, &MapSet.member?(queued, &1))
+  defp without_queued(items, uuid, false) do
+    queued = queued_keys(uuid)
+
+    Enum.reject(items, fn {item_uuid, email} ->
+      MapSet.member?(queued, item_uuid) or MapSet.member?(queued, email)
+    end)
   end
 
+  # Returns the number of items, which is what `total` is made to be.
   defp sync_total(uuid, now) do
     count = repo().aggregate(from(i in BatchItem, where: i.batch_uuid == ^uuid), :count)
 
@@ -213,12 +238,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
       where: b.uuid == ^uuid and b.state in ["queued", "running"] and b.total != ^count
     )
     |> repo().update_all(set: [total: count, updated_at: now])
+
+    count
   end
 
   # `Oban.insert_all/1` does not check `unique` (only `Oban.insert/1` does), so a
-  # repeated run skips the addresses that still have a job by looking them up.
+  # repeated run skips the items that still have a job by looking them up: by the
+  # item uuid of a job of this version, by the address of one from an earlier version.
   # Oban may live in another schema than the repo's default one.
-  defp queued_emails(uuid) do
+  defp queued_keys(uuid) do
     worker = inspect(VerifyEmailWorker)
     states = :incomplete |> Oban.Job.unique_states() |> Enum.map(&Atom.to_string/1)
 
@@ -226,13 +254,29 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
       where:
         j.worker == ^worker and j.state in ^states and
           fragment("?->>'batch_uuid' = ?", j.args, ^uuid),
-      select: fragment("?->>'email'", j.args)
+      select: fragment("COALESCE(?->>'item_uuid', ?->>'email')", j.args, j.args)
     )
     |> repo().all(prefix: Oban.config().prefix)
     |> MapSet.new()
   end
 
   ## --- Counting (VerifyEmailWorker) ---
+
+  @doc "The address of the item `item_uuid` of the batch, if it is a member."
+  @spec item_email(String.t(), term()) :: String.t() | nil
+  def item_email(batch_uuid, item_uuid) do
+    with {:ok, item_uuid} <- Ecto.UUID.cast(item_uuid),
+         {:ok, batch_uuid} <- Ecto.UUID.cast(batch_uuid) do
+      repo().one(
+        from(i in BatchItem,
+          where: i.uuid == ^item_uuid and i.batch_uuid == ^batch_uuid,
+          select: i.email
+        )
+      )
+    else
+      :error -> nil
+    end
+  end
 
   @doc "The item for `email` in the batch, if it is a member."
   @spec get_item(String.t(), String.t()) :: BatchItem.t() | nil

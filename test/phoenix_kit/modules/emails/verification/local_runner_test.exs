@@ -177,8 +177,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunnerTest do
       :ok = perform_job(BatchStartWorker, job.args)
 
       for email <- emails,
-          do:
-            :ok = perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email})
+          do: :ok = perform_job(VerifyEmailWorker, verify_args(batch.uuid, email))
 
       assert %{state: "running", awaiting_smtp: 2, processed: 0} = Repo.get!(Batch, batch.uuid)
 

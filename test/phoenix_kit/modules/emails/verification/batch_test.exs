@@ -5,6 +5,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
   use Oban.Testing, repo: PhoenixKitEmails.Test.Repo
 
   import Ecto.Query
+  import PhoenixKitEmails.Test.SmtpHelpers, only: [verify_args: 2]
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Verification
@@ -55,13 +56,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
   end
 
   defp perform_verify(batch, email, meta \\ %{}) do
-    perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email}, meta: meta)
+    perform_job(VerifyEmailWorker, verify_args(batch.uuid, email), meta: meta)
   end
 
   defp perform_verify_attempt(batch, email, attempt) do
-    perform_job(VerifyEmailWorker, %{"batch_uuid" => batch.uuid, "email" => email},
-      attempt: attempt
-    )
+    perform_job(VerifyEmailWorker, verify_args(batch.uuid, email), attempt: attempt)
   end
 
   defp errors_on(changeset) do
@@ -90,12 +89,45 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
       assert batch.title == "Autumn list"
 
       assert [job] = all_enqueued(worker: BatchStartWorker)
-      assert job.args["batch_uuid"] == batch.uuid
+      assert job.args == %{"batch_uuid" => batch.uuid}
       assert job.queue == "email_verification"
-      assert job.args["emails"] == ["John@fixture.org", "ann@fixture.org"]
 
-      # Nothing is inserted synchronously: the items are the worker's job.
-      assert items(batch) == []
+      assert items(batch) |> Enum.map(&{&1.email, &1.state}) |> Enum.sort() ==
+               [{"John@fixture.org", "pending"}, {"ann@fixture.org", "pending"}]
+    end
+
+    test "no address is left in the job table, neither in the start job nor in the verify jobs" do
+      batch = start(["secret.person@fixture.org", "other.person@fixture.org"])
+      :ok = run_start_worker(batch)
+
+      jobs = Repo.all(from(j in Oban.Job, select: {j.worker, j.args}))
+      assert length(jobs) == 3
+      refute inspect(jobs) =~ "person"
+      refute inspect(jobs) =~ "fixture.org"
+
+      assert Enum.all?(verify_jobs(batch), fn job ->
+               Map.keys(job.args) |> Enum.sort() == ["batch_uuid", "item_uuid"]
+             end)
+    end
+
+    test "a batch of two goes through to done" do
+      batch = start(["a@fixture.org", "b@fixture.org"])
+      :ok = run_start_worker(batch)
+
+      for job <- verify_jobs(batch), do: assert(:ok = perform_job(VerifyEmailWorker, job.args))
+
+      done = reload(batch)
+      assert done.state == "done"
+      assert done.processed == 2
+      assert done.total == 2
+    end
+
+    test "nothing is left behind when the start job cannot be enqueued" do
+      stop_supervised!(Oban)
+
+      assert {:error, _reason} = Verification.start_batch(["a@fixture.org"], "manual", nil)
+      assert Repo.aggregate(Batch, :count) == 0
+      assert Repo.aggregate(BatchItem, :count) == 0
     end
 
     test "keeps created_by_uuid, accepts a missing source_ref" do
@@ -140,7 +172,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
   end
 
   describe "BatchStartWorker" do
-    test "inserts the items, marks the batch running, enqueues one verify job per address" do
+    test "marks the batch running and enqueues one verify job per item" do
       batch = start(["a@fixture.org", "b@fixture.org", "c@fixture.org"])
 
       assert :ok = run_start_worker(batch)
@@ -157,8 +189,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
 
       jobs = verify_jobs(batch)
 
-      assert jobs |> Enum.map(& &1.args["email"]) |> Enum.sort() ==
-               ["a@fixture.org", "b@fixture.org", "c@fixture.org"]
+      assert jobs |> Enum.map(& &1.args["item_uuid"]) |> Enum.sort() ==
+               items(batch) |> Enum.map(& &1.uuid) |> Enum.sort()
 
       assert Enum.all?(jobs, &(&1.queue == "email_verification"))
     end
@@ -181,7 +213,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
       Repo.delete_all(from(j in Oban.Job, where: j.worker == ^inspect(VerifyEmailWorker)))
       assert :ok = run_start_worker(batch)
 
-      assert verify_jobs(batch) |> Enum.map(& &1.args["email"]) == ["b@fixture.org"]
+      pending = Repo.get_by!(BatchItem, batch_uuid: batch.uuid, email: "b@fixture.org")
+      assert verify_jobs(batch) |> Enum.map(& &1.args["item_uuid"]) == [pending.uuid]
     end
 
     test "handles more addresses than one insert chunk" do
@@ -201,18 +234,55 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
       {:ok, _} = Verification.cancel_batch(batch.uuid)
 
       assert {:cancel, :batch_cancelled} =
-               perform_job(BatchStartWorker, %{
-                 "batch_uuid" => batch.uuid,
-                 "emails" => ["a@fixture.org"]
-               })
+               perform_job(BatchStartWorker, %{"batch_uuid" => batch.uuid})
 
-      assert items(batch) == []
+      assert verify_jobs(batch) == []
 
       assert {:cancel, :batch_not_found} =
-               perform_job(BatchStartWorker, %{
-                 "batch_uuid" => Ecto.UUID.generate(),
-                 "emails" => ["a@fixture.org"]
-               })
+               perform_job(BatchStartWorker, %{"batch_uuid" => Ecto.UUID.generate()})
+
+      assert {:cancel, :malformed_args} = perform_job(BatchStartWorker, %{"foo" => "bar"})
+    end
+
+    test "a job of an earlier version, with the addresses in its args, still lays the batch out" do
+      # What the earlier version left behind: a queued batch with no items yet.
+      {:ok, batch} =
+        Repo.insert(
+          Batch.create_changeset(%Batch{}, %{source_type: "manual", total: 2, title: nil})
+        )
+
+      args = %{"batch_uuid" => batch.uuid, "emails" => ["a@fixture.org", "b@fixture.org"]}
+
+      assert :ok = perform_job(BatchStartWorker, args)
+
+      assert reload(batch).state == "running"
+
+      assert items(batch) |> Enum.map(& &1.email) |> Enum.sort() == [
+               "a@fixture.org",
+               "b@fixture.org"
+             ]
+
+      assert length(verify_jobs(batch)) == 2
+
+      for job <- verify_jobs(batch), do: assert(:ok = perform_job(VerifyEmailWorker, job.args))
+      assert reload(batch).state == "done"
+    end
+
+    test "the addresses of an earlier version's job are dropped from the job row once used" do
+      {:ok, batch} =
+        Repo.insert(
+          Batch.create_changeset(%Batch{}, %{source_type: "manual", total: 1, title: nil})
+        )
+
+      {:ok, job} =
+        %{"batch_uuid" => batch.uuid, "emails" => ["a@fixture.org"]}
+        |> BatchStartWorker.new()
+        |> Oban.insert()
+
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :email_verification)
+
+      assert Repo.get!(Oban.Job, job.id).args == %{"batch_uuid" => batch.uuid}
+      assert Repo.aggregate(from(i in BatchItem, where: i.batch_uuid == ^batch.uuid), :count) == 1
     end
   end
 
@@ -308,6 +378,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
     end
 
     test "a missing batch or item cancels the job instead of retrying" do
+      assert {:cancel, :not_a_member} =
+               perform_job(VerifyEmailWorker, %{
+                 "batch_uuid" => Ecto.UUID.generate(),
+                 "item_uuid" => Ecto.UUID.generate()
+               })
+
       assert {:cancel, :batch_not_found} =
                perform_job(VerifyEmailWorker, %{
                  "batch_uuid" => Ecto.UUID.generate(),
@@ -315,9 +391,34 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
                })
     end
 
-    test "an address that is not a member of the batch is ignored", %{batch: batch} do
-      assert {:cancel, :not_a_member} = perform_verify(batch, "stranger@fixture.org")
+    test "an item that is not a member of the batch is ignored", %{batch: batch} do
+      assert {:cancel, :not_a_member} =
+               perform_job(VerifyEmailWorker, %{
+                 "batch_uuid" => batch.uuid,
+                 "item_uuid" => Ecto.UUID.generate()
+               })
+
+      assert {:cancel, :not_a_member} =
+               perform_job(VerifyEmailWorker, %{
+                 "batch_uuid" => batch.uuid,
+                 "email" => "stranger@fixture.org"
+               })
+
+      assert {:cancel, :malformed_args} = perform_job(VerifyEmailWorker, %{"foo" => "bar"})
       assert reload(batch).processed == 0
+    end
+
+    test "a job of an earlier version, with the address in its args, still works", %{
+      batch: batch
+    } do
+      args = %{"batch_uuid" => batch.uuid, "email" => "john@fixture.org"}
+
+      assert :ok = perform_job(VerifyEmailWorker, args)
+
+      assert reload(batch).processed == 1
+
+      assert Repo.get_by!(BatchItem, batch_uuid: batch.uuid, email: "john@fixture.org").state ==
+               "done"
     end
   end
 
@@ -583,11 +684,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
     test "follows the items when the database folds case differently from Elixir" do
       # citext lower-cases "İ" to "i"; String.downcase/1 does not.
       batch = start(["İ@fixture.org", "i@fixture.org"])
-      assert batch.total == 2
+      assert batch.total == 1
+      assert length(items(batch)) == 1
 
       :ok = run_start_worker(batch)
 
-      assert length(items(batch)) == 1
       assert reload(batch).total == 1
       assert length(verify_jobs(batch)) == 1
 
@@ -700,8 +801,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
 
   describe "uniqueness" do
     test "the same batch and address is one incomplete job" do
-      batch = start(["a@fixture.org"])
-      args = %{"batch_uuid" => batch.uuid, "email" => "a@fixture.org"}
+      batch = start(["a@fixture.org", "b@fixture.org"])
+      args = verify_args(batch.uuid, "a@fixture.org")
 
       {:ok, first} = Oban.insert(VerifyEmailWorker.new(args))
       {:ok, second} = Oban.insert(VerifyEmailWorker.new(args))
@@ -710,13 +811,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
 
       assert length(verify_jobs(batch)) == 1
 
-      other = %{args | "email" => "b@fixture.org"}
-      {:ok, _} = Oban.insert(VerifyEmailWorker.new(other))
+      {:ok, _} = Oban.insert(VerifyEmailWorker.new(verify_args(batch.uuid, "b@fixture.org")))
       assert length(verify_jobs(batch)) == 2
     end
 
     test "queue and retry options" do
-      changeset = VerifyEmailWorker.new(%{"batch_uuid" => "x", "email" => "y"})
+      changeset = VerifyEmailWorker.new(%{"batch_uuid" => "x", "item_uuid" => "y"})
       assert Ecto.Changeset.get_field(changeset, :queue) == "email_verification"
       assert Ecto.Changeset.get_field(changeset, :max_attempts) > 1
     end
