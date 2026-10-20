@@ -556,16 +556,18 @@ function Get-OwnHostName {
     $name
 }
 
-# The name for EHLO: the site's HELO, else the reverse DNS of the external IP; failing both
-# (no name, or the site sees a local address) the machine's own host name; only without one
-# the literal of a PUBLIC address the site saw. Never the literal of a loopback or private one.
+# The name for EHLO, in this order: the site's HELO, the reverse DNS of the external IP, the
+# machine's own host name when it is fully qualified (has a dot), the literal of a PUBLIC
+# address the site saw, a single-label machine name (not an FQDN, so a last resort: some mail
+# servers refuse it), localhost. Never the literal of a loopback or private address.
 function Resolve-Helo {
     param($Configured, $HeloAuto, $SeenIp)
     if (Test-Helo $Configured) { return $Configured }
     if (Test-Helo $HeloAuto) { return $HeloAuto }
     $own = Get-OwnHostName
-    if ($own) { return $own }
+    if ($own -and $own -match '\.') { return $own }
     if ($SeenIp -is [string] -and $SeenIp -match '^[0-9]{1,3}(\.[0-9]{1,3}){3}\z' -and -not (Test-LocalAddress $SeenIp)) { return ('[' + $SeenIp + ']') }
+    if ($own) { return $own }
     'localhost'
 }
 

@@ -320,7 +320,7 @@ Describe 'the name for EHLO' {
         Resolve-Helo $null $null $Ip | Should -Be 'ws.corp.example'
     }
 
-    It 'prefers the machine name to the literal of a public address without a reverse name' {
+    It 'prefers a fully qualified machine name to the literal of a public address without a reverse name' {
         $global:PkTestOwnName = 'ws.corp.example'
         Resolve-Helo $null $null '203.0.113.9' | Should -Be 'ws.corp.example'
     }
@@ -328,6 +328,18 @@ Describe 'the name for EHLO' {
     It 'falls back to the literal of a PUBLIC address when the machine has no name' {
         $global:PkTestOwnName = $null
         Resolve-Helo $null $null '203.0.113.9' | Should -Be '[203.0.113.9]'
+    }
+
+    It 'prefers the literal of a PUBLIC address to a single-label machine name' {
+        $global:PkTestOwnName = 'WORKSTATION'
+        Resolve-Helo $null $null '203.0.113.9' | Should -Be '[203.0.113.9]'
+    }
+
+    It 'still takes a single-label machine name over localhost when the site sees <Ip>' -ForEach @(
+        @{ Ip = '127.0.0.1' }, @{ Ip = '10.1.2.3' }, @{ Ip = '192.168.1.5' }, @{ Ip = $null }
+    ) {
+        $global:PkTestOwnName = 'WORKSTATION'
+        Resolve-Helo $null $null $Ip | Should -Be 'WORKSTATION'
     }
 
     It 'never makes a literal of <Ip>, even when nothing else is left' -ForEach @(

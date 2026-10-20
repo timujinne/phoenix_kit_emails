@@ -123,12 +123,12 @@ Every request carries the token as a bearer key; the script never sends an `Idem
 | `[WARN] 3/4 ... no mail host to test` | The site could not name a mail server to test against; set the self-test host in the advanced settings. |
 | `[FAIL] 4/4 MAIL FROM is not set on the site` | No usable sender address. Set one in the settings section (placeholder addresses such as `noreply@localhost` or `example.com` do not count). No sessions start until then. |
 
-If the site does not give a HELO name, the runner uses the reverse DNS name of its external IP.
-When the IP has no usable reverse name, or the site sees a local address (the warning above),
-it uses the computer's own DNS host name (the fully qualified one when the system knows it).
-Only a computer with no usable name falls back to the IP literal (`[203.0.113.5]`), and only for
-a public IP: the literal of a loopback or private address is never sent, `localhost` is the last
-resort. Set a HELO name in the settings section if mail servers refuse the name the runner finds.
+The runner picks the EHLO name in this order: the HELO name set on the site, the reverse DNS
+name of its external IP, the computer's own host name if it is fully qualified (it contains a
+dot), the literal of a public IP the site saw (`[203.0.113.5]`), a single-label computer name
+(for example `WORKSTATION`; it is not an FQDN, so mail servers that insist on one refuse it),
+and `localhost` as the last resort. The literal of a loopback or private address is never sent.
+Set a HELO name in the settings section if mail servers refuse the name the runner finds.
 
 Hints are printed in English and Russian. The port 25 check connects to the site's own mail
 server (the first MX of the sender's domain, or the host set in the advanced settings), reads
