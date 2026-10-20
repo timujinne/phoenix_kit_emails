@@ -16,7 +16,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerKeysTest do
   alias PhoenixKit.Modules.Emails.Verification.RunnerKeys
   alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
-  alias PhoenixKit.Users.Auth.User
   alias PhoenixKit.Users.Permissions
   alias PhoenixKit.Users.Roles
   alias PhoenixKitEmails.Test.Repo
@@ -24,21 +23,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerKeysTest do
   @now ~U[2026-10-20 10:00:00Z]
 
   setup do
-    setup_api()
+    owner = setup_api()
+    true = owner |> scope_of() |> Scope.owner?()
     {admin, _role} = user_with(["emails"])
-    %{admin: admin, scope: scope_of(admin)}
+    %{admin: admin, scope: scope_of(admin), owner_scope: scope_of(owner)}
   end
 
   defp keys, do: Repo.all(from(k in Key, order_by: [asc: k.inserted_at, asc: k.uuid]))
 
   defp live?(%Key{} = key), do: Keys.dead_reason(key) == nil
-
-  defp owner_scope do
-    user = Repo.one!(from(u in User, order_by: [asc: u.inserted_at], limit: 1))
-    scope = scope_of(user)
-    true = Scope.owner?(scope)
-    scope
-  end
 
   describe "issue/2" do
     test "creates a key with exactly the runner scope, named by the date", %{
@@ -125,10 +118,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerKeysTest do
       assert Repo.get!(Key, mine.uuid) |> live?()
     end
 
-    test "an Owner replaces the key of any admin", %{scope: scope} do
+    test "an Owner replaces the key of any admin", %{scope: scope, owner_scope: owner_scope} do
       {:ok, %{key: theirs}} = RunnerKeys.issue(scope, @now)
 
-      assert {:ok, %{revoked: 1, left: 0}} = RunnerKeys.issue(owner_scope(), @now)
+      assert {:ok, %{revoked: 1, left: 0}} = RunnerKeys.issue(owner_scope, @now)
       refute Repo.get!(Key, theirs.uuid) |> live?()
     end
 
@@ -206,17 +199,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerKeysTest do
   end
 
   describe "active/0" do
-    test "lists the live runner keys of the whole site, newest first", %{scope: scope} do
+    test "lists the live runner keys of the whole site, newest first", %{
+      scope: scope,
+      owner_scope: owner_scope
+    } do
       assert RunnerKeys.active() == []
 
       {other_admin, _} = user_with(["emails"])
       {:ok, %{key: a}} = RunnerKeys.issue(scope_of(other_admin), @now)
       {:ok, %{key: b}} = RunnerKeys.issue(scope, @now)
 
-      assert RunnerKeys.active() |> Enum.map(& &1.uuid) |> Enum.sort() ==
-               Enum.sort([a.uuid, b.uuid])
+      # `a` is older: the order comes from the time the keys were made.
+      older = DateTime.add(DateTime.utc_now(), -3600)
+      Repo.update_all(from(k in Key, where: k.uuid == ^a.uuid), set: [inserted_at: older])
 
-      RunnerKeys.revoke(owner_scope())
+      assert RunnerKeys.active() |> Enum.map(& &1.uuid) == [b.uuid, a.uuid]
+
+      RunnerKeys.revoke(owner_scope)
       assert RunnerKeys.active() == []
     end
   end

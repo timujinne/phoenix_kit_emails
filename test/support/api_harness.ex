@@ -27,7 +27,8 @@ defmodule PhoenixKitEmails.Test.ApiHarness do
 
   @doc """
   Starts what the API needs and switches the admin API on. The Emails module is
-  registered (and enabled) for the length of the test.
+  registered (and enabled) for the length of the test. Returns the Owner (the first
+  user registered, who holds every permission).
   """
   def setup_api do
     await_pubsub_gone()
@@ -52,7 +53,6 @@ defmodule PhoenixKitEmails.Test.ApiHarness do
     # The first user ever registered becomes the Owner, who holds every permission;
     # the users the tests make must be ordinary ones.
     register_user()
-    :ok
   end
 
   # Core's PubSub manager does not trap exits: when the test's supervisor stops it, the
