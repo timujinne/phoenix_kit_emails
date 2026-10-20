@@ -162,7 +162,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
       assert Repo.aggregate(Batch, :count) == 0
     end
 
-    test "accepts every source type of the spec" do
+    test "accepts every source type the batch knows" do
       for type <-
             ~w(newsletters_crm_list newsletters_user_group crm_list crm_contacts manual) do
         assert {:ok, %Batch{source_type: ^type}} =
@@ -215,6 +215,32 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
 
       pending = Repo.get_by!(BatchItem, batch_uuid: batch.uuid, email: "b@fixture.org")
       assert verify_jobs(batch) |> Enum.map(& &1.args["item_uuid"]) == [pending.uuid]
+    end
+
+    test "a re-run skips an item that already has a job of the earlier shape, with the address in its args" do
+      batch = start(["a@fixture.org", "b@fixture.org", "c@fixture.org"])
+      :ok = run_start_worker(batch)
+
+      # What the earlier version left queued: a verify job keyed by the address.
+      Repo.delete_all(from(j in Oban.Job, where: j.worker == ^inspect(VerifyEmailWorker)))
+
+      {:ok, old_job} =
+        %{"batch_uuid" => batch.uuid, "email" => "a@fixture.org"}
+        |> VerifyEmailWorker.new()
+        |> Oban.insert()
+
+      assert :ok = run_start_worker(batch)
+
+      [item_b, item_c] =
+        for email <- ["b@fixture.org", "c@fixture.org"],
+            do: Repo.get_by!(BatchItem, batch_uuid: batch.uuid, email: email)
+
+      new_jobs = Enum.reject(verify_jobs(batch), &(&1.id == old_job.id))
+
+      assert new_jobs |> Enum.map(& &1.args["item_uuid"]) |> Enum.sort() ==
+               Enum.sort([item_b.uuid, item_c.uuid])
+
+      assert length(verify_jobs(batch)) == 3
     end
 
     test "handles more addresses than one insert chunk" do
