@@ -89,6 +89,12 @@ config :my_app, Oban, queues: [email_verification: 5, ...]
 
 **Tests** — `FakeResolver` (scripted DNS, also the default resolver in `config/test.exs` so no test reaches real DNS), `SmtpHelpers` (queue/report fixtures) and `ApiHarness` (core's API processes, real users and keys) in `test/support`; nothing in `Verification` may open a socket (`no_network_test.exs`) — SMTP answers in tests are plain data. Live DNS tests are tagged `:external` and excluded by default (`mix test --include external`)
 
+**Known gaps (SMTP stage, not built on purpose)**
+
+- No retention sweep: `done`/`cancelled` rows of `phoenix_kit_email_verify_smtp_queue` and rows of `phoenix_kit_email_verify_runners` (a revoked key leaves its row) are kept for ever.
+- Every `claim` and `report` call writes an `api.request` row into core's activity log (a runner polling every 30 s adds up); the module cannot switch that off.
+- The runner must not send an `Idempotency-Key` header: `replay: false` is declared only where core knows the field (`ControlFields.replay_tool?/1`), and core 2.63.0 does not apply it, so with that header core would answer a repeated `claim` from its stored answer instead of running it (a stale or repeated lease list). Report idempotency is the module's own (lease token), not core's.
+
 ### How It Works
 
 1. Parent app adds this as a dependency in `mix.exs`
