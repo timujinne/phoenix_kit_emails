@@ -50,6 +50,19 @@ repo_available =
 # `mix test --include external`.
 exclude = if repo_available, do: [:external], else: [:external, :integration]
 
+# `:pwsh` tests run the SMTP runner script under PowerShell 7 with Pester (against fake
+# servers on 127.0.0.1). Skipped, with the reason, where the tools are not installed;
+# `mix test --exclude pwsh` skips them on purpose.
+exclude =
+  case PhoenixKitEmails.Test.Pwsh.unavailable_reason() do
+    nil ->
+      exclude
+
+    reason ->
+      IO.puts("\n⚠  Pester suite of the SMTP runner skipped (tag :pwsh): #{reason}.")
+      [:pwsh | exclude]
+  end
+
 if Code.ensure_loaded?(PhoenixKit.Dashboard.Tab) and
      function_exported?(PhoenixKit.Dashboard.Tab, :localized_label, 1) do
   ExUnit.start(exclude: exclude)
