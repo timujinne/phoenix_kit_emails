@@ -1069,6 +1069,12 @@ defmodule PhoenixKit.Modules.Emails do
         title: gettext("Delivery Event Tracking"),
         permission: "emails",
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking
+      },
+      %{
+        id: :emails_verification_smtp,
+        title: gettext("Mailbox verification (SMTP)"),
+        permission: "emails",
+        component: PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification
       }
     ]
   end
