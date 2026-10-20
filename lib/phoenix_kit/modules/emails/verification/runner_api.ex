@@ -130,7 +130,7 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
       {sessions, paused} =
         case Config.smtp_mode() do
           "runner" -> lease(runner, Map.get(input, "max_sessions", 1), now)
-          _other -> {[], %{"reason" => "mode_off", "until" => nil}}
+          other -> {[], mode_off(other)}
         end
 
       {:ok,
@@ -141,6 +141,14 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
          "paused" => paused,
          "min_version" => min_version()
        }}
+    end
+
+    # Not `runner`: nothing is leased, and work queued while the mode was on is
+    # settled instead of waiting for a runner that is not wanted. In `local` mode the
+    # queue is the server's own business.
+    defp mode_off(mode) do
+      if mode == "off", do: SmtpQueue.drain_disabled()
+      %{"reason" => "mode_off", "until" => nil}
     end
 
     defp lease(runner, max_sessions, now) do

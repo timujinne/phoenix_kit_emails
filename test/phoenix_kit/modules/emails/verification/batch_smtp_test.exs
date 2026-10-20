@@ -17,6 +17,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
   alias PhoenixKit.Modules.Emails.Verification.Batches
   alias PhoenixKit.Modules.Emails.Verification.BatchItem
   alias PhoenixKit.Modules.Emails.Verification.BatchStartWorker
+  alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Result
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
   alias PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker
@@ -242,6 +243,118 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
     assert {done.state, done.processed, done.awaiting_smtp} == {"done", 2, 0}
     assert done.counts == %{"not_sure" => 2}
     assert SmtpQueue.counts() == %{queued: 0, leased: 0}
+  end
+
+  describe "the mode is off while work is queued" do
+    setup %{domain: domain} do
+      put("email_verify_rcpt_per_session", "2")
+      batch = start_batch(domain, ~w(a b c))
+      %{batch: batch}
+    end
+
+    test "drain_disabled settles queued and leased rows as not_sure / smtp_disabled", %{
+      runner: runner,
+      domain: domain,
+      batch: batch
+    } do
+      {:ok, [session]} = SmtpQueue.claim(runner, 4, @now)
+      assert SmtpQueue.counts() == %{queued: 1, leased: 2}
+
+      put("email_verify_smtp_mode", "off")
+      Batches.subscribe(batch.uuid)
+      assert SmtpQueue.drain_disabled() == 3
+
+      assert SmtpQueue.counts() == %{queued: 0, leased: 0}
+
+      for local <- ~w(a b c) do
+        assert %Result{status: "not_sure", reason: "smtp_disabled", level: "mx"} =
+                 Repo.get_by!(Result, email: local <> "@" <> domain)
+      end
+
+      done = reload(batch)
+
+      assert {done.state, done.processed, done.awaiting_smtp, done.counts} ==
+               {"done", 3, 0, %{"not_sure" => 3}}
+
+      assert item_states(batch) |> Map.values() |> Enum.uniq() == ["done"]
+      assert_received {:email_verify_batch, %{processed: 3, state: "done"}}
+
+      # What the runner still holds is ignored when it reports.
+      assert {:ok, %{accepted: 0, ignored: 1}} =
+               SmtpQueue.report(runner, [report(session, %{0 => {250, "ok"}})], @now)
+
+      assert Repo.get_by!(Result, email: "a@" <> domain).reason == "smtp_disabled"
+      assert SmtpQueue.drain_disabled() == 0
+    end
+
+    test "claim drains and hands out nothing", %{runner: runner, domain: domain, batch: batch} do
+      put("email_verify_smtp_mode", "off")
+
+      assert {:ok, []} = SmtpQueue.claim(runner, 4, @now)
+
+      assert SmtpQueue.counts() == %{queued: 0, leased: 0}
+      assert reload(batch).state == "done"
+      assert Repo.get_by!(Result, email: "b@" <> domain).reason == "smtp_disabled"
+    end
+
+    test "runner mode on a core without the machine API is off, and drains", %{
+      runner: runner,
+      batch: batch
+    } do
+      Application.put_env(:phoenix_kit_emails, :verification_machine_api, false)
+      on_exit(fn -> Application.delete_env(:phoenix_kit_emails, :verification_machine_api) end)
+
+      assert Config.smtp_mode() == "off"
+      assert {:ok, []} = SmtpQueue.claim(runner, 4, @now)
+      assert reload(batch).state == "done"
+    end
+
+    test "local mode is not drained", %{batch: batch} do
+      put("email_verify_smtp_mode", "local")
+
+      assert SmtpQueue.drain_disabled() == 0
+      assert SmtpQueue.counts() == %{queued: 3, leased: 0}
+      assert reload(batch).state == "running"
+    end
+
+    test "runner mode is not drained", %{batch: batch} do
+      assert SmtpQueue.drain_disabled() == 0
+      assert SmtpQueue.counts() == %{queued: 3, leased: 0}
+      assert reload(batch).state == "running"
+    end
+
+    test "a batch parked after the drain is finished when the job parks it", %{domain: domain} do
+      put("email_verify_smtp_mode", "off")
+      SmtpQueue.drain_disabled()
+
+      second = start_batch(domain, ~w(a))
+      assert reload(second).state == "done"
+    end
+  end
+
+  describe "the batches of one address are finished in a stable order" do
+    test "settle_awaiting walks them by batch uuid whatever the order of the items", %{
+      domain: domain
+    } do
+      email = "a@" <> domain
+
+      batches =
+        for _ <- 1..3 do
+          {:ok, batch} =
+            Repo.insert(Batch.create_changeset(%Batch{}, %{source_type: "manual", total: 1}))
+
+          Repo.update_all(from(b in Batch, where: b.uuid == ^batch.uuid), set: [state: "running"])
+          batch.uuid
+        end
+
+      # Items inserted last batch first, so the heap order is not the uuid order.
+      for uuid <- Enum.reverse(batches) do
+        Repo.insert_all(BatchItem, [%{batch_uuid: uuid, email: email}])
+        assert {:ok, :awaiting} = Batches.await_smtp(uuid, email)
+      end
+
+      assert Batches.settle_awaiting(email, "valid") == Enum.sort(batches)
+    end
   end
 
   test "a cancelled batch is turned away by a job that wakes up late", %{domain: domain} do

@@ -353,10 +353,37 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   def settle_awaiting(email, status) do
     from(i in BatchItem,
       where: i.email == ^email and i.state == "awaiting_smtp",
+      order_by: i.batch_uuid,
       select: i.batch_uuid
     )
     |> repo().all()
     |> Enum.filter(&settle_item(&1, email, status))
+  end
+
+  @doc false
+  # Locks, in uuid order, the open batches that wait for any of `emails`. For the SMTP
+  # queue, at the start of a transaction that settles several addresses: two such
+  # transactions then take the batch row locks in the same order, whatever order
+  # their addresses come in, and cannot wait for each other.
+  @spec lock_awaiting([String.t()]) :: :ok
+  def lock_awaiting([]), do: :ok
+
+  def lock_awaiting(emails) when is_list(emails) do
+    waiting =
+      from(i in BatchItem,
+        where: i.email in ^emails and i.state == "awaiting_smtp",
+        select: i.batch_uuid
+      )
+
+    from(b in Batch,
+      where: b.uuid in subquery(waiting) and b.state in ["queued", "running"],
+      order_by: b.uuid,
+      lock: "FOR UPDATE",
+      select: b.uuid
+    )
+    |> repo().all()
+
+    :ok
   end
 
   # The batch row is locked first: a batch that is still open cannot close under us,

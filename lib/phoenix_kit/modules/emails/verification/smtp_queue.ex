@@ -181,16 +181,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
     * `{:ok, sessions}` - possibly empty. Always empty while no `MAIL FROM` is
       configured (`Config.smtp_mail_from/0`): no session may start without a sender.
 
-  Leases that have run out are swept first, whoever asks.
+  Leases that have run out are swept first, whoever asks. While the effective mode
+  is `off` (the setting, or `runner` on a core without the machine API) nothing is
+  handed out and what waits is settled instead, see `drain_disabled/0`.
   """
   @spec claim(claimant(), integer(), DateTime.t()) :: {:ok, [session()]} | {:paused, String.t()}
   def claim(claimant, max_sessions, now \\ UtilsDate.utc_now()) do
-    expire_leases(now)
+    if Config.smtp_mode() == "off" do
+      drain_disabled(now)
+      {:ok, []}
+    else
+      expire_leases(now)
 
-    cond do
-      paused?(claimant, now) -> {:paused, claimant.pause_reason || "paused"}
-      max_sessions < 1 or not mail_from?() -> {:ok, []}
-      true -> {:ok, lease_sessions(claimant, min(max_sessions, @max_sessions), now)}
+      cond do
+        paused?(claimant, now) -> {:paused, claimant.pause_reason || "paused"}
+        max_sessions < 1 or not mail_from?() -> {:ok, []}
+        true -> {:ok, lease_sessions(claimant, min(max_sessions, @max_sessions), now)}
+      end
     end
   end
 
@@ -386,17 +393,67 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
       repo().transaction(fn ->
         from(q in Item,
           where: q.domain == ^domain and q.state == "queued",
+          order_by: [asc: q.inserted_at, asc: q.uuid],
           lock: "FOR UPDATE SKIP LOCKED"
         )
         |> repo().all()
-        |> Enum.flat_map(fn row ->
-          {:settled, batches} = settle_final(row, verdict, %{}, now)
-          batches
-        end)
+        |> settle_rows(verdict, now)
       end)
 
     broadcast_batches(batches)
     :skip
+  end
+
+  ## --- Mode off ---
+
+  @drain_chunk 200
+  @disabled_verdict %{status: "not_sure", reason: "smtp_disabled", level: "mx", catch_all: nil}
+
+  @doc """
+  Settles every `queued` or `leased` row as `not_sure` / `smtp_disabled` and finishes
+  the addresses in the batches awaiting them: the way out for work that was queued
+  while the SMTP mode was on, once it is off. The verdict is the one the pipeline
+  gives an address when the mode is off (and goes through the same result path as
+  any other); a runner that still holds a session of those rows finds them closed
+  and its report is ignored.
+
+  It acts only while the effective mode (`Config.smtp_mode/0`) is `"off"` and
+  returns the number of rows settled; `0` otherwise, so `local` and `runner` keep
+  their queue. `claim/3` calls it, and the settings handler should call it after the
+  mode has been changed.
+  """
+  @spec drain_disabled(DateTime.t()) :: non_neg_integer()
+  def drain_disabled(now \\ UtilsDate.utc_now()) do
+    if Config.smtp_mode() == "off", do: drain_chunks(now, 0), else: 0
+  end
+
+  defp drain_chunks(now, total) do
+    {:ok, {count, batches}} =
+      repo().transaction(fn ->
+        rows =
+          from(q in Item,
+            where: q.state in ["queued", "leased"],
+            order_by: [asc: q.inserted_at, asc: q.uuid],
+            limit: ^@drain_chunk,
+            lock: "FOR UPDATE SKIP LOCKED"
+          )
+          |> repo().all()
+
+        {length(rows), settle_rows(rows, @disabled_verdict, now)}
+      end)
+
+    broadcast_batches(batches)
+    if count == 0, do: total, else: drain_chunks(now, total + count)
+  end
+
+  # Settles the locked `rows` with one verdict; the batches they finished.
+  defp settle_rows(rows, verdict, now) do
+    :ok = Batches.lock_awaiting(Enum.map(rows, & &1.email))
+
+    Enum.flat_map(rows, fn row ->
+      {:settled, batches} = settle_final(row, verdict, %{}, now)
+      batches
+    end)
   end
 
   ## --- Expiry ---
@@ -417,6 +474,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
           )
           |> repo().all()
 
+        :ok = Batches.lock_awaiting(Enum.map(rows, & &1.email))
         batches = Enum.flat_map(rows, &expire(&1, now))
         {length(rows), batches}
       end)
@@ -504,8 +562,12 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
         |> repo().all()
 
       case rows do
-        [] -> :ignored
-        rows -> settle_session(claimant, rows, session, now, opts)
+        [] ->
+          :ignored
+
+        rows ->
+          :ok = Batches.lock_awaiting(Enum.map(rows, & &1.email))
+          settle_session(claimant, rows, session, now, opts)
       end
     end)
   end

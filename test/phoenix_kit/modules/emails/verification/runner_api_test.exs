@@ -285,6 +285,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
       assert settings["helo"] == nil
     end
 
+    test "with the mode off a claim settles what is still queued", %{token: token} do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      put_setting("email_verify_smtp_mode", "off")
+
+      assert {200, body} = claim(token)
+      assert body["sessions"] == []
+      assert body["paused"] == %{"reason" => "mode_off", "until" => nil}
+
+      assert Repo.aggregate(from(i in Item, where: i.state == "done"), :count) == 1
+      assert %Result{reason: "smtp_disabled"} = Repo.get_by!(Result, email: "a@" <> domain)
+    end
+
     test "a paused runner is told why, with nothing leased", %{token: token, key: key} do
       queue(unique_domain(), ~w(a))
       assert {200, _} = claim(token, %{"max_sessions" => 0})
