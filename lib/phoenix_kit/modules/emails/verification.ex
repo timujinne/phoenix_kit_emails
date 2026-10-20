@@ -318,6 +318,18 @@ defmodule PhoenixKit.Modules.Emails.Verification do
   @spec clear_runner_pause() :: {:ok, non_neg_integer()}
   defdelegate clear_runner_pause, to: Runners, as: :clear_pause
 
+  @doc false
+  # The API tools of the runner (`Emails.api_tools/0`): none on a core without the
+  # machine API.
+  if Code.ensure_loaded?(PhoenixKit.API.Tool) do
+    alias PhoenixKit.Modules.Emails.Verification.RunnerApi
+
+    @spec runner_tools() :: [struct()]
+    def runner_tools do
+      if Config.machine_api_available?(), do: RunnerApi.tools(), else: []
+    end
+  end
+
   ## --- Internals ---
 
   defp keyed(emails) do
@@ -352,10 +364,9 @@ defmodule PhoenixKit.Modules.Emails.Verification do
 
   defp final?(%Result{status: "not_sure", reason: reason} = result)
        when reason in ~w(smtp_disabled smtp_pending smtp_unavailable smtp_connect_failed smtp_timeout smtp_reset smtp_blocked mail_from_rejected) do
-    cond do
-      reason == "smtp_pending" -> SmtpQueue.live?(result.email)
-      true -> not Config.smtp_enabled?()
-    end
+    if reason == "smtp_pending",
+      do: SmtpQueue.live?(result.email),
+      else: not Config.smtp_enabled?()
   end
 
   defp final?(%Result{}), do: true

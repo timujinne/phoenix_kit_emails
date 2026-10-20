@@ -13,6 +13,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
   import PhoenixKitEmails.Test.SmtpHelpers
 
   alias PhoenixKit.Modules.Emails.Verification
+  alias PhoenixKit.Modules.Emails.Verification.Batch
+  alias PhoenixKit.Modules.Emails.Verification.Batches
+  alias PhoenixKit.Modules.Emails.Verification.BatchItem
   alias PhoenixKit.Modules.Emails.Verification.DomainCache
   alias PhoenixKit.Modules.Emails.Verification.Result
   alias PhoenixKit.Modules.Emails.Verification.Runner
@@ -1047,23 +1050,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
   defp awaiting_batch(email) do
     {:ok, batch} =
       Repo.insert(
-        PhoenixKit.Modules.Emails.Verification.Batch.create_changeset(
-          %PhoenixKit.Modules.Emails.Verification.Batch{},
+        Batch.create_changeset(
+          %Batch{},
           %{source_type: "manual", total: 1}
         )
       )
 
     Repo.update_all(
-      from(b in PhoenixKit.Modules.Emails.Verification.Batch, where: b.uuid == ^batch.uuid),
+      from(b in Batch, where: b.uuid == ^batch.uuid),
       set: [state: "running"]
     )
 
-    Repo.insert_all(PhoenixKit.Modules.Emails.Verification.BatchItem, [
+    Repo.insert_all(BatchItem, [
       %{batch_uuid: batch.uuid, email: email}
     ])
 
     {:ok, :awaiting} =
-      PhoenixKit.Modules.Emails.Verification.Batches.await_smtp(batch.uuid, email)
+      Batches.await_smtp(batch.uuid, email)
 
     batch.uuid
   end

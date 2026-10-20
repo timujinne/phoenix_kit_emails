@@ -16,6 +16,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runner do
     * `paused_until`, `pause_reason` - the autopause; while set `claim` hands out nothing
     * `fail_streak`, `fail_domains` - the state of that autopause: sessions that failed
       in a row, and the domains they hit
+    * `updated_at` - also the time of the last announcement on the PubSub topic (a
+      heartbeat is announced at most every 5 seconds); see `Verification.Runners`
   """
 
   use Ecto.Schema

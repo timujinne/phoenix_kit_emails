@@ -37,7 +37,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   """
 
   import Ecto.Query
-  require Logger
 
   alias PhoenixKit.Modules.Emails.Verification
   alias PhoenixKit.Modules.Emails.Verification.Batches
@@ -470,20 +469,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   end
 
   defp settle_report(claimant, result, now, opts) do
-    with {:ok, session} <- parse_result(result) do
-      case apply_report(claimant, session, now, opts) do
-        {:ok, {:accepted, settled, batches, events}} ->
-          broadcast_batches(batches)
-          Enum.each(events, &Runners.broadcast/1)
-          {:accepted, settled}
-
-        {:ok, :ignored} ->
-          :ignored
-      end
-    else
+    case parse_result(result) do
+      {:ok, session} -> claimant |> apply_report(session, now, opts) |> announce()
       :error -> :rejected
     end
   end
+
+  defp announce({:ok, {:accepted, settled, batches, events}}) do
+    broadcast_batches(batches)
+    Enum.each(events, &Runners.broadcast/1)
+    {:accepted, settled}
+  end
+
+  defp announce({:ok, :ignored}), do: :ignored
 
   defp apply_report(claimant, session, now, opts) do
     repo().transaction(fn ->

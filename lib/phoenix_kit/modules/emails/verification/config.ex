@@ -62,6 +62,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
 
     * `:verification_resolver` - a `Verification.Resolver` module (default `Resolver.Inet`)
     * `:verification_lists_dir` - external dictionary directory; wins over the setting
+    * `:verification_machine_api` - `false` pretends the core has no machine API
     * `:verification_confirm_pause_ms` - the pause before a negative DNS answer is
       asked a second time, in milliseconds (default `300`, at most `2000`, `0`
       switches it off; the test config sets `0`)
@@ -127,9 +128,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @spec smtp_enabled?() :: boolean()
   def smtp_enabled?, do: smtp_mode() != "off"
 
-  @doc "Whether the core installed here has the machine API a runner connects through (core 2.63.0 and later)."
+  @doc """
+  Whether the core installed here has the machine API a runner connects through (core
+  2.63.0 and later). The application env `:verification_machine_api` set to `false`
+  says "no" regardless (it lets a test stand in for an older core).
+  """
   @spec machine_api_available?() :: boolean()
-  def machine_api_available?, do: Code.ensure_loaded?(PhoenixKit.API.Keys)
+  def machine_api_available? do
+    Application.get_env(:phoenix_kit_emails, :verification_machine_api, true) != false and
+      Code.ensure_loaded?(PhoenixKit.API.Keys)
+  end
 
   @doc """
   The `MAIL FROM` address of SMTP sessions and where it came from.

@@ -17,7 +17,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   """
 
   import Ecto.Query
-  require Logger
 
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
@@ -25,6 +24,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Utils.Date, as: UtilsDate
+  alias PhoenixKit.Utils.Routes
 
   @topic "email_verify:runner"
   @broadcast_gap_s 5
@@ -62,16 +62,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
 
   ## --- Heartbeat ---
 
+  @doc "The row again, as it is now."
+  @spec reload(Runner.t()) :: Runner.t()
+  def reload(%Runner{uuid: uuid}), do: repo().get!(Runner, uuid)
+
   @doc """
   Records that the runner behind `actor` (`%{key_uuid:, ip:}`, a
   `PhoenixKit.API.Actor`) is alive and says `info`; creates the row on first contact.
-  Fields the runner did not send keep their value. Returns the row.
+  Fields the runner did not send keep their value. Announces the contact on the
+  topic (at most every 5 seconds). Returns the row.
   """
   @spec heartbeat(map(), info(), DateTime.t()) :: Runner.t()
   def heartbeat(%{key_uuid: key_uuid} = actor, info \\ %{}, now \\ UtilsDate.utc_now())
       when is_binary(key_uuid) do
+    now = DateTime.truncate(now, :second)
     previous = repo().get_by(Runner, api_key_uuid: key_uuid)
     port25 = valid_port25(Map.get(info, :port25))
+    announce? = announce?(previous, port25, now)
 
     fields =
       [
@@ -83,7 +90,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
         port25: port25,
         port25_checked_at: if(port25, do: now),
         last_seen_at: now,
-        updated_at: now
+        updated_at: if(announce?, do: now)
       ]
       |> Enum.reject(fn {_field, value} -> is_nil(value) end)
 
@@ -94,19 +101,18 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
         returning: true
       )
 
-    if announce?(previous, runner, now),
-      do: broadcast(%{event: :heartbeat, runner_uuid: runner.uuid})
-
+    if announce?, do: broadcast(%{event: :heartbeat, runner_uuid: runner.uuid})
     runner
   end
 
-  # First contact, a changed port-25 finding, or the last announcement older than the gap.
-  defp announce?(nil, _runner, _now), do: true
+  # `updated_at` doubles as the time of the last announcement: it moves only when one
+  # is made. The first contact and a changed port-25 finding are announced at once, a
+  # plain heartbeat when the last announcement is five seconds old.
+  defp announce?(nil, _port25, _now), do: true
 
-  defp announce?(previous, runner, now) do
-    previous.port25 != runner.port25 or
-      is_nil(previous.last_seen_at) or
-      DateTime.diff(now, previous.last_seen_at, :second) >= @broadcast_gap_s
+  defp announce?(previous, port25, now) do
+    (not is_nil(port25) and port25 != previous.port25) or
+      DateTime.diff(now, previous.updated_at, :second) >= @broadcast_gap_s
   end
 
   defp valid_port25(value) when is_binary(value) do
@@ -345,7 +351,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   end
 
   defp site_host do
-    PhoenixKit.Utils.Routes.base_url() |> URI.parse() |> Map.get(:host)
+    Routes.base_url() |> URI.parse() |> Map.get(:host)
   rescue
     _ -> nil
   end

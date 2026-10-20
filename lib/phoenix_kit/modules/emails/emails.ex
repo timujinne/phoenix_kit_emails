@@ -1087,6 +1087,19 @@ defmodule PhoenixKit.Modules.Emails do
 
   def oban_queues, do: [email_verification: [limit: 5, kind: :batch]]
 
+  # The two tools of the SMTP runner (`Verification.RunnerApi`) for core's machine API.
+  # Declared only where the core has the API (`PhoenixKit.API.Tool` from 2.63.0) and the
+  # key store a runner authenticates with; on an older core the callback does not exist,
+  # hence the conditional `@impl`, and the SMTP mode `runner` reads as `off`.
+  if Code.ensure_loaded?(PhoenixKit.API.Tool) do
+    if {:api_tools, 0} in PhoenixKit.Module.behaviour_info(:callbacks),
+      do: @impl(PhoenixKit.Module)
+
+    alias PhoenixKit.Modules.Emails.Verification
+
+    def api_tools, do: Verification.runner_tools()
+  end
+
   @impl PhoenixKit.Module
   def migration_module, do: PhoenixKit.Modules.Emails.Migrations
 
