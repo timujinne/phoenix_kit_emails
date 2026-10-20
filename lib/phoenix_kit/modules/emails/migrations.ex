@@ -145,7 +145,8 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     * `phoenix_kit_email_verify_smtp_queue` - one row per address that waits for an
       SMTP session. A unique partial index on `email` for the live states
       (`queued`, `leased`) means two batches asking for the same address share one
-      row.
+      row. Beside `attempts` (the total) the row counts its retries apart:
+      `grey_attempts`, `transport_attempts`, `lease_expiries`.
     * `phoenix_kit_email_verify_runners` - one row per API key that has connected as a
       runner. Besides the columns of the spec it keeps `fail_streak` and
       `fail_domains`, the state of the runner autopause (consecutive failed sessions
@@ -712,6 +713,9 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
        "domain" character varying(253) NOT NULL,
        "state" character varying(16) DEFAULT 'queued' NOT NULL,
        "attempts" integer DEFAULT 0 NOT NULL,
+       "grey_attempts" integer DEFAULT 0 NOT NULL,
+       "transport_attempts" integer DEFAULT 0 NOT NULL,
+       "lease_expiries" integer DEFAULT 0 NOT NULL,
        "not_before" timestamp with time zone,
        "lease_token" character varying(64),
        "leased_by" character varying(64),

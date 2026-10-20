@@ -22,9 +22,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
        in every batch awaiting it. A greylist, a refused connection and the like put
        the row back (`queued`, `attempts + 1`, a later `not_before`) until the
        attempts run out and the verdict that goes with that is kept.
-    4. A lease that nobody reported on expires: the next claim puts the row back with
-       `attempts + 1`; after `smtp_max_attempts` it is settled as
-       `not_sure` / `smtp_unavailable`.
+    4. A lease that nobody reported on expires: the next claim puts the row back
+       (`lease_expiries + 1`, the token kept so that a late report is still
+       accepted until the row is leased again); after `smtp_max_attempts` expiries
+       it is settled as `not_sure` / `smtp_unavailable`.
 
   `cancel_for_batch/1` drops the queued rows of a cancelled batch unless another
   live batch still needs the address.
@@ -33,7 +34,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
 
   A greylisted address waits `email_verify_grey_retry_minutes` and is tried at most
   `email_verify_grey_max_attempts` times in all. A failed connection waits one
-  minute, then five, then the verdict is kept (three attempts).
+  minute, then five, then the verdict is kept (three attempts). A lease that
+  expired is counted up to `email_verify_smtp_max_attempts`. The three kinds have
+  their own counters on the row (`grey_attempts`, `transport_attempts`,
+  `lease_expiries`): one kind of trouble does not use up the allowance of another.
+  `attempts` is their total.
   """
 
   import Ecto.Query
@@ -420,15 +425,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
     count
   end
 
-  defp expire(%Item{attempts: attempts} = row, now) do
-    attempts = attempts + 1
+  defp expire(%Item{} = row, now) do
+    expiries = row.lease_expiries + 1
+    row = %{row | attempts: row.attempts + 1, lease_expiries: expiries}
 
-    if attempts >= Config.smtp_max_attempts() do
+    if expiries >= Config.smtp_max_attempts() do
       verdict = %{status: "not_sure", reason: "smtp_unavailable", level: "mx", catch_all: nil}
-      {:settled, batches} = settle_final(%{row | attempts: attempts}, verdict, %{}, now)
+      {:settled, batches} = settle_final(row, verdict, %{}, now)
       batches
     else
-      requeue(row, attempts, nil, "lease_expired", now)
+      requeue(row, [lease_expiries: expiries], nil, "lease_expired", now, keep_lease: true)
       []
     end
   end
@@ -491,7 +497,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
         from(q in Item,
           where:
             q.lease_token == ^session.lease and q.leased_by == ^claimant_id and
-              q.state == "leased",
+              q.state in ["leased", "queued"],
           order_by: [asc: q.inserted_at, asc: q.uuid],
           lock: "FOR UPDATE"
         )
@@ -554,41 +560,51 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
     do: settle_final(row, verdict, details, now)
 
   defp apply_verdict(row, %{action: :retry, kind: :grey} = verdict, _details, now) do
-    attempts = row.attempts + 1
+    grey = row.grey_attempts + 1
+    row = %{row | attempts: row.attempts + 1, grey_attempts: grey}
 
-    if attempts >= Config.grey_max_attempts() do
-      settle_final(%{row | attempts: attempts}, verdict.exhausted, %{}, now)
+    if grey >= Config.grey_max_attempts() do
+      settle_final(row, verdict.exhausted, %{}, now)
     else
       wait = Config.grey_retry_minutes() * 60
-      requeue(row, attempts, DateTime.add(now, wait, :second), verdict.exhausted.reason, now)
+      counters = [grey_attempts: grey]
+      requeue(row, counters, DateTime.add(now, wait, :second), verdict.exhausted.reason, now)
     end
   end
 
   defp apply_verdict(row, %{action: :retry, kind: :transport} = verdict, _details, now) do
-    attempts = row.attempts + 1
+    transport = row.transport_attempts + 1
+    row = %{row | attempts: row.attempts + 1, transport_attempts: transport}
 
-    case Enum.at(@transport_backoff_s, attempts - 1) do
+    case Enum.at(@transport_backoff_s, transport - 1) do
       nil ->
-        settle_final(%{row | attempts: attempts}, verdict.exhausted, %{}, now)
+        settle_final(row, verdict.exhausted, %{}, now)
 
       wait ->
-        requeue(row, attempts, DateTime.add(now, wait, :second), verdict.exhausted.reason, now)
+        counters = [transport_attempts: transport]
+        retry_at = DateTime.add(now, wait, :second)
+        requeue(row, counters, retry_at, verdict.exhausted.reason, now)
     end
   end
 
-  defp requeue(row, attempts, not_before, reason, now) do
+  # Back to the queue. A report clears the lease (its token is spent: a repeat of the
+  # report is ignored); an expired lease keeps it, for a late report (`keep_lease`).
+  defp requeue(row, counters, not_before, reason, now, opts \\ []) do
+    lease =
+      if Keyword.get(opts, :keep_lease, false),
+        do: [lease_expires_at: nil],
+        else: [lease_token: nil, leased_by: nil, lease_expires_at: nil]
+
     from(q in Item, where: q.uuid == ^row.uuid)
     |> repo().update_all(
-      set: [
-        state: "queued",
-        attempts: attempts,
-        not_before: not_before,
-        lease_token: nil,
-        leased_by: nil,
-        lease_expires_at: nil,
-        last_reason: reason,
-        updated_at: now
-      ]
+      set:
+        [
+          state: "queued",
+          attempts: row.attempts,
+          not_before: not_before,
+          last_reason: reason,
+          updated_at: now
+        ] ++ counters ++ lease
     )
 
     :requeued
@@ -605,6 +621,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
       set: [
         state: "done",
         attempts: row.attempts,
+        grey_attempts: row.grey_attempts,
+        transport_attempts: row.transport_attempts,
+        lease_expiries: row.lease_expiries,
         lease_token: nil,
         leased_by: nil,
         lease_expires_at: nil,

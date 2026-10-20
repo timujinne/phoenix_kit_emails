@@ -38,7 +38,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationV5TablesTest do
     columns = columns("phoenix_kit_email_verify_smtp_queue")
 
     expected =
-      ~w(uuid email checked_as domain state attempts not_before lease_token leased_by lease_expires_at last_reason inserted_at updated_at)
+      ~w(uuid email checked_as domain state attempts grey_attempts transport_attempts lease_expiries not_before lease_token leased_by lease_expires_at last_reason inserted_at updated_at)
 
     assert Map.keys(columns) |> Enum.sort() == Enum.sort(expected)
     assert {"citext", false} = columns["email"]
@@ -59,8 +59,11 @@ defmodule PhoenixKit.Modules.Emails.MigrationV5TablesTest do
   test "the queue's defaults: queued, no attempts" do
     assert {:ok, _} = enqueue("a@example.ee")
 
-    assert %{rows: [["queued", 0]]} =
-             Repo.query!("SELECT state, attempts FROM phoenix_kit_email_verify_smtp_queue")
+    assert %{rows: [["queued", 0, 0, 0, 0]]} =
+             Repo.query!(
+               "SELECT state, attempts, grey_attempts, transport_attempts, lease_expiries " <>
+                 "FROM phoenix_kit_email_verify_smtp_queue"
+             )
   end
 
   test "a live address is queued once, whatever its case" do

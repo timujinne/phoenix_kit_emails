@@ -414,11 +414,42 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       later = DateTime.add(@now, 301)
       assert 1 = SmtpQueue.expire_leases(later)
 
-      assert %Item{state: "queued", attempts: 1, lease_token: nil, last_reason: "lease_expired"} =
-               hd(items(domain))
+      assert %Item{state: "queued", attempts: 1, lease_expiries: 1, last_reason: "lease_expired"} =
+               row = hd(items(domain))
+
+      # The token stays, so a late report can still find the row (spec 3.4).
+      assert row.lease_token == first.lease
 
       [second] = claim!(runner, 4, later)
       refute second.lease == first.lease
+      assert hd(items(domain)).lease_token == second.lease
+    end
+
+    test "lease expiries are counted apart from greylist and transport retries", %{
+      runner: runner
+    } do
+      put("email_verify_smtp_max_attempts", "2")
+      put("email_verify_domain_interval_s", "1")
+      domain = unique_domain()
+      queue(domain, ~w(a))
+
+      claim!(runner)
+      SmtpQueue.expire_leases(DateTime.add(@now, 301))
+      assert %Item{lease_expiries: 1, grey_attempts: 0, transport_attempts: 0} = hd(items(domain))
+
+      t2 = DateTime.add(@now, 400)
+      [s2] = claim!(runner, 4, t2)
+      report!(runner, s2, %{0 => {451, "fixture grey phrase"}}, now: t2)
+      assert %Item{state: "queued", lease_expiries: 1, grey_attempts: 1} = hd(items(domain))
+
+      t3 = DateTime.add(t2, 20 * 60 + 5)
+      claim!(runner, 4, t3)
+      SmtpQueue.expire_leases(DateTime.add(t3, 301))
+
+      assert %Item{state: "done", attempts: 3, lease_expiries: 2, grey_attempts: 1} =
+               hd(items(domain))
+
+      assert %Result{reason: "smtp_unavailable"} = result("a@" <> domain)
     end
 
     test "any claim sweeps expired leases first", %{runner: runner} do
@@ -657,6 +688,52 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
                result("a@" <> domain)
     end
 
+    test "greylist and transport retries run on their own counters", %{runner: runner} do
+      put("email_verify_domain_interval_s", "1")
+      domain = unique_domain()
+      queue(domain, ~w(a))
+
+      # Two greylist answers, then a refused connection: still the first transport
+      # retry (one minute), not the third.
+      [s1] = claim!(runner)
+      report!(runner, s1, %{0 => {451, "fixture grey phrase"}})
+      t2 = DateTime.add(@now, 20 * 60 + 5)
+      [s2] = claim!(runner, 4, t2)
+      report!(runner, s2, %{0 => {451, "fixture grey phrase"}}, now: t2)
+      t3 = DateTime.add(t2, 20 * 60 + 5)
+      [s3] = claim!(runner, 4, t3)
+      SmtpQueue.report(runner, [failed_report(s3)], t3)
+
+      assert %Item{state: "queued", attempts: 3, grey_attempts: 2, transport_attempts: 1} =
+               row = hd(items(domain))
+
+      assert DateTime.diff(row.not_before, t3) == 60
+    end
+
+    test "a refused connection does not use up the greylist attempts", %{runner: runner} do
+      put("email_verify_domain_interval_s", "1")
+      domain = unique_domain()
+      queue(domain, ~w(a))
+
+      [s1] = claim!(runner)
+      SmtpQueue.report(runner, [failed_report(s1)], @now)
+      t2 = DateTime.add(@now, 61)
+      [s2] = claim!(runner, 4, t2)
+      SmtpQueue.report(runner, [failed_report(s2)], t2)
+      assert %Item{state: "queued", transport_attempts: 2} = hd(items(domain))
+
+      # Three greylist answers are still needed to give up.
+      Enum.reduce(1..3, DateTime.add(t2, 301), fn attempt, now ->
+        [session] = claim!(runner, 4, now)
+        report!(runner, session, %{0 => {451, "fixture grey phrase"}}, now: now)
+        assert hd(items(domain)).grey_attempts == attempt
+        DateTime.add(now, 20 * 60 + 5)
+      end)
+
+      assert %Item{state: "done", attempts: 5} = hd(items(domain))
+      assert %Result{status: "temp", reason: "greylisted"} = result("a@" <> domain)
+    end
+
     test "a timeout and a reset have their own final reason", %{runner: runner} do
       put("email_verify_domain_interval_s", "1")
 
@@ -738,6 +815,80 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       report = report(old, %{0 => {250, "ok"}})
       assert {:ok, %{accepted: 0, ignored: 1}} = SmtpQueue.report(runner, [report], later)
       assert result("a@" <> domain).reason == "smtp_pending"
+    end
+
+    test "a late report for a row swept back to the queue and not leased again is accepted", %{
+      runner: runner
+    } do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      email = "a@" <> domain
+      batch_uuid = awaiting_batch(email)
+      [old] = claim!(runner)
+      later = DateTime.add(@now, 400)
+      assert 1 = SmtpQueue.expire_leases(later)
+      assert hd(items(domain)).state == "queued"
+
+      report = report(old, %{0 => {250, "ok"}}, probe: {550, "no such user"})
+
+      assert {:ok, %{accepted: 1, ignored: 0, settled: 1}} =
+               SmtpQueue.report(runner, [report], later)
+
+      assert %Item{state: "done", lease_token: nil} = hd(items(domain))
+      assert result(email).status == "valid"
+      assert Verification.get_batch(batch_uuid).state == "done"
+
+      # The same report again changes nothing.
+      assert {:ok, %{accepted: 0, ignored: 1}} = SmtpQueue.report(runner, [report], later)
+      assert Repo.get(Runner, runner.uuid).jobs_done == 1
+    end
+
+    test "a late report of another runner for a swept row is ignored", %{runner: runner} do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      [old] = claim!(runner)
+      later = DateTime.add(@now, 400)
+      SmtpQueue.expire_leases(later)
+
+      assert {:ok, %{accepted: 0, ignored: 1}} =
+               SmtpQueue.report(runner(), [report(old, %{0 => {250, "ok"}})], later)
+
+      assert hd(items(domain)).state == "queued"
+    end
+
+    test "a late report of a row that was cancelled meanwhile is ignored", %{runner: runner} do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      batch_uuid = awaiting_batch("a@" <> domain)
+      [old] = claim!(runner)
+      later = DateTime.add(@now, 400)
+      SmtpQueue.expire_leases(later)
+      assert {:ok, _} = Verification.cancel_batch(batch_uuid)
+      assert hd(items(domain)).state == "cancelled"
+
+      assert {:ok, %{accepted: 0, ignored: 1}} =
+               SmtpQueue.report(runner, [report(old, %{0 => {250, "ok"}})], later)
+
+      assert result("a@" <> domain).reason == "smtp_pending"
+    end
+
+    test "a late report that asks for a retry clears the token, so a repeat is ignored", %{
+      runner: runner
+    } do
+      domain = unique_domain()
+      queue(domain, ~w(a))
+      [old] = claim!(runner)
+      later = DateTime.add(@now, 400)
+      SmtpQueue.expire_leases(later)
+
+      report = report(old, %{0 => {451, "fixture grey phrase"}}, probe: {550, "x"})
+      assert {:ok, %{accepted: 1}} = SmtpQueue.report(runner, [report], later, phrases: @phrases)
+      assert %Item{state: "queued", grey_attempts: 1, lease_token: nil} = hd(items(domain))
+
+      assert {:ok, %{accepted: 0, ignored: 1}} =
+               SmtpQueue.report(runner, [report], later, phrases: @phrases)
+
+      assert hd(items(domain)).grey_attempts == 1
     end
 
     test "results of the wrong shape are rejected, the rest are settled", %{runner: runner} do
