@@ -90,8 +90,8 @@ function New-Settings {
 
 # A claim answer without sessions (the site stub fills those in).
 function New-ClaimAnswer {
-    param($Settings = (New-Settings), $Paused = $null, [string]$MinVersion = '1.0.0')
-    [ordered]@{ sessions = @(); seen_ip = '127.0.0.1'; settings = $Settings; paused = $Paused; min_version = $MinVersion }
+    param($Settings = (New-Settings), $Paused = $null, [string]$MinVersion = '1.0.0', [string]$SeenIp = '127.0.0.1')
+    [ordered]@{ sessions = @(); seen_ip = $SeenIp; settings = $Settings; paused = $Paused; min_version = $MinVersion }
 }
 
 function New-Session {

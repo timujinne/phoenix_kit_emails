@@ -195,14 +195,19 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
       }
     end
 
+    # `helo_auto` is passed on only when the runner sent the key, so that an explicit null
+    # (the runner found no EHLO name worth using) clears what was stored.
     defp runner_info(info) when is_map(info) do
-      %{
+      base = %{
         name: info["name"],
         version: info["version"],
         os: info["os"],
-        helo_auto: info["helo_auto"],
         port25: info["port25"]
       }
+
+      if Map.has_key?(info, "helo_auto"),
+        do: Map.put(base, :helo_auto, info["helo_auto"]),
+        else: base
     end
 
     defp runner_info(_info), do: %{}

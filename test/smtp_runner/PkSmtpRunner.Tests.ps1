@@ -191,6 +191,49 @@ Describe 'the log file' {
     }
 }
 
+Describe 'the check for a local address' {
+    BeforeAll {
+        # The real functions of the script, without running the script.
+        $errors = $null; $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:RunnerScript, [ref]$tokens, [ref]$errors)
+        foreach ($name in 'Test-LocalAddress', 'Test-LocalName') {
+            $found = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
+            . ([scriptblock]::Create($found.Extent.Text))
+        }
+    }
+
+    It 'calls <Ip> local' -ForEach @(
+        @{ Ip = '127.0.0.1' }, @{ Ip = '127.9.9.9' }, @{ Ip = '::1' }, @{ Ip = '10.0.0.1' }, @{ Ip = '10.255.255.255' },
+        @{ Ip = '172.16.0.1' }, @{ Ip = '172.31.255.255' }, @{ Ip = '192.168.0.1' }, @{ Ip = '169.254.1.1' },
+        @{ Ip = 'fc00::1' }, @{ Ip = 'fdff::1' }, @{ Ip = 'fe80::1' }, @{ Ip = 'febf::1' }, @{ Ip = '::ffff:10.1.1.1' }, @{ Ip = '::' }
+    ) {
+        Test-LocalAddress $Ip | Should -BeTrue
+    }
+
+    It 'calls <Ip> public' -ForEach @(
+        @{ Ip = '8.8.8.8' }, @{ Ip = '11.0.0.1' }, @{ Ip = '172.15.255.255' }, @{ Ip = '172.32.0.1' }, @{ Ip = '192.167.0.1' },
+        @{ Ip = '192.169.0.1' }, @{ Ip = '169.253.1.1' }, @{ Ip = '203.0.113.7' }, @{ Ip = '2001:db8::1' }, @{ Ip = 'fe00::1' },
+        @{ Ip = 'fec0::1' }, @{ Ip = '2a00:1450::1' }, @{ Ip = '::ffff:8.8.8.8' }
+    ) {
+        Test-LocalAddress $Ip | Should -BeFalse
+    }
+
+    It 'is not fooled by what is no address' -ForEach @(@{ Value = $null }, @{ Value = '' }, @{ Value = 'host.example' }, @{ Value = 42 }) {
+        Test-LocalAddress $Value | Should -BeFalse
+    }
+
+    It 'knows the name localhost' {
+        Test-LocalName 'localhost' | Should -BeTrue
+        Test-LocalName 'LOCALHOST.' | Should -BeTrue
+        Test-LocalName 'localhost.localdomain' | Should -BeTrue
+        Test-LocalName 'localhost6.localdomain6' | Should -BeTrue
+        Test-LocalName 'a.localhost' | Should -BeTrue
+        Test-LocalName 'mx.example.test' | Should -BeFalse
+        Test-LocalName 'notlocalhost' | Should -BeFalse
+        Test-LocalName $null | Should -BeFalse
+    }
+}
+
 Describe 'the self-test' {
     It 'passes: four [OK] lines, exit 0, and the outcome goes to the site' {
         $s = Invoke-Scenario -Smtp @{ banner = @('220 mx.example.test ESMTP ready'); rules = @() } -RunnerArguments @('-SelfTest')
@@ -212,6 +255,35 @@ Describe 'the self-test' {
         $info.os | Should -Match 'PowerShell 7'
         $s.Claims[0].body.runner.PSObject.Properties.Name | Should -Not -Contain 'port25'
         $s.Reports.Count | Should -Be 0
+    }
+
+    It 'WARNs, with a hint in both languages, when the site sees a local address, and sends helo_auto null' -ForEach @(
+        @{ Ip = '127.0.0.1' }, @{ Ip = '::1' }, @{ Ip = '10.1.2.3' }, @{ Ip = '192.168.1.5' }
+    ) {
+        $claim = New-ClaimAnswer -SeenIp $Ip
+        $s = Invoke-Scenario -Smtp @{ banner = @('220 mx.example.test ESMTP ready'); rules = @() } -Claim $claim -RunnerArguments @('-SelfTest')
+        $s.Run.ExitCode | Should -Be 0
+        $line = Get-CheckLine $s.Run.Output '2/4'
+        $line | Should -Match ('^\[WARN\] 2/4 The site sees a local address \(' + [regex]::Escape($Ip) + '\)')
+        $line | Should -Match 'HELO would be the local name; run the runner on the machine whose public IP should do the check, or set HELO in Settings -> Emails'
+        $line | Should -Match 'запустите раннер'
+        $s.Run.Output | Should -Not -Match '\[FAIL\]'
+
+        # The first claim does not know yet; the one with the outcome says null, not "localhost".
+        $s.Claims[0].body.runner.PSObject.Properties.Name | Should -Not -Contain 'helo_auto'
+        $s.Claims[1].body.runner.PSObject.Properties.Name | Should -Contain 'helo_auto'
+        $s.Claims[1].body.runner.helo_auto | Should -BeNullOrEmpty
+    }
+
+    It 'keeps helo_auto null in the claims of the loop too' {
+        $claim = New-ClaimAnswer -SeenIp '192.168.1.5'
+        $s = Invoke-Scenario -Smtp @{ banner = @('220 mx ESMTP'); rules = @() } -Claim $claim
+        $loop = @(Get-LoopClaims $s)
+        $loop.Count | Should -BeGreaterThan 0
+        foreach ($c in $loop) {
+            $c.body.runner.PSObject.Properties.Name | Should -Contain 'helo_auto'
+            $c.body.runner.helo_auto | Should -BeNullOrEmpty
+        }
     }
 
     It 'sends only what the claim schema accepts' {

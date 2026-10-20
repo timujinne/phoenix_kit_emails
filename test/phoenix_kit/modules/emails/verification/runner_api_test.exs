@@ -228,6 +228,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
       assert Repo.get_by!(Runner, api_key_uuid: key.uuid).name == "NEWSERVER"
     end
 
+    test "a claim with helo_auto null clears the stored name, one without keeps it", %{
+      token: token,
+      key: key
+    } do
+      assert {200, _} = claim(token, %{"runner" => %{"helo_auto" => "localhost"}})
+      assert {200, _} = claim(token, %{"runner" => %{"name" => "BOX"}})
+      assert Repo.get_by!(Runner, api_key_uuid: key.uuid).helo_auto == "localhost"
+
+      assert {200, _} = claim(token, %{"runner" => %{"helo_auto" => nil}})
+      runner = Repo.get_by!(Runner, api_key_uuid: key.uuid)
+      assert runner.helo_auto == nil
+      assert runner.name == "BOX"
+    end
+
     test "max_sessions defaults to one", %{token: token} do
       for _ <- 1..2, do: queue(unique_domain(), ~w(a))
       assert {200, %{"sessions" => [_]}} = claim(token, %{})

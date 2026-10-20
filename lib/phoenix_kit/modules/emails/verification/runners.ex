@@ -93,7 +93,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   @doc """
   Records that the runner behind `actor` (`%{key_uuid:, ip:}`, a
   `PhoenixKit.API.Actor`) is alive and says `info`; creates the row on first contact.
-  Fields the runner did not send keep their value. Announces the contact on the
+  Fields the runner did not send keep their value; only `helo_auto: nil` sent on
+  purpose clears the stored EHLO name. Announces the contact on the
   topic (at most every 5 seconds). Returns the row.
   """
   @spec heartbeat(map(), info(), DateTime.t()) :: Runner.t()
@@ -151,7 +152,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
         last_seen_at: now,
         updated_at: if(announce?, do: now)
       ]
-      |> Enum.reject(fn {_field, value} -> is_nil(value) end)
+      |> Enum.reject(fn {field, value} -> is_nil(value) and not clears?(field, info) end)
 
     {:ok, runner} =
       repo().insert(struct(Runner, [api_key_uuid: key_uuid] ++ fields),
@@ -167,6 +168,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   # `updated_at` doubles as the time of the last announcement: it moves only when one
   # is made. The first contact and a changed port-25 finding are announced at once, a
   # plain heartbeat when the last announcement is five seconds old.
+  # An explicit `helo_auto: nil` in the runner's info clears the stored EHLO name; for
+  # every other field nil means "not told".
+  defp clears?(:helo_auto, info), do: Map.has_key?(info, :helo_auto)
+  defp clears?(_field, _info), do: false
+
   defp announce?(nil, _port25, _now), do: true
 
   defp announce?(previous, port25, now) do

@@ -95,6 +95,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
       assert Repo.aggregate(Runner, :count) == 1
     end
 
+    test "helo_auto sent as nil clears the stored name; left out it keeps it", %{actor: actor} do
+      Runners.heartbeat(actor, %{helo_auto: "localhost"}, @now)
+
+      assert Runners.heartbeat(actor, %{name: "BOX"}, DateTime.add(@now, 1)).helo_auto ==
+               "localhost"
+
+      assert Runners.heartbeat(actor, %{helo_auto: nil}, DateTime.add(@now, 2)).helo_auto == nil
+      assert Runners.heartbeat(actor, %{helo_auto: nil}, DateTime.add(@now, 3)).name == "BOX"
+    end
+
     test "a port25 value it does not know is dropped, blank texts are not stored", %{actor: actor} do
       runner = Runners.heartbeat(actor, %{port25: "maybe", name: "   "}, @now)
       assert runner.port25 == "unknown"

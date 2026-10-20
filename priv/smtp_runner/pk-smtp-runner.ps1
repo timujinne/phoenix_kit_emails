@@ -542,6 +542,32 @@ function Get-PtrName {
     $null
 }
 
+# Whether the address the site saw is a local one (loopback, private, link-local): the site
+# is on the same machine or the same network, so there is no public IP to name in EHLO.
+function Test-LocalAddress {
+    param($Address)
+    $ip = $null
+    if (-not ($Address -is [string]) -or -not [System.Net.IPAddress]::TryParse($Address, [ref]$ip)) { return $false }
+    if ($ip.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6 -and $ip.IsIPv4MappedToIPv6) { $ip = $ip.MapToIPv4() }
+    if ([System.Net.IPAddress]::IsLoopback($ip)) { return $true }
+    $b = $ip.GetAddressBytes()
+    if ($b.Length -eq 4) {
+        if ($b[0] -eq 0 -or $b[0] -eq 10) { return $true }
+        if ($b[0] -eq 172 -and $b[1] -ge 16 -and $b[1] -le 31) { return $true }
+        if ($b[0] -eq 192 -and $b[1] -eq 168) { return $true }
+        return ($b[0] -eq 169 -and $b[1] -eq 254)
+    }
+    if (($b[0] -band 0xFE) -eq 0xFC) { return $true }
+    if ($b[0] -eq 0xFE -and ($b[1] -band 0xC0) -eq 0x80) { return $true }
+    -not ($b | Where-Object { $_ -ne 0 })
+}
+
+# A reverse DNS name that is the machine's own: localhost, localhost.localdomain, x.localhost.
+function Test-LocalName {
+    param($Name)
+    ($Name -is [string]) -and ($Name.TrimEnd('.') -match '^localhost6?(\.|\z)|\.localhost\z')
+}
+
 function Get-IntSetting {
     param($Settings, [string]$Name, [int]$Default)
     $value = $null
@@ -557,7 +583,8 @@ function Get-RunnerInfo {
     $info['os'] = $os.Substring(0, [Math]::Min(255, $os.Length))
     $info['name'] = [System.Environment]::MachineName
     if ($script:State.Port25) { $info['port25'] = $script:State.Port25 }
-    if ($script:State.HeloAuto) { $info['helo_auto'] = $script:State.HeloAuto }
+    # Once the self-test has looked, the site is told the name found or null: no name worth using.
+    if ($script:State.HeloChecked) { $info['helo_auto'] = $script:State.HeloAuto }
     $info
 }
 
@@ -633,11 +660,21 @@ function Invoke-SelfTest {
         return
     }
 
-    # 2. External IP and its reverse DNS.
+    # 2. External IP and its reverse DNS. A local address (the site is on this machine or
+    # network) or the name "localhost" is no EHLO name: the site is told none (helo_auto stays null).
     $ip = $script:State.SeenIp
-    if ($ip) {
+    $script:State.HeloAuto = $null
+    $script:State.HeloChecked = $true
+    $localHint = ' - HELO would be the local name; run the runner on the machine whose public IP should do the check, or set HELO in Settings -> Emails / имя в HELO было бы локальным: запустите раннер на машине, чей публичный IP должен проверять почту, либо задайте HELO в Settings -> Emails'
+    if ($ip -and (Test-LocalAddress $ip)) {
+        Write-Check 'WARN' '2/4' ('The site sees a local address (' + $ip + ')' + $localHint)
+    }
+    elseif ($ip) {
         $name = Get-PtrName $ip
-        if ($name) {
+        if (Test-LocalName $name) {
+            Write-Check 'WARN' '2/4' ('External IP ' + $ip + ' has the reverse DNS name ' + $name + $localHint)
+        }
+        elseif ($name) {
             $script:State.HeloAuto = $name
             Write-Check 'OK' '2/4' ('External IP ' + $ip + ', reverse DNS ' + $name)
         }
@@ -1083,7 +1120,7 @@ $script:LogPath = $null
 $script:BaseUrl = $null
 $script:ApiToken = $null
 $script:State = @{
-    Port25 = $null; Port25At = $null; HeloAuto = $null; SeenIp = $null; MailFrom = $null; Settings = $null
+    Port25 = $null; Port25At = $null; HeloAuto = $null; HeloChecked = $false; SeenIp = $null; MailFrom = $null; Settings = $null
     MinVersion = $null; PauseShown = $null; Backoff = 0; RetryAt = [DateTime]::MinValue
     Failed = $false; Fatal = $null; Reachable = $false
 }
