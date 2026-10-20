@@ -14,7 +14,10 @@ Runs on Windows PowerShell 5.1 and PowerShell 7. Needs outbound TCP port 25 and 
 Address of the site, https://... (http only for localhost / 127.0.0.1, for development).
 
 .PARAMETER Token
-The runner token issued in Settings -> Emails (pk_...). Or use -TokenFile.
+The runner token issued in Settings -> Emails (pk_...). A token on the command line is visible
+to other programs in the process list: prefer -TokenFile, or the environment variable
+PK_SMTP_RUNNER_TOKEN (read when neither -Token nor -TokenFile is given), or type it when
+asked (an interactive session without any of them prompts for it, the input is hidden).
 
 .PARAMETER TokenFile
 A file holding the token: plain text, or the DPAPI-encrypted file written by -Install.
@@ -41,6 +44,9 @@ powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server https://exam
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server https://example.com -Token pk_... -SelfTest
+
+.EXAMPLE
+$env:PK_SMTP_RUNNER_TOKEN = 'pk_...'; powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server https://example.com
 #>
 [CmdletBinding()]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'The parameters are read by the functions below, at script scope.')]
@@ -776,6 +782,26 @@ function Read-TokenFile {
     finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
 }
 
+# The token from the environment variable, so that it need not be on the command line.
+function Get-TokenFromEnvironment {
+    $value = [System.Environment]::GetEnvironmentVariable('PK_SMTP_RUNNER_TOKEN')
+    if ($value) { return $value.Trim() }
+    $null
+}
+
+# At a keyboard (not redirected, not -NonInteractive, not a service) the token is asked for
+# with the input hidden; anywhere else there is nobody to ask. The conversion is the 5.1 one.
+function Read-TokenFromPrompt {
+    if (-not [System.Environment]::UserInteractive -or [System.Console]::IsInputRedirected) { return $null }
+    try {
+        $secure = Read-Host -Prompt 'Runner token (pk_..., from Settings -> Emails)' -AsSecureString
+        $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+        try { return ([Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)).Trim() }
+        finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+    }
+    catch { return $null }
+}
+
 function Invoke-Uninstall {
     if (-not (Test-Windows)) {
         Write-RunnerLog -Message '-Uninstall works on Windows only (Task Scheduler and DPAPI). Nothing was changed. / Только для Windows.' -Color Red -NoStamp
@@ -1121,6 +1147,7 @@ function Invoke-Main {
         return 2
     }
 
+    # The token: -Token, else -TokenFile, else the environment variable, else (at a keyboard) a prompt.
     $plain = $Token
     if (-not $plain -and $TokenFile) {
         try { $plain = Read-TokenFile $TokenFile }
@@ -1129,8 +1156,10 @@ function Invoke-Main {
             return 2
         }
     }
+    if (-not $plain -and -not $TokenFile) { $plain = Get-TokenFromEnvironment }
+    if (-not $plain -and -not $TokenFile) { $plain = Read-TokenFromPrompt }
     if (-not $plain -or $plain -notmatch '^pk_[A-Za-z0-9_\-]+\z') {
-        Write-RunnerLog -Message 'Missing or malformed token: give -Token pk_... (or -TokenFile). Issue one in Settings -> Emails. / Нужен токен pk_... из Settings -> Emails.' -Color Red -NoStamp
+        Write-RunnerLog -Message 'Missing or malformed token: give -Token pk_... (or -TokenFile, or set the environment variable PK_SMTP_RUNNER_TOKEN). Issue one in Settings -> Emails. / Нужен токен pk_... из Settings -> Emails (параметр -Token, -TokenFile или переменная окружения PK_SMTP_RUNNER_TOKEN).' -Color Red -NoStamp
         return 2
     }
     $script:ApiToken = $plain

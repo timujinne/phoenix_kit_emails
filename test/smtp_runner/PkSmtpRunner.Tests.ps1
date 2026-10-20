@@ -123,10 +123,68 @@ Describe 'the arguments' {
         $run.ExitCode | Should -Be 2
     }
 
-    It 'asks for a token' {
-        $run = Invoke-Runner -Arguments @('-Server', 'https://example.com')
+    It 'asks for a token, and names the environment variable among the ways to give it' {
+        $saved = $env:PK_SMTP_RUNNER_TOKEN
+        $env:PK_SMTP_RUNNER_TOKEN = $null
+        try { $run = Invoke-Runner -Arguments @('-Server', 'https://example.com') }
+        finally { $env:PK_SMTP_RUNNER_TOKEN = $saved }
         $run.ExitCode | Should -Be 2
         $run.Output | Should -Match 'token'
+        $run.Output | Should -Match 'PK_SMTP_RUNNER_TOKEN'
+        $run.TimedOut | Should -BeFalse
+    }
+
+    It 'treats an empty PK_SMTP_RUNNER_TOKEN as not set, and does not stop to ask when it cannot ask' {
+        $saved = $env:PK_SMTP_RUNNER_TOKEN
+        $env:PK_SMTP_RUNNER_TOKEN = ''
+        try { $run = Invoke-Runner -Arguments @('-Server', 'https://example.com') -TimeoutSec 20 }
+        finally { $env:PK_SMTP_RUNNER_TOKEN = $saved }
+        $run.TimedOut | Should -BeFalse
+        $run.ExitCode | Should -Be 2
+    }
+
+    It 'reads the token from PK_SMTP_RUNNER_TOKEN when there is no -Token and no -TokenFile' {
+        $saved = $env:PK_SMTP_RUNNER_TOKEN
+        $env:PK_SMTP_RUNNER_TOKEN = $script:Token
+        try {
+            $s = Invoke-Scenario -Smtp @{ banner = @('220 mx ESMTP'); rules = @() } -OmitToken -RunnerArguments @('-SelfTest')
+        }
+        finally { $env:PK_SMTP_RUNNER_TOKEN = $saved }
+        $s.Run.ExitCode | Should -Be 0
+        (Get-CheckLine $s.Run.Output '1/4') | Should -Match '^\[OK\]'
+        $s.Claims.Count | Should -BeGreaterThan 0
+        $s.Claims[0].headers.authorization | Should -Be ('Bearer ' + $script:Token)
+        $s.Run.Output | Should -Not -Match ([regex]::Escape($script:Token))
+    }
+
+    It 'prefers -Token to the environment variable' {
+        $saved = $env:PK_SMTP_RUNNER_TOKEN
+        $env:PK_SMTP_RUNNER_TOKEN = 'pk_from_the_environment_which_the_site_refuses'
+        try {
+            $s = Invoke-Scenario -Smtp @{ banner = @('220 mx ESMTP'); rules = @() } -RunnerArguments @('-SelfTest')
+        }
+        finally { $env:PK_SMTP_RUNNER_TOKEN = $saved }
+        $s.Run.ExitCode | Should -Be 0
+        $s.Claims[0].headers.authorization | Should -Be ('Bearer ' + $script:Token)
+    }
+
+    It 'refuses a malformed token from the environment variable' {
+        $saved = $env:PK_SMTP_RUNNER_TOKEN
+        $env:PK_SMTP_RUNNER_TOKEN = 'pk_abc;def'
+        try { $run = Invoke-Runner -Arguments @('-Server', 'https://example.com') }
+        finally { $env:PK_SMTP_RUNNER_TOKEN = $saved }
+        $run.ExitCode | Should -Be 2
+        $run.Output | Should -Match 'malformed'
+    }
+
+    It 'takes the token for -Install from the environment variable too' -Skip:($IsWindows) {
+        $saved = $env:PK_SMTP_RUNNER_TOKEN
+        $env:PK_SMTP_RUNNER_TOKEN = $script:Token
+        try { $run = Invoke-Runner -Arguments @('-Server', 'https://example.com', '-Install') }
+        finally { $env:PK_SMTP_RUNNER_TOKEN = $saved }
+        # Past the token check, at the Windows-only guard.
+        $run.ExitCode | Should -Be 1
+        $run.Output | Should -Match 'Windows only'
     }
 
     It 'refuses a token with odd characters (it goes into a header)' {

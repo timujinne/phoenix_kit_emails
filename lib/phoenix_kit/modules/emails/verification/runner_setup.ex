@@ -110,6 +110,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetup do
     "powershell -ExecutionPolicy Bypass -File #{script_name()} -Server #{server} -Token #{token}"
   end
 
+  @doc """
+  The same start with the token in an environment variable of the PowerShell session
+  instead of on the command line, where other programs can read it in the process list.
+  """
+  @spec env_command(String.t(), String.t()) :: String.t()
+  def env_command(server, token) do
+    "$env:PK_SMTP_RUNNER_TOKEN='#{token}'; " <>
+      "powershell -ExecutionPolicy Bypass -File #{script_name()} -Server #{server}"
+  end
+
   @doc "The file name of the runner script."
   @spec script_name() :: String.t()
   def script_name, do: "pk-smtp-runner.ps1"

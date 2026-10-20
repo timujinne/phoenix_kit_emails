@@ -143,4 +143,17 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerSetupTest do
                  "-Server https://acme-mail.test -Token pk_ab12cd34_secret"
     end
   end
+
+  describe "env_command/2" do
+    test "puts the token in the environment variable and leaves -Token out" do
+      command = RunnerSetup.env_command("https://acme-mail.test", "pk_ab12cd34_secret")
+
+      assert command ==
+               "$env:PK_SMTP_RUNNER_TOKEN='pk_ab12cd34_secret'; " <>
+                 "powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 " <>
+                 "-Server https://acme-mail.test"
+
+      refute command =~ "-Token"
+    end
+  end
 end

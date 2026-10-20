@@ -609,6 +609,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
           token: token,
           key_name: key.name,
           command: RunnerSetup.command(socket.assigns.site_url, token),
+          env_command: RunnerSetup.env_command(socket.assigns.site_url, token),
           revoked: revoked,
           left: left
         }

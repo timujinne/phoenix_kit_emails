@@ -4144,3 +4144,13 @@ msgstr "При переключении сервер проверит, откр�
 #, elixir-autogen, elixir-format
 msgid "Switch to this server"
 msgstr "Переключить на этот сервер"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:239
+#, elixir-autogen, elixir-format
+msgid "To keep the token out of the process list, set it first and run the same command without -Token:"
+msgstr "Чтобы токен не был виден в списке процессов, сначала задайте его в сессии и запустите ту же команду без -Token:"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:499
+#, elixir-autogen, elixir-format
+msgid "Or with the token in an environment variable, not on the command line:"
+msgstr "Или с токеном в переменной окружения, а не в командной строке:"

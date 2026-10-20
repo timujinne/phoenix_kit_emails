@@ -238,6 +238,10 @@
           <li>
             {gettext("Start it in PowerShell, with the token issued here:")}
             <pre class="bg-base-300/60 rounded p-2 mt-1 text-xs overflow-x-auto"><code>powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server {@site_url} -Token &lt;token&gt;</code></pre>
+            <p class="text-xs text-base-content/70 mt-1">
+              {gettext("To keep the token out of the process list, set it first and run the same command without -Token:")}
+              <code class="font-mono">$env:PK_SMTP_RUNNER_TOKEN='&lt;token&gt;'</code>
+            </p>
           </li>
           <li>
             {gettext(
@@ -499,6 +503,30 @@
             class="btn btn-sm btn-outline"
             phx-hook="CopyToClipboard"
             data-copy-target={"##{@id}-new-command"}
+          >
+            <span data-copy-idle>{gettext("Copy")}</span>
+            <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
+          </button>
+        </div>
+        <label class="label" for={"#{@id}-new-env-command"}>
+          <span class="text-xs">
+            {gettext("Or with the token in an environment variable, not on the command line:")}
+          </span>
+        </label>
+        <div class="flex items-start gap-2">
+          <textarea
+            id={"#{@id}-new-env-command"}
+            readonly
+            rows="2"
+            spellcheck="false"
+            class="textarea w-full font-mono text-xs"
+          >{@new_token.env_command}</textarea>
+          <button
+            type="button"
+            id={"#{@id}-copy-env-command"}
+            class="btn btn-sm btn-outline"
+            phx-hook="CopyToClipboard"
+            data-copy-target={"##{@id}-new-env-command"}
           >
             <span data-copy-idle>{gettext("Copy")}</span>
             <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>

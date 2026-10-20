@@ -102,6 +102,7 @@ function New-Session {
 # One run of the runner against a site stub and (optionally) a fake mail host.
 #   Smtp      the `smtp` script (hashtable/object) or $null: no mail host, the port is closed
 #   Claim     the claim answer; Batches  sessions per claim that asks for sessions
+#   OmitToken   no -Token argument (the token comes from the environment or not at all)
 #   SitePrefix  the kit's URL prefix the stub serves the API under ("" or "/phoenix_kit");
 #               the runner is given -Server http://127.0.0.1:<port><SitePrefix>
 # Returns: Run (ExitCode, Output), Claims, Reports (the recorded requests), Commands (what the
@@ -117,6 +118,7 @@ function Invoke-Scenario {
         [string]$SiteToken = $script:Token,
         [string]$RunnerToken = $script:Token,
         [switch]$SiteDown,
+        [switch]$OmitToken,
         [string]$SitePrefix = '',
         $ServerPrefixOverride = $null,
         [string]$ServerSuffix = '',
@@ -150,7 +152,8 @@ function Invoke-Scenario {
         if ($SiteDown) { Stop-Fake $fakeSite; $fakeSite = $null }
 
         $serverPath = if ($null -ne $ServerPrefixOverride) { $ServerPrefixOverride } else { $SitePrefix }
-        $arguments = @('-Server', "http://127.0.0.1:$port$serverPath$ServerSuffix", '-Token', $RunnerToken, '-SmtpPort', $fakeSmtp.Port, '-TimeScale', '0.05') + $RunnerArguments
+        $tokenArguments = if ($OmitToken) { @() } else { @('-Token', $RunnerToken) }
+        $arguments = @('-Server', "http://127.0.0.1:$port$serverPath$ServerSuffix") + $tokenArguments + @('-SmtpPort', $fakeSmtp.Port, '-TimeScale', '0.05') + $RunnerArguments
         $run = Invoke-Runner -Arguments $arguments -TimeoutSec $TimeoutSec -WorkDir $dir
         $records = Read-Jsonl $record
         [pscustomobject]@{

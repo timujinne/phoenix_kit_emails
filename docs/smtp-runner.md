@@ -36,6 +36,20 @@ Run it (stays running; Ctrl+C stops it):
 powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server https://example.com -Token pk_...
 ```
 
+A token on the command line is visible to other programs in the process list. Keep it out of
+there by putting it in an environment variable of the PowerShell session first (the runner
+reads `PK_SMTP_RUNNER_TOKEN` when neither `-Token` nor `-TokenFile` is given):
+
+```powershell
+$env:PK_SMTP_RUNNER_TOKEN = 'pk_...'
+powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server https://example.com
+```
+
+With no token at all, an interactive session asks for it (the input is hidden); a session
+that cannot ask (`-NonInteractive`, redirected input, a service) stops with exit code 2 and
+the "missing token" message. `-Install` takes the token from any of the sources and stores it
+encrypted as described below.
+
 Check the setup and exit (code 0 when nothing failed, 1 otherwise):
 
 ```powershell
@@ -57,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Uninstall
 | Parameter | Meaning |
 |---|---|
 | `-Server <url>` | The site with the kit's URL prefix, `https://example.com/phoenix_kit` (plain `http` only for `localhost` / `127.0.0.1`) |
-| `-Token <pk_...>` / `-TokenFile <path>` | The token, or a file holding it (plain, or the encrypted file `-Install` writes) |
+| `-Token <pk_...>` / `-TokenFile <path>` | The token, or a file holding it (plain, or the encrypted file `-Install` writes). Without both: the environment variable `PK_SMTP_RUNNER_TOKEN`, then a hidden prompt in an interactive session |
 | `-SelfTest` | Run the four checks and exit |
 | `-Install` / `-Uninstall` | Task Scheduler task and stored token (Windows only; a clear message elsewhere) |
 | `-Concurrency <1-20>` | Sessions at the same time, default 4 |

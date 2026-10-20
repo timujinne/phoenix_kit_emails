@@ -1124,10 +1124,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     } do
       socket = event(socket, "issue_token")
 
-      assert %{token: token, command: command, key_name: name} = socket.assigns.new_token
+      assert %{token: token, command: command, env_command: env_command, key_name: name} =
+               socket.assigns.new_token
 
       assert token =~ ~r/\Apk_[0-9a-f]{8}_[A-Za-z0-9_-]{43}\z/
       assert command =~ "-Token #{token}"
+      assert env_command =~ "$env:PK_SMTP_RUNNER_TOKEN='#{token}'"
+      assert env_command =~ "-Server #{RunnerSetup.server_url()}"
+      refute env_command =~ "-Token"
       assert command =~ "-Server #{RunnerSetup.server_url()}"
       assert command =~ "pk-smtp-runner.ps1"
       assert name =~ ~r/\ASMTP runner \(\d{4}-\d{2}-\d{2}\)\z/
@@ -1143,6 +1147,19 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert html =~ "The token is shown once"
       assert html =~ ~s|phx-hook="CopyToClipboard"|
       assert html =~ "Command for PowerShell"
+      assert html =~ "Or with the token in an environment variable, not on the command line"
+      assert html =~ "$env:PK_SMTP_RUNNER_TOKEN=&#39;#{token}&#39;"
+    end
+
+    test "the instruction of a runner that is not yet connected names the environment variable",
+         %{
+           scope: scope
+         } do
+      html = render_section(%{phoenix_kit_current_scope: scope})
+
+      assert html =~ "-Token &lt;token&gt;"
+      assert html =~ "PK_SMTP_RUNNER_TOKEN"
+      assert html =~ "without -Token"
     end
 
     test "the token is not kept anywhere once it is dismissed", %{socket: socket} do
