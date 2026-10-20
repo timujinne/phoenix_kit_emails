@@ -11,6 +11,7 @@ hex package (`priv` is in the package files).
 | `free.txt` | curated by hand for this module; no third-party list was copied | MIT (this package) | 136 | 124 |
 | `role_prefixes.txt` | curated by hand for this module; no third-party list was copied | MIT (this package) | 82 | 79 |
 | `not_fake.txt` | empty whitelist; entries are added by the host | - | 3 | 0 |
+| `smtp_user_unknown.txt` | written for this module from generic SMTP wording (the exception list of the reply classifier: texts that say the mailbox does not exist) | MIT (this package) | 15 | 10 |
 | `typos.txt`, `fake.txt`, `curse.txt`, `smtp_greylist.txt`, `smtp_quota.txt`, `smtp_block.txt` | empty; entries are added by the host | - | 2-3 each | 0 |
 
 Counts were taken on 2026-10-19 with `wc -l` (lines) and `grep -vc '^#\|^$'` (entries).

@@ -18,8 +18,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
       `Verification.Flags` (shipped empty)
     * `curse.txt` - words for the curse flag (shipped empty)
     * `smtp_greylist.txt`, `smtp_quota.txt`, `smtp_block.txt` - phrases for
-      classifying an SMTP reply; loaded and exposed by `phrases/1`, unused until
-      the SMTP stage (shipped empty)
+      classifying an SMTP reply (`Verification.Classifier`); exposed by `phrases/1`
+      (shipped empty: the Kellerman lists are not redistributable)
+    * `smtp_user_unknown.txt` - generic "no such mailbox" phrases that keep a refusal
+      from being read as a block (`user unknown`, `5.1.1`, ...); exposed by `phrases/1`
+      (shipped with ten entries)
 
   Where each came from is in `priv/email_verification/SOURCES.md`.
 
@@ -61,12 +64,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
     curse: ["curse.txt", "CurseWords_Sorted.txt"],
     smtp_grey: ["smtp_greylist.txt", "Greylisting_Sorted.txt"],
     smtp_quota: ["smtp_quota.txt", "MailboxQuota_Sorted.txt"],
-    smtp_block: ["smtp_block.txt", "Blocking_Sorted.txt"]
+    smtp_block: ["smtp_block.txt", "Blocking_Sorted.txt"],
+    smtp_user_unknown: ["smtp_user_unknown.txt"]
   }
   @names Map.keys(@sources)
   # Lists of domains: an entry may be written with a leading dot (".aaa").
   @domain_lists [:disposable, :free, :tlds, :not_fake]
-  @phrase_lists [:smtp_grey, :smtp_quota, :smtp_block]
+  @phrase_lists [:smtp_grey, :smtp_quota, :smtp_block, :smtp_user_unknown]
   @second_levels ~w(co com org net ac or ne gov edu)
   @key {__MODULE__, :snapshot}
   @retry_ms 30_000
@@ -111,10 +115,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Dictionaries do
     do: MapSet.member?(set(name), String.downcase(entry))
 
   @doc """
-  The phrases of an SMTP reply list (`:smtp_grey`, `:smtp_quota`, `:smtp_block`),
-  sorted, lowercase. Loaded for the SMTP stage; nothing reads them yet.
+  The phrases of an SMTP reply list (`:smtp_grey`, `:smtp_quota`, `:smtp_block`,
+  `:smtp_user_unknown`), sorted, lowercase. `Verification.Classifier` reads them.
   """
-  @spec phrases(:smtp_grey | :smtp_quota | :smtp_block) :: [String.t()]
+  @spec phrases(:smtp_grey | :smtp_quota | :smtp_block | :smtp_user_unknown) :: [String.t()]
   def phrases(name) when name in @phrase_lists, do: name |> set() |> Enum.sort()
 
   @doc false

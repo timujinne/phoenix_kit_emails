@@ -1,0 +1,15 @@
+# Generic SMTP refusal texts that mean "this mailbox does not exist". A refusal that
+# matches one of them is never read as a block, even when it carries an IP address or a
+# phrase of the block list. Matched on the reply with everything but letters and digits
+# turned into single spaces, so "5.1.1" is "5 1 1". These are ordinary SMTP wording, not
+# a third-party list.
+user unknown
+unknown user
+no such user
+invalid recipient
+recipient not found
+unknown recipient
+mailbox not found
+mailbox unavailable
+does not exist
+5.1.1

@@ -30,6 +30,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.DictionariesTest do
       end
     end
 
+    test "the user-unknown phrases ship with ten generic entries" do
+      assert Dictionaries.size(:smtp_user_unknown) == 10
+
+      phrases = Dictionaries.phrases(:smtp_user_unknown)
+      assert "user unknown" in phrases
+      assert "5.1.1" in phrases
+      assert "invalid recipient" in phrases
+    end
+
     test "valid_tld?/1" do
       assert Dictionaries.valid_tld?("com")
       assert Dictionaries.valid_tld?("EE")
