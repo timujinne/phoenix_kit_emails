@@ -110,19 +110,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
     end)
   rescue
     error ->
-      Logger.warning(
-        "[Emails.Verification] could not start a batch: " <>
-          mask_addresses(Exception.message(error))
-      )
-
+      warn_start_failed(Exception.message(error))
       {:error, error}
   catch
     :exit, reason ->
-      Logger.warning(
-        "[Emails.Verification] could not start a batch: " <> mask_addresses(inspect(reason))
-      )
-
+      warn_start_failed(inspect(reason))
       {:error, reason}
+  end
+
+  @doc false
+  # The text of a database or Oban failure may quote the rows it was writing, that is,
+  # the addresses: they are masked like everywhere else in the logs.
+  @spec warn_start_failed(String.t()) :: :ok
+  def warn_start_failed(detail) do
+    Logger.warning("[Emails.Verification] could not start a batch: " <> mask_addresses(detail))
   end
 
   defp enqueue_start(batch, keys) do
@@ -607,14 +608,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.Batches do
   rescue
     error ->
       Logger.warning(
-        "[Emails.Verification] could not cancel jobs of batch #{uuid}: #{Exception.message(error)}"
+        "[Emails.Verification] could not cancel jobs of batch #{uuid}: " <>
+          mask_addresses(Exception.message(error))
       )
 
       :ok
   catch
     :exit, reason ->
       Logger.warning(
-        "[Emails.Verification] could not cancel jobs of batch #{uuid}: #{inspect(reason)}"
+        "[Emails.Verification] could not cancel jobs of batch #{uuid}: " <>
+          mask_addresses(inspect(reason))
       )
 
       :ok

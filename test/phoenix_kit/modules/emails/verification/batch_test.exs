@@ -547,6 +547,20 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
       assert Batches.mask_addresses("connection closed") == "connection closed"
     end
 
+    test "a batch that could not be started is logged without a raw address, whatever the failure" do
+      log =
+        ExUnit.CaptureLog.capture_log([level: :warning], fn ->
+          Batches.warn_start_failed("insert failed: Key (email)=(john.smith@fixture.org)")
+          Batches.warn_start_failed(inspect({:error, %{args: ["ann.lee@fixture.org"]}}))
+        end)
+
+      assert log =~ "could not start a batch"
+      assert log =~ "(j***@fixture.org)"
+      assert log =~ "a***@fixture.org"
+      refute log =~ "john.smith"
+      refute log =~ "ann.lee"
+    end
+
     test "the start worker logs a failed last attempt without a raw address" do
       batch = start(["john.smith@fixture.org", "b\0@fixture.org"])
 
