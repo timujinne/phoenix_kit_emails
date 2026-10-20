@@ -4,10 +4,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
   the mode, the `MAIL FROM` override, the `EHLO` name, the self-test host and the
   numbers of the SMTP stage (`Verification.Config` reads them).
 
-  `save/1` validates the whole form first and writes nothing unless every field is
-  fine. Errors are `%{field => reason}` with the reasons `:address`, `:helo`,
+  `save/2` validates the whole form first and writes nothing unless every field is
+  fine; it then writes only the fields whose value differs from the one in force, so a
+  default the form merely shows is never frozen into the settings. Errors are `%{field => reason}` with the reasons `:address`, `:helo`,
   `:integer` (not a whole number above zero) and `{:max, n}`; the section turns them
-  into text. `save_mode/1` is separate: the mode takes effect at once, and going to
+  into text. `save_mode/2` is separate: the mode takes effect at once, and going to
   `off` settles what is waiting in the SMTP queue (`SmtpQueue.drain_disabled/0`).
   """
 
@@ -94,13 +95,17 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
   which keep their queue). `{:error, :invalid_mode}` for anything but `off`, `local`,
   `runner`; `{:error, :runner_unavailable}` for `runner` on a core without the machine
   API; `{:error, :not_saved}` when the store refuses.
+
+  `opts` may carry `:actor_uuid` (who changed it), which goes into the settings history.
   """
-  @spec save_mode(term()) ::
+  @spec save_mode(term(), keyword()) ::
           {:ok, %{mode: String.t(), drained: non_neg_integer()}}
           | {:error, :invalid_mode | :runner_unavailable | :not_saved}
-  def save_mode(mode) when mode in @modes do
+  def save_mode(mode, opts \\ [])
+
+  def save_mode(mode, opts) when mode in @modes do
     with :ok <- check_available(mode),
-         {:ok, _setting} <- write("email_verify_smtp_mode", mode) do
+         {:ok, _setting} <- write("email_verify_smtp_mode", mode, opts) do
       {:ok, %{mode: mode, drained: if(mode == "off", do: SmtpQueue.drain_disabled(), else: 0)}}
     else
       {:error, :runner_unavailable} -> {:error, :runner_unavailable}
@@ -108,7 +113,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
     end
   end
 
-  def save_mode(_mode), do: {:error, :invalid_mode}
+  def save_mode(_mode, _opts), do: {:error, :invalid_mode}
 
   defp check_available("runner") do
     if Config.machine_api_available?(), do: :ok, else: {:error, :runner_unavailable}
@@ -125,13 +130,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
     * the fields of `number_fields/0` - a whole number from 1 (addresses per session:
       up to 100)
 
-  `{:ok, current()}` or `{:error, errors}` (nothing written; `%{"base" => :not_saved}`
-  when the store itself refused).
+  `{:ok, current()}` or `{:error, errors}` (nothing written for invalid fields;
+  `%{"base" => :not_saved}` when the store itself refused a write, in which case the
+  fields written before it stay written). `opts` may carry `:actor_uuid`, which goes into
+  the settings history.
   """
-  @spec save(map()) :: {:ok, map()} | {:error, errors() | %{String.t() => :not_saved}}
-  def save(params) when is_map(params) do
+  @spec save(map(), keyword()) :: {:ok, map()} | {:error, errors() | %{String.t() => :not_saved}}
+  def save(params, opts \\ []) when is_map(params) do
     case checked(params) do
-      {:ok, writes} -> write_all(writes)
+      {:ok, writes} -> write_all(writes, opts)
       {:error, _errors} = error -> error
     end
   end
@@ -148,16 +155,34 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
       end)
 
     case for({field, _setting, {:error, reason}} <- results, do: {field, reason}) do
-      [] -> {:ok, for({_field, setting, {:ok, text}} <- results, do: {setting, text})}
+      [] -> {:ok, for({field, setting, {:ok, text}} <- results, do: {field, setting, text})}
       errors -> {:error, Map.new(errors)}
     end
   end
 
-  defp write_all(writes) do
+  defp write_all(writes, opts) do
+    in_force = in_force()
+
     failed? =
-      Enum.any?(writes, fn {setting, text} -> not match?({:ok, _}, write(setting, text)) end)
+      writes
+      |> Enum.reject(fn {field, _setting, text} -> Map.fetch!(in_force, field) == text end)
+      |> Enum.any?(fn {_field, setting, text} ->
+        not match?({:ok, _}, write(setting, text, opts))
+      end)
 
     if failed?, do: {:error, %{"base" => :not_saved}}, else: {:ok, current()}
+  end
+
+  # The form fields with the text they would be saved as, to leave unchanged ones alone.
+  defp in_force do
+    current = current()
+
+    %{
+      "mail_from" => current.mail_from,
+      "helo" => current.helo,
+      "selftest_host" => current.selftest_host
+    }
+    |> Map.merge(Map.new(current.numbers, fn {field, number} -> {field, to_string(number)} end))
   end
 
   defp check({:number, max}, value), do: check_number(max, value)
@@ -195,8 +220,16 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettings do
 
   # The store refuses an empty value: clearing an override deletes the setting, and
   # clearing one that was never stored is not an error.
-  defp write(setting, ""), do: clear(Settings.delete_setting(setting))
-  defp write(setting, text), do: Settings.update_setting_with_module(setting, text, @module)
+  defp write(setting, "", _opts), do: clear(Settings.delete_setting(setting))
+
+  # Older cores have no options (the history of who changed what).
+  defp write(setting, text, opts) do
+    if opts != [] and function_exported?(Settings, :update_setting_with_module, 4) do
+      Settings.update_setting_with_module(setting, text, @module, opts)
+    else
+      Settings.update_setting_with_module(setting, text, @module)
+    end
+  end
 
   defp clear({:error, :not_found}), do: {:ok, :cleared}
   defp clear(other), do: other

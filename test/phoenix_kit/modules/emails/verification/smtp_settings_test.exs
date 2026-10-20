@@ -230,6 +230,24 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpSettingsTest do
       assert {:error, %{"mail_from" => :address}} = SmtpSettings.save(%{"mail_from" => 5})
     end
 
+    test "writes only what differs from the value in force" do
+      params = SmtpSettings.current() |> form() |> Map.put("rcpt_per_session", "20")
+
+      assert {:ok, _} = SmtpSettings.save(params)
+
+      assert Settings.get_setting("email_verify_rcpt_per_session") == "20"
+      assert Settings.get_setting("email_verify_domain_interval_s") == nil
+      assert Settings.get_setting("email_verify_smtp_helo") == nil
+    end
+
+    test "a number changed back to its default is not stored again" do
+      put("email_verify_domain_pause_min", "15")
+      params = SmtpSettings.current() |> form() |> Map.put("domain_pause_min", "15")
+
+      assert {:ok, _} = SmtpSettings.save(params)
+      assert Settings.get_setting("email_verify_domain_pause_min") == "15"
+    end
+
     test "does not touch the mode" do
       put("email_verify_smtp_mode", "local")
       assert {:ok, _} = SmtpSettings.save(SmtpSettings.current() |> form())
