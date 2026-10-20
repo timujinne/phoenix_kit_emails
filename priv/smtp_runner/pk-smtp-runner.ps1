@@ -167,6 +167,8 @@ function ConvertTo-PkJson {
 }
 
 function Initialize-TlsProtocol {
+    # .NET Framework waits for "100 Continue" before a POST body; some proxies answer 417.
+    [Net.ServicePointManager]::Expect100Continue = $false
     # Windows PowerShell 5.1 (.NET Framework) defaults to old protocols: ask for TLS 1.2+.
     if ($PSVersionTable.PSEdition -ne 'Core') {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -182,15 +184,18 @@ function Test-LocalHost {
     $HostName -in @('localhost', '127.0.0.1', '[::1]', '::1')
 }
 
-# Returns the normalized base address (scheme://host[:port]) or $null.
+# Returns the normalized base address (scheme://host[:port][/path]) or $null. The path is the
+# kit's URL prefix (core mounts the machine API under it, e.g. https://site/phoenix_kit);
+# a trailing slash, a query and a fragment are dropped.
 function ConvertTo-BaseUrl {
     param([string]$Address)
     $uri = $null
     if (-not [Uri]::TryCreate($Address, [UriKind]::Absolute, [ref]$uri)) { return $null }
     if ($uri.UserInfo) { return $null }
-    if ($uri.Scheme -eq 'https') { return $uri.GetLeftPart([UriPartial]::Authority) }
-    if ($uri.Scheme -eq 'http' -and (Test-LocalHost $uri.Host)) { return $uri.GetLeftPart([UriPartial]::Authority) }
-    $null
+    $isHttps = ($uri.Scheme -eq 'https')
+    $isLocalHttp = ($uri.Scheme -eq 'http' -and (Test-LocalHost $uri.Host))
+    if (-not ($isHttps -or $isLocalHttp)) { return $null }
+    $uri.GetLeftPart([UriPartial]::Authority) + $uri.AbsolutePath.TrimEnd('/')
 }
 
 function Read-ResponseText {
@@ -388,7 +393,7 @@ $SmtpLib = {
     # An address that is safe to put on an SMTP command line.
     function Test-SmtpAddress {
         param([string]$Address)
-        $Address -match '^[A-Za-z0-9.!#$%&''*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,255}$'
+        $Address -match '^[A-Za-z0-9.!#$%&''*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,255}\z'
     }
 
     function Get-FailureOutcome {
@@ -513,8 +518,8 @@ $SmtpLib = {
 function Test-Helo {
     param($Name)
     if (-not ($Name -is [string]) -or $Name.Length -eq 0 -or $Name.Length -gt 255) { return $false }
-    if ($Name -match '^\[[0-9]{1,3}(\.[0-9]{1,3}){3}\]$') { return $true }
-    $Name -match '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$'
+    if ($Name -match '^\[[0-9]{1,3}(\.[0-9]{1,3}){3}\]\z') { return $true }
+    $Name -match '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\z'
 }
 
 # The name for EHLO: the site's HELO, else the reverse DNS of the external IP, else its literal.
@@ -522,7 +527,7 @@ function Resolve-Helo {
     param($Configured, $HeloAuto, $SeenIp)
     if (Test-Helo $Configured) { return $Configured }
     if (Test-Helo $HeloAuto) { return $HeloAuto }
-    if ($SeenIp -is [string] -and $SeenIp -match '^[0-9]{1,3}(\.[0-9]{1,3}){3}$') { return ('[' + $SeenIp + ']') }
+    if ($SeenIp -is [string] -and $SeenIp -match '^[0-9]{1,3}(\.[0-9]{1,3}){3}\z') { return ('[' + $SeenIp + ']') }
     'localhost'
 }
 
@@ -620,7 +625,11 @@ function Invoke-SelfTest {
         return
     }
     else {
-        Write-Check 'FAIL' '1/4' ('Site answered HTTP ' + $answer.Status + ' (' + $answer.Message + ') - the machine API may be off or the tools hidden: see Settings -> Emails / API сайта выключен или тулы скрыты: см. Settings -> Emails')
+        $hint = 'the machine API may be off or the tools hidden: see Settings -> Emails / API сайта выключен или тулы скрыты: см. Settings -> Emails'
+        if ($answer.Status -eq 404) {
+            $hint = 'check the URL prefix: a site with the PhoenixKit prefix needs -Server https://host/phoenix_kit, copy the address from Settings -> Emails; or the machine API is off / проверьте префикс в адресе (-Server https://host/phoenix_kit) или API сайта выключен'
+        }
+        Write-Check 'FAIL' '1/4' ('Site answered HTTP ' + $answer.Status + ' at ' + $script:BaseUrl + '/api/admin/v1/emails.claim_smtp_jobs (' + $answer.Message + ') - ' + $hint)
         return
     }
 
@@ -729,6 +738,20 @@ function Invoke-Install {
         Write-RunnerLog -Message '-Install works on Windows only (Task Scheduler and DPAPI). Nothing was changed. On other systems start the runner from your own service manager. / Только для Windows.' -Color Red -NoStamp
         return 1
     }
+
+    # One claim without sessions before anything is written: a wrong or revoked token would
+    # install a task that stops at every logon. A site that cannot be reached right now
+    # (offline laptop) does not stop the install; the runner retries by itself.
+    Initialize-TlsProtocol
+    $answer = Send-Claim 0
+    if ($answer.Status -eq 401 -or $answer.Status -eq 403) {
+        Write-RunnerLog -Message ('Token rejected (HTTP ' + $answer.Status + ') - token revoked or wrong: issue a new one in Settings -> Emails. Nothing was installed. / Токен отозван или неверен: выпустите новый в Settings -> Emails. Ничего не установлено.') -Color Red -NoStamp
+        return 1
+    }
+    if (-not $answer.Ok) {
+        Write-RunnerLog -Message ('Warning: the site did not answer the check (' + $answer.Message + '); installing anyway. Run -SelfTest to see what is wrong. / Сайт не ответил на проверку, установка продолжается.') -Color Yellow -NoStamp
+    }
+
     $dir = Get-InstallDir
     [void](New-Item -ItemType Directory -Path $dir -Force)
     $tokenPath = Join-Path $dir 'token.dat'
@@ -895,88 +918,97 @@ function Invoke-RunnerLoop {
     $code = 0
     try {
         while ($true) {
-            $now = [DateTime]::UtcNow
-            $stateOk = ($now -ge $script:State.RetryAt)
+            try {
+                $now = [DateTime]::UtcNow
+                $stateOk = ($now -ge $script:State.RetryAt)
 
-            # Self-test first (again, until the site has been reached once).
-            if (-not $selfTested -and $stateOk) {
-                Invoke-SelfTest
-                if ($script:State.Fatal) { $code = 1; break }
-                if ($script:State.Reachable) {
-                    $selfTested = $true
-                    Clear-Backoff
-                    if ($script:State.Port25 -eq 'blocked') { $nextPortCheck = [DateTime]::UtcNow.AddMinutes(10 * $TimeScale) }
-                }
-                else { Step-Backoff }
-                continue
-            }
-
-            # Finished sessions.
-            for ($i = $jobs.Count - 1; $i -ge 0; $i--) {
-                if ($jobs[$i].Handle.IsCompleted) {
-                    $job = $jobs[$i]
-                    $jobs.RemoveAt($i)
-                    $result = Complete-Session $job
-                    Write-SessionLog $result $job
-                    if ($script:Pending.Count -eq 0) { $oldest = [DateTime]::UtcNow }
-                    [void]$script:Pending.Add($result)
-                    $nextClaim = [DateTime]::MinValue
-                }
-            }
-
-            # Reports: when a chunk is full, when nothing is running, or after a few seconds.
-            $now = [DateTime]::UtcNow
-            if ($script:Pending.Count -gt 0 -and $now -ge $script:State.RetryAt) {
-                $limit = Get-IntSetting $script:State.Settings 'max_report' 50
-                if ($script:Pending.Count -ge $limit -or $jobs.Count -eq 0 -or ($now - $oldest).TotalSeconds -ge (3 * $TimeScale)) {
-                    if ((Send-Report) -eq 'stop') { $code = 1; break }
-                }
-            }
-
-            # Port 25 was closed: look again now and then.
-            if ($selfTested -and $now -ge $nextPortCheck) {
-                $nextPortCheck = $now.AddMinutes(10 * $TimeScale)
-                Test-Port25Again
-                if ($script:State.Port25 -ne 'blocked') { $nextPortCheck = [DateTime]::MaxValue }
-            }
-
-            # Claim: ask for the free slots, or only say we are alive.
-            $now = [DateTime]::UtcNow
-            $canWork = ($script:State.Port25 -ne 'blocked') -and [bool]$script:State.MailFrom
-            $slots = 0
-            if ($canWork) { $slots = $Concurrency - $jobs.Count }
-            $idlePoll = Get-IntSetting $script:State.Settings 'idle_poll_s' 30
-            $heartbeatDue = ($now - $lastClaim).TotalSeconds -ge ($idlePoll * $TimeScale)
-            if ($selfTested -and $now -ge $script:State.RetryAt -and (($slots -gt 0 -and $now -ge $nextClaim) -or $heartbeatDue)) {
-                $lastClaim = $now
-                $answer = Send-Claim $slots
-                if (-not $answer.Ok) {
-                    if ((Get-FailureAction $answer 'Claim') -eq 'stop') { $code = 1; break }
-                    Step-Backoff
-                }
-                else {
-                    Clear-Backoff
-                    if (Test-NeedsUpdate $script:State.MinVersion) {
-                        Write-RunnerLog -Message ('The site needs runner ' + $script:State.MinVersion + ' or newer (this is ' + $RunnerVersion + '). Update the runner: download it again from Settings -> Emails. Stopping. / Обновите раннер: скачайте его заново в Settings -> Emails.') -Color Red
-                        $code = 1
-                        break
+                # Self-test first (again, until the site has been reached once).
+                if (-not $selfTested -and $stateOk) {
+                    Invoke-SelfTest
+                    if ($script:State.Fatal) { $code = 1; break }
+                    if ($script:State.Reachable) {
+                        $selfTested = $true
+                        Clear-Backoff
+                        if ($script:State.Port25 -eq 'blocked') { $nextPortCheck = [DateTime]::UtcNow.AddMinutes(10 * $TimeScale) }
                     }
-                    Show-Pause $answer.Data.paused
-                    $sessions = @($answer.Data.sessions)
-                    foreach ($session in $sessions) {
-                        foreach ($item in @($session.rcpt)) { $script:Emails[[string]$session.lease + '|' + $item.id] = [string]$item.email }
-                        [void]$jobs.Add((Invoke-SessionAsync $pool $session $runText))
+                    else { Step-Backoff }
+                    continue
+                }
+
+                # Finished sessions.
+                for ($i = $jobs.Count - 1; $i -ge 0; $i--) {
+                    if ($jobs[$i].Handle.IsCompleted) {
+                        $job = $jobs[$i]
+                        $jobs.RemoveAt($i)
+                        $result = Complete-Session $job
+                        if ($script:Pending.Count -eq 0) { $oldest = [DateTime]::UtcNow }
+                        [void]$script:Pending.Add($result)
+                        Write-SessionLog $result $job
+                        $nextClaim = [DateTime]::MinValue
                     }
-                    if ($sessions.Count -gt 0) { $idleClaims = 0; $nextClaim = [DateTime]::MinValue }
+                }
+
+                # Reports: when a chunk is full, when nothing is running, or after a few seconds.
+                $now = [DateTime]::UtcNow
+                if ($script:Pending.Count -gt 0 -and $now -ge $script:State.RetryAt) {
+                    $limit = Get-IntSetting $script:State.Settings 'max_report' 50
+                    if ($script:Pending.Count -ge $limit -or $jobs.Count -eq 0 -or ($now - $oldest).TotalSeconds -ge (3 * $TimeScale)) {
+                        if ((Send-Report) -eq 'stop') { $code = 1; break }
+                    }
+                }
+
+                # Port 25 was closed: look again now and then.
+                if ($selfTested -and $now -ge $nextPortCheck) {
+                    $nextPortCheck = $now.AddMinutes(10 * $TimeScale)
+                    Test-Port25Again
+                    if ($script:State.Port25 -ne 'blocked') { $nextPortCheck = [DateTime]::MaxValue }
+                }
+
+                # Claim: ask for the free slots, or only say we are alive.
+                $now = [DateTime]::UtcNow
+                $canWork = ($script:State.Port25 -ne 'blocked') -and [bool]$script:State.MailFrom
+                $slots = 0
+                if ($canWork) { $slots = $Concurrency - $jobs.Count }
+                $idlePoll = Get-IntSetting $script:State.Settings 'idle_poll_s' 30
+                $heartbeatDue = ($now - $lastClaim).TotalSeconds -ge ($idlePoll * $TimeScale)
+                if ($selfTested -and $now -ge $script:State.RetryAt -and (($slots -gt 0 -and $now -ge $nextClaim) -or $heartbeatDue)) {
+                    $lastClaim = $now
+                    $answer = Send-Claim $slots
+                    if (-not $answer.Ok) {
+                        if ((Get-FailureAction $answer 'Claim') -eq 'stop') { $code = 1; break }
+                        Step-Backoff
+                    }
                     else {
-                        $idleClaims++
-                        $nextClaim = [DateTime]::UtcNow.AddSeconds($idlePoll * $TimeScale)
+                        Clear-Backoff
+                        if (Test-NeedsUpdate $script:State.MinVersion) {
+                            Write-RunnerLog -Message ('The site needs runner ' + $script:State.MinVersion + ' or newer (this is ' + $RunnerVersion + '). Update the runner: download it again from Settings -> Emails. Stopping. / Обновите раннер: скачайте его заново в Settings -> Emails.') -Color Red
+                            $code = 1
+                            break
+                        }
+                        Show-Pause $answer.Data.paused
+                        $sessions = @($answer.Data.sessions)
+                        foreach ($session in $sessions) {
+                            foreach ($item in @($session.rcpt)) { $script:Emails[[string]$session.lease + '|' + $item.id] = [string]$item.email }
+                            [void]$jobs.Add((Invoke-SessionAsync $pool $session $runText))
+                        }
+                        if ($sessions.Count -gt 0) { $idleClaims = 0; $nextClaim = [DateTime]::MinValue }
+                        else {
+                            $idleClaims++
+                            $nextClaim = [DateTime]::UtcNow.AddSeconds($idlePoll * $TimeScale)
+                        }
                     }
                 }
-            }
 
-            if ($StopAfterIdle -gt 0 -and $idleClaims -ge $StopAfterIdle -and $jobs.Count -eq 0 -and $script:Pending.Count -eq 0) { break }
-            Start-Sleep -Milliseconds 100
+                if ($StopAfterIdle -gt 0 -and $idleClaims -ge $StopAfterIdle -and $jobs.Count -eq 0 -and $script:Pending.Count -eq 0) { break }
+                Start-Sleep -Milliseconds 100
+            }
+            catch {
+                # An odd answer or a bug must not end the runner (under -Install it would stay dead
+                # after three restarts): say so, wait, go on. The hard stops are explicit breaks.
+                Write-RunnerLog -Message ('Unexpected error, going on: ' + $_.Exception.Message) -Color Yellow
+                Step-Backoff
+                Start-Sleep -Milliseconds 100
+            }
         }
     }
     finally {
@@ -1004,7 +1036,9 @@ function Test-Port25Again {
 #region Main ---------------------------------------------------------------------------
 
 function Invoke-Main {
-    if ($LogFile) { $script:LogPath = $LogFile }
+    # .NET resolves a relative path against the process directory, PowerShell against its own
+    # location: pin it down once.
+    if ($LogFile) { $script:LogPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($LogFile) }
 
     if ($Uninstall) { return (Invoke-Uninstall) }
 
@@ -1026,7 +1060,7 @@ function Invoke-Main {
             return 2
         }
     }
-    if (-not $plain -or $plain -notmatch '^pk_[A-Za-z0-9_\-]+$') {
+    if (-not $plain -or $plain -notmatch '^pk_[A-Za-z0-9_\-]+\z') {
         Write-RunnerLog -Message 'Missing or malformed token: give -Token pk_... (or -TokenFile). Issue one in Settings -> Emails. / Нужен токен pk_... из Settings -> Emails.' -Color Red -NoStamp
         return 2
     }

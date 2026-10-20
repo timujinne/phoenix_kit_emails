@@ -38,7 +38,29 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpRunnerScriptTest do
     refute source() =~ ~r/['"]Idempotency-Key['"]/i
   end
 
-  test "the script has no DATA command" do
-    refute source() =~ ~r/Send-SmtpLine[^\n]*['"]DATA/i
+  describe "the script has no DATA command" do
+    defp code do
+      source()
+      |> String.split("\n")
+      |> Enum.reject(&String.match?(&1, ~r/^\s*#/))
+      |> Enum.join("\n")
+    end
+
+    test "no quoted DATA literal in the code, however it reaches the wire" do
+      refute code() =~ ~r/['"]DATA\b/i
+    end
+
+    test "every line sent through Send-SmtpCommand starts with one of the five known commands" do
+      sent =
+        ~r/Send-SmtpCommand\s+\$\w+\s+\(?'([A-Z]+)/
+        |> Regex.scan(code())
+        |> Enum.map(fn [_, command] -> command end)
+        |> Enum.uniq()
+        |> Enum.sort()
+
+      assert sent == ["EHLO", "HELO", "MAIL", "QUIT", "RCPT"]
+      # Nothing but the wrapper itself sends a raw line.
+      assert length(Regex.scan(~r/Send-SmtpLine\s+\$/, code())) == 1
+    end
   end
 end

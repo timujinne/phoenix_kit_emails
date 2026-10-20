@@ -49,10 +49,59 @@ Describe 'the script as a file' {
         $script:Source | Should -Match "(?m)^\`$RunnerVersion = '1\.0\.0'\s*$"
     }
 
-    It 'has no ForEach-Object -Parallel, ternary, null-coalescing or && / || (5.1 syntax)' {
+    It 'has no ForEach-Object -Parallel, ConvertFrom-Json -AsHashtable or -SkipCertificateCheck (7-only features)' {
         $script:Source | Should -Not -Match 'ForEach-Object\s+-Parallel'
         $script:Source | Should -Not -Match 'ConvertFrom-Json[^\n]*-AsHashtable'
         $script:Source | Should -Not -Match 'SkipCertificateCheck'
+    }
+}
+
+Describe 'the site address with a path (the kit URL prefix)' {
+    BeforeAll {
+        $script:Accepting = @{
+            banner = @('220 mx.example.test ESMTP ready')
+            rules  = @(
+                @{ match = '^EHLO '; reply = @('250 mx.example.test') }
+                @{ match = '^MAIL FROM:'; reply = @('250 2.1.0 Ok') }
+                @{ match = '^RCPT TO:'; reply = @('250 2.1.5 Ok') }
+                @{ match = '^QUIT'; reply = @('221 2.0.0 Bye'); then = 'close' }
+            )
+        }
+    }
+
+    It 'posts under the path of -Server, in the self-test and in the loop' {
+        $session = New-Session -Lease 'lease-p' -Rcpt @((Get-Rcpt 'r1' 'info'))
+        $s = Invoke-Scenario -Smtp $script:Accepting -Batches @(, @($session)) -SitePrefix '/phoenix_kit'
+        $s.Run.ExitCode | Should -Be 0
+        $s.Run.Output | Should -Not -Match 'HTTP 404'
+        $s.Run.Output | Should -Match 'for http://127\.0\.0\.1:\d+/phoenix_kit,'
+        $s.Records.Count | Should -BeGreaterThan 2
+        foreach ($record in $s.Records) {
+            $record.path | Should -Be "/phoenix_kit/api/admin/v1/$($record.tool)"
+            $record.status | Should -Be 200
+        }
+        @($s.Reports).Count | Should -Be 1
+    }
+
+    It 'tolerates a trailing slash and ignores a query or fragment' {
+        $s = Invoke-Scenario -Smtp @{ banner = @('220 mx ESMTP'); rules = @() } -SitePrefix '/phoenix_kit' -RunnerArguments @('-SelfTest') -ServerSuffix '/?x=1#top'
+        $s.Run.ExitCode | Should -Be 0
+        foreach ($record in $s.Records) { $record.path | Should -Be "/phoenix_kit/api/admin/v1/$($record.tool)" }
+    }
+
+    It 'still works for a site at the root' {
+        $s = Invoke-Scenario -Smtp @{ banner = @('220 mx ESMTP'); rules = @() } -RunnerArguments @('-SelfTest')
+        foreach ($record in $s.Records) { $record.path | Should -Be "/api/admin/v1/$($record.tool)" }
+    }
+
+    It 'says what to check on a 404: the URL prefix, the address it tried' {
+        # The site answers under /phoenix_kit; the runner is told the bare address.
+        $s = Invoke-Scenario -Smtp @{ banner = @('220 mx ESMTP'); rules = @() } -SitePrefix '/phoenix_kit' -ServerPrefixOverride '' -RunnerArguments @('-SelfTest')
+        $s.Run.ExitCode | Should -Be 1
+        $line = Get-CheckLine $s.Run.Output '1/4'
+        $line | Should -Match '^\[FAIL\] 1/4 Site answered HTTP 404'
+        $line | Should -Match 'URL prefix'
+        $line | Should -Match '127\.0\.0\.1:\d+/api/admin/v1/emails\.claim_smtp_jobs'
     }
 }
 
@@ -122,6 +171,23 @@ Describe 'the arguments' {
         $run = Invoke-Runner -Arguments @('-Uninstall')
         $run.ExitCode | Should -Be 1
         $run.Output | Should -Match 'Windows only'
+    }
+}
+
+Describe 'the log file' {
+    It 'is resolved against the PowerShell location, not the process directory' {
+        $sub = Join-Path $TestDrive 'elsewhere'
+        [void](New-Item -ItemType Directory -Path $sub)
+        $configPath = Join-Path $TestDrive 'site-log.json'
+        [ordered]@{ token = $script:Token; claim = (New-ClaimAnswer) } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $configPath
+        $site = Start-Fake $script:FakeSite @('--config', $configPath, '--record', (Join-Path $TestDrive 'site-log.jsonl'))
+        try {
+            $command = "Set-Location -LiteralPath '$sub'; & '$($script:RunnerScript)' -Server http://127.0.0.1:$($site.Port) -Token $($script:Token) -SmtpPort 9 -StopAfterIdle 1 -TimeScale 0.05 -LogFile relative.log"
+            $out = & $script:Pwsh -NoProfile -NonInteractive -Command $command 2>&1
+            $LASTEXITCODE | Should -Be 0
+            (Join-Path $sub 'relative.log') | Should -Exist
+        }
+        finally { Stop-Fake $site }
     }
 }
 
@@ -438,6 +504,16 @@ Describe 'the loop' {
         $s.Reports[0].body.results[0].rcpt[0].id | Should -Be 'r1'
     }
 
+    It 'does not put an address with a trailing line feed on the wire' {
+        # In .NET a '$' also matches before a final LF: the guard has to use \z.
+        $bad = [ordered]@{ id = 'bad'; email = "a@example.test`n" }
+        $session = New-Session -Lease 'lease-lf' -Rcpt @($bad, (Get-Rcpt 'r1' 'info'))
+        $s = Invoke-Scenario -Smtp $script:Normal -Batches @(, @($session))
+        ($s.Commands | Where-Object { $_ -match '^RCPT TO:<a@' }) | Should -BeNullOrEmpty
+        $s.Reports[0].body.results[0].rcpt.Count | Should -Be 1
+        $s.Reports[0].body.results[0].rcpt[0].id | Should -Be 'r1'
+    }
+
     It 'takes the site HELO, else works one out that is safe on the wire' {
         $claim = New-ClaimAnswer -Settings (New-Settings @{ helo = $null })
         $session = New-Session -Lease 'lease-h' -Rcpt @((Get-Rcpt 'r1' 'info'))
@@ -445,6 +521,15 @@ Describe 'the loop' {
         $ehlo = @($s.Commands | Where-Object { $_ -match '^EHLO ' })
         $ehlo.Count | Should -Be 1
         $ehlo[0] | Should -Match '^EHLO (\[127\.0\.0\.1\]|[A-Za-z0-9.-]+)$'
+    }
+
+    It 'ignores a HELO from the site with a trailing line feed' {
+        $claim = New-ClaimAnswer -Settings (New-Settings @{ helo = "runner.example.test`n" })
+        $session = New-Session -Lease 'lease-h3' -Rcpt @((Get-Rcpt 'r1' 'info'))
+        $s = Invoke-Scenario -Smtp $script:Normal -Claim $claim -Batches @(, @($session))
+        $ehlo = @($s.Commands | Where-Object { $_ -match '^EHLO ' })
+        $ehlo.Count | Should -Be 1
+        $ehlo[0] | Should -Not -Match 'runner\.example\.test'
     }
 
     It 'ignores a HELO from the site that is not a host name' {

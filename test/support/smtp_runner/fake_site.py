@@ -2,10 +2,12 @@
 
 Serves POST /api/admin/v1/emails.claim_smtp_jobs and /emails.report_smtp_results on
 127.0.0.1 (ephemeral port, printed as `PORT <n>` on the first line) and appends every
-request to the record file as one JSON line: {"tool", "headers", "body", "status"}.
+request to the record file as one JSON line: {"tool", "path", "headers", "body", "status"}.
 
 Config (JSON file):
   token             the bearer token the site accepts (anything else: 401)
+  prefix            the kit's URL prefix the API lives under (default ""): a request whose
+                    path is not <prefix>/api/admin/v1/<tool> gets 404, as on a real site
   claim             the body of a claim answer; "sessions" is replaced per call
   session_batches   list of lists of sessions: the claims that ask for sessions
                     (max_sessions > 0) get the next list, then empty ones; a claim
@@ -33,8 +35,8 @@ def make_handler(config, record_path):
         def record(self, tool, body, status):
             headers = {k.lower(): v for k, v in self.headers.items()}
             with open(record_path, "a", encoding="utf-8") as handle:
-                handle.write(json.dumps({"tool": tool, "headers": headers, "body": body,
-                                         "status": status}) + "\n")
+                handle.write(json.dumps({"tool": tool, "path": self.path, "headers": headers,
+                                         "body": body, "status": status}) + "\n")
 
         def reply(self, status, payload):
             data = json.dumps(payload).encode("utf-8")
@@ -54,8 +56,12 @@ def make_handler(config, record_path):
                 body = {"_raw": raw}
             tool = self.path.rsplit("/", 1)[-1]
 
+            api_base = config.get("prefix", "") + "/api/admin/v1/"
+
             with lock:
-                if self.headers.get("authorization") != "Bearer " + config["token"]:
+                if not self.path.startswith(api_base):
+                    status, payload = 404, {"status": 404, "title": "Not Found", "detail": "No such route."}
+                elif self.headers.get("authorization") != "Bearer " + config["token"]:
                     status, payload = 401, {"status": 401, "title": "Unauthorized",
                                             "detail": "Bad or revoked key."}
                 elif tool == "emails.claim_smtp_jobs":

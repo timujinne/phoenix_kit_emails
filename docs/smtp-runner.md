@@ -22,6 +22,12 @@ It **never sends a message**: the only SMTP commands are `EHLO`/`HELO`, `MAIL FR
 Download the script from the same settings section (or from
 `<site>/<prefix>/admin/emails/verification/pk-smtp-runner.ps1` while signed in as an admin).
 
+**Use the address the settings section shows after `-Server`.** PhoenixKit mounts its API
+under the URL prefix of the kit, `https://example.com/phoenix_kit` by default, so that is the
+address to give (`https://example.com/phoenix_kit/api/admin/v1/...` is what the runner calls).
+A site that mounts the kit at the root needs no path. The path is kept as given, a trailing
+slash, query or fragment is dropped.
+
 ## Commands
 
 Run it (stays running; Ctrl+C stops it):
@@ -36,7 +42,9 @@ Check the setup and exit (code 0 when nothing failed, 1 otherwise):
 powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server https://example.com -Token pk_... -SelfTest
 ```
 
-Start it automatically when you log on (Windows only; run `-SelfTest` first, `-Install` does not check the token). The token is stored encrypted with
+Start it automatically when you log on (Windows only). `-Install` first asks the site once and
+installs nothing if the token is rejected; if the site cannot be reached at that moment it
+installs anyway and warns, so run `-SelfTest` too. The token is stored encrypted with
 DPAPI (readable only by your Windows user, on this computer) in
 `%LOCALAPPDATA%\PhoenixKitSmtpRunner`, together with a copy of the script and a log; a
 Task Scheduler task "PhoenixKit SMTP runner" starts it hidden:
@@ -48,7 +56,7 @@ powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Uninstall
 
 | Parameter | Meaning |
 |---|---|
-| `-Server <url>` | The site, `https://...` (plain `http` only for `localhost` / `127.0.0.1`) |
+| `-Server <url>` | The site with the kit's URL prefix, `https://example.com/phoenix_kit` (plain `http` only for `localhost` / `127.0.0.1`) |
 | `-Token <pk_...>` / `-TokenFile <path>` | The token, or a file holding it (plain, or the encrypted file `-Install` writes) |
 | `-SelfTest` | Run the four checks and exit |
 | `-Install` / `-Uninstall` | Task Scheduler task and stored token (Windows only; a clear message elsewhere) |
@@ -57,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Uninstall
 
 On start the runner runs the self-test, then claims jobs in a loop. It tells the site how it is
 doing in every call, so the settings page shows "connected", the computer's name and whether
-port 25 is open. A site error makes it wait 5 s, doubling up to 60 s. A revoked token, or a
+port 25 is open. A site error makes it wait 5 s, doubling up to 60 s; so does an unexpected error inside the loop (it is logged, the runner goes on). While port 25 is closed it looks again every 10 minutes and starts taking jobs by itself once it opens. A revoked token, or a
 site that needs a newer script, stops it with a message. When the site pauses it (too many
 refusals or a blocked IP) it says so once and keeps checking in until the pause ends.
 
@@ -87,13 +95,18 @@ Every request carries the token as a bearer key; the script never sends an `Idem
 |---|---|
 | `[FAIL] 1/4 Token rejected (HTTP 401/403)` | The token was revoked or is wrong. Issue a new one in Settings -> Emails. |
 | `[FAIL] 1/4 Site not reachable` | Wrong address, no network, or an HTTPS certificate problem. Open the address in a browser from the same computer. |
-| `[FAIL] 1/4 Site answered HTTP 404 / 5xx` | The machine API is off, or the runner tools are hidden. The settings section lists the missing switches. |
+| `[FAIL] 1/4 Site answered HTTP 404 ... check the URL prefix` | Most often `-Server` lacks the kit's URL prefix: the line shows the address that was called, `.../api/admin/v1/emails.claim_smtp_jobs`; use `-Server https://host/phoenix_kit` (copy it from the settings section). Otherwise the machine API is off. |
+| `[FAIL] 1/4 Site answered HTTP 5xx / other` | The machine API is off, or the runner tools are hidden. The settings section lists the missing switches. |
 | `[FAIL] 1/4 Runner is too old` | The site asks for a newer script. Download it again from the settings section. |
 | `[WARN] 2/4 ... has no reverse DNS` | Many mail servers refuse connections from an IP without reverse DNS. Set the HELO name in the settings section (a name that resolves to your IP is best). |
 | `[FAIL] 3/4 Port 25 closed (ISP/firewall)` | Outbound port 25 does not work from this computer: ask the ISP or open it in the firewall. Until it works the runner only sends heartbeats and takes no jobs. |
 | `[WARN] 3/4 Port 25 connects but ... no 220 banner` | The connection is accepted, but the mail server does not greet: the IP may be on a block list, or something in between intercepts port 25. |
 | `[WARN] 3/4 ... no mail host to test` | The site could not name a mail server to test against; set the self-test host in the advanced settings. |
 | `[FAIL] 4/4 MAIL FROM is not set on the site` | No usable sender address. Set one in the settings section (placeholder addresses such as `noreply@localhost` or `example.com` do not count). No sessions start until then. |
+
+If the site does not give a HELO name, the runner uses the reverse DNS name of its external IP,
+then the IP literal (`[203.0.113.5]`); `localhost` is only a last resort for a site that does not
+report the IP at all. Set a HELO name in the settings section if mail servers refuse the IP literal.
 
 Hints are printed in English and Russian. The port 25 check connects to the site's own mail
 server (the first MX of the sender's domain, or the host set in the advanced settings), reads

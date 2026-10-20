@@ -102,6 +102,8 @@ function New-Session {
 # One run of the runner against a site stub and (optionally) a fake mail host.
 #   Smtp      the `smtp` script (hashtable/object) or $null: no mail host, the port is closed
 #   Claim     the claim answer; Batches  sessions per claim that asks for sessions
+#   SitePrefix  the kit's URL prefix the stub serves the API under ("" or "/phoenix_kit");
+#               the runner is given -Server http://127.0.0.1:<port><SitePrefix>
 # Returns: Run (ExitCode, Output), Claims, Reports (the recorded requests), Commands (what the
 # mail host received), SmtpPort, and Records (all requests).
 function Invoke-Scenario {
@@ -115,6 +117,9 @@ function Invoke-Scenario {
         [string]$SiteToken = $script:Token,
         [string]$RunnerToken = $script:Token,
         [switch]$SiteDown,
+        [string]$SitePrefix = '',
+        $ServerPrefixOverride = $null,
+        [string]$ServerSuffix = '',
         [int]$TimeoutSec = 90
     )
     $dir = Join-Path ([System.IO.Path]::GetTempPath()) ('pkrunner-' + [guid]::NewGuid().ToString('N'))
@@ -131,6 +136,7 @@ function Invoke-Scenario {
         # The site.
         $config = [ordered]@{
             token           = $SiteToken
+            prefix          = $SitePrefix
             claim           = $Claim
             session_batches = @($Batches | ForEach-Object { , @($_) })
             claim_statuses  = @($ClaimStatuses)
@@ -143,7 +149,8 @@ function Invoke-Scenario {
         $port = $fakeSite.Port
         if ($SiteDown) { Stop-Fake $fakeSite; $fakeSite = $null }
 
-        $arguments = @('-Server', "http://127.0.0.1:$port", '-Token', $RunnerToken, '-SmtpPort', $fakeSmtp.Port, '-TimeScale', '0.05') + $RunnerArguments
+        $serverPath = if ($null -ne $ServerPrefixOverride) { $ServerPrefixOverride } else { $SitePrefix }
+        $arguments = @('-Server', "http://127.0.0.1:$port$serverPath$ServerSuffix", '-Token', $RunnerToken, '-SmtpPort', $fakeSmtp.Port, '-TimeScale', '0.05') + $RunnerArguments
         $run = Invoke-Runner -Arguments $arguments -TimeoutSec $TimeoutSec -WorkDir $dir
         $records = Read-Jsonl $record
         [pscustomobject]@{
@@ -160,6 +167,7 @@ function Invoke-Scenario {
     finally {
         Stop-Fake $fakeSmtp
         Stop-Fake $fakeSite
+        Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
