@@ -229,4 +229,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
       assert Config.rcpt_per_session() == 100
     end
   end
+
+  describe "what the settings form checks with" do
+    test "usable_sender_address/1 normalises an address and refuses placeholders" do
+      assert Config.usable_sender_address("Verify@HydroForce.EE") == {:ok, "Verify@hydroforce.ee"}
+
+      for bad <- ["verify", "noreply@localhost", "x@example.com", "x@host", "", nil, 5] do
+        assert Config.usable_sender_address(bad) == :error, inspect(bad)
+      end
+    end
+
+    test "helo_name?/1 takes host names and address literals, nothing else" do
+      assert Config.helo_name?("mx.hydroforce.ee")
+      assert Config.helo_name?("[203.0.113.9]")
+
+      for bad <- ["", "mx host", "mx.ee\r\nDATA", "-mx.ee", "a..b", nil, 5] do
+        refute Config.helo_name?(bad), inspect(bad)
+      end
+    end
+  end
 end

@@ -192,6 +192,22 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     end
   end
 
+  @doc """
+  The normalised form of `address` when it can be a `MAIL FROM` (valid syntax, not a
+  placeholder such as `localhost` or `example.com`), `:error` otherwise. What the
+  settings form checks an override with.
+  """
+  @spec usable_sender_address(term()) :: {:ok, String.t()} | :error
+  def usable_sender_address(address), do: usable_sender(address)
+
+  @doc """
+  Whether `value` is accepted as the `EHLO` name (see `smtp_helo/0`). What the settings
+  form checks the field with.
+  """
+  @spec helo_name?(term()) :: boolean()
+  def helo_name?(value) when is_binary(value), do: value != "" and helo?(value)
+  def helo_name?(_value), do: false
+
   @doc "The host a runner's port 25 self-test is pointed at, if one is set (otherwise it is derived)."
   @spec smtp_selftest_host_setting() :: String.t() | nil
   def smtp_selftest_host_setting,
