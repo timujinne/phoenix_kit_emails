@@ -99,15 +99,18 @@ Every request carries the token as a bearer key; the script never sends an `Idem
 | `[FAIL] 1/4 Site answered HTTP 5xx / other` | The machine API is off, or the runner tools are hidden. The settings section lists the missing switches. |
 | `[FAIL] 1/4 Runner is too old` | The site asks for a newer script. Download it again from the settings section. |
 | `[WARN] 2/4 ... has no reverse DNS` | Many mail servers refuse connections from an IP without reverse DNS. Set the HELO name in the settings section (a name that resolves to your IP is best). |
-| `[WARN] 2/4 The site sees a local address` | The site saw a loopback, private or link-local address (127.x, ::1, 10.x, 172.16-31.x, 192.168.x, fc00::/7, fe80::/10), or the reverse DNS of the IP is `localhost`: the site is on this machine or network, so there is no public IP to name. The runner tells the site no EHLO name (`helo_auto` null). Run the runner on the machine whose public IP should do the check, or set HELO in the settings section. |
+| `[WARN] 2/4 The site sees a local address` | The site saw a loopback, private or link-local address (127.x, ::1, 10.x, 172.16-31.x, 192.168.x, fc00::/7, fe80::/10), or the reverse DNS of the IP is `localhost`: the site is on this machine or network, so there is no public IP to name. The runner tells the site no EHLO name (`helo_auto` null) and says EHLO with the computer's own host name. Run the runner on the machine whose public IP should do the check, or set HELO in the settings section. |
 | `[FAIL] 3/4 Port 25 closed (ISP/firewall)` | Outbound port 25 does not work from this computer: ask the ISP or open it in the firewall. Until it works the runner only sends heartbeats and takes no jobs. |
 | `[WARN] 3/4 Port 25 connects but ... no 220 banner` | The connection is accepted, but the mail server does not greet: the IP may be on a block list, or something in between intercepts port 25. |
 | `[WARN] 3/4 ... no mail host to test` | The site could not name a mail server to test against; set the self-test host in the advanced settings. |
 | `[FAIL] 4/4 MAIL FROM is not set on the site` | No usable sender address. Set one in the settings section (placeholder addresses such as `noreply@localhost` or `example.com` do not count). No sessions start until then. |
 
-If the site does not give a HELO name, the runner uses the reverse DNS name of its external IP,
-then the IP literal (`[203.0.113.5]`); `localhost` is only a last resort for a site that does not
-report the IP at all. Set a HELO name in the settings section if mail servers refuse the IP literal.
+If the site does not give a HELO name, the runner uses the reverse DNS name of its external IP.
+When the IP has no usable reverse name, or the site sees a local address (the warning above),
+it uses the computer's own DNS host name (the fully qualified one when the system knows it).
+Only a computer with no usable name falls back to the IP literal (`[203.0.113.5]`), and only for
+a public IP: the literal of a loopback or private address is never sent, `localhost` is the last
+resort. Set a HELO name in the settings section if mail servers refuse the name the runner finds.
 
 Hints are printed in English and Russian. The port 25 check connects to the site's own mail
 server (the first MX of the sender's domain, or the host set in the advanced settings), reads

@@ -234,6 +234,60 @@ Describe 'the check for a local address' {
     }
 }
 
+Describe 'the name for EHLO' {
+    BeforeAll {
+        # The real functions of the script, without running the script. The machine's own
+        # name is replaced by a stub: what it is depends on the machine.
+        $errors = $null; $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:RunnerScript, [ref]$tokens, [ref]$errors)
+        foreach ($name in 'Test-Helo', 'Test-LocalAddress', 'Test-LocalName', 'Test-OwnName', 'Resolve-Helo') {
+            $found = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
+            . ([scriptblock]::Create($found.Extent.Text))
+        }
+        function Get-OwnHostName { $global:PkTestOwnName }
+    }
+
+    AfterAll { Remove-Variable -Name PkTestOwnName -Scope Global -ErrorAction SilentlyContinue }
+
+    It 'takes the HELO of the site first, then the reverse DNS name' {
+        $global:PkTestOwnName = 'ws.corp.example'
+        Resolve-Helo 'runner.example.test' 'ptr.example.net' '203.0.113.9' | Should -Be 'runner.example.test'
+        Resolve-Helo $null 'ptr.example.net' '203.0.113.9' | Should -Be 'ptr.example.net'
+    }
+
+    It 'uses the machine name, not a literal, when the site sees <Ip>' -ForEach @(
+        @{ Ip = '127.0.0.1' }, @{ Ip = '10.1.2.3' }, @{ Ip = '172.16.0.9' }, @{ Ip = '192.168.1.5' }, @{ Ip = '169.254.1.1' }
+    ) {
+        $global:PkTestOwnName = 'ws.corp.example'
+        Resolve-Helo $null $null $Ip | Should -Be 'ws.corp.example'
+    }
+
+    It 'prefers the machine name to the literal of a public address without a reverse name' {
+        $global:PkTestOwnName = 'ws.corp.example'
+        Resolve-Helo $null $null '203.0.113.9' | Should -Be 'ws.corp.example'
+    }
+
+    It 'falls back to the literal of a PUBLIC address when the machine has no name' {
+        $global:PkTestOwnName = $null
+        Resolve-Helo $null $null '203.0.113.9' | Should -Be '[203.0.113.9]'
+    }
+
+    It 'never makes a literal of <Ip>, even when nothing else is left' -ForEach @(
+        @{ Ip = '127.0.0.1' }, @{ Ip = '10.1.2.3' }, @{ Ip = '192.168.1.5' }, @{ Ip = '169.254.1.1' }, @{ Ip = '::1' }, @{ Ip = $null }
+    ) {
+        $global:PkTestOwnName = $null
+        Resolve-Helo $null $null $Ip | Should -Be 'localhost'
+    }
+
+    It 'accepts only a real host name as the machine name' {
+        Test-OwnName 'ws.corp.example' | Should -BeTrue
+        Test-OwnName 'WORKSTATION' | Should -BeTrue
+        foreach ($bad in 'localhost', 'localhost.localdomain', '[127.0.0.1]', '127.0.0.1', '', $null, 'bad name') {
+            Test-OwnName $bad | Should -BeFalse
+        }
+    }
+}
+
 Describe 'the self-test' {
     It 'passes: four [OK] lines, exit 0, and the outcome goes to the site' {
         $s = Invoke-Scenario -Smtp @{ banner = @('220 mx.example.test ESMTP ready'); rules = @() } -RunnerArguments @('-SelfTest')
@@ -592,7 +646,25 @@ Describe 'the loop' {
         $s = Invoke-Scenario -Smtp $script:Normal -Claim $claim -Batches @(, @($session))
         $ehlo = @($s.Commands | Where-Object { $_ -match '^EHLO ' })
         $ehlo.Count | Should -Be 1
-        $ehlo[0] | Should -Match '^EHLO (\[127\.0\.0\.1\]|[A-Za-z0-9.-]+)$'
+        $ehlo[0] | Should -Match '^EHLO [A-Za-z0-9.-]+$'
+    }
+
+    It 'sends the machine name in EHLO, not a literal, when the site sees <Ip> and has no HELO' -ForEach @(
+        @{ Ip = '127.0.0.1' }, @{ Ip = '10.1.2.3' }, @{ Ip = '192.168.1.5' }
+    ) {
+        $claim = New-ClaimAnswer -Settings (New-Settings @{ helo = $null }) -SeenIp $Ip
+        $session = New-Session -Lease 'lease-h4' -Rcpt @((Get-Rcpt 'r1' 'info'))
+        $s = Invoke-Scenario -Smtp $script:Normal -Claim $claim -Batches @(, @($session))
+        $ehlo = @($s.Commands | Where-Object { $_ -match '^EHLO ' })
+        $ehlo.Count | Should -Be 1
+        $ehlo[0] | Should -Not -Match '^EHLO \['
+        $ehlo[0] | Should -Not -Match ([regex]::Escape($Ip))
+
+        # What the machine calls itself: its DNS name, else the short one.
+        $own = $null
+        try { $own = [System.Net.Dns]::GetHostEntry('').HostName.TrimEnd('.') } catch { $own = $null }
+        if (-not $own -or $own -match '^localhost' -or $own -match '^[0-9.]+$') { $own = [System.Environment]::MachineName }
+        $ehlo[0] | Should -Match ('^EHLO ' + [regex]::Escape($own) + '(\.[A-Za-z0-9.-]+)?$')
     }
 
     It 'ignores a HELO from the site with a trailing line feed' {

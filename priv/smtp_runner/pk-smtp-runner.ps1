@@ -522,12 +522,44 @@ function Test-Helo {
     $Name -match '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\z'
 }
 
-# The name for EHLO: the site's HELO, else the reverse DNS of the external IP, else its literal.
+# A name the machine can say about itself in EHLO: a host name, not a literal, not a number and
+# not localhost.
+function Test-OwnName {
+    param($Name)
+    (Test-Helo $Name) -and ($Name -notmatch '^\[') -and ($Name -notmatch '^[0-9.]+\z') -and -not (Test-LocalName $Name)
+}
+
+# The machine's own DNS host name (the fully qualified one when the system knows it), or $null.
+# Looked up once: it does not change while the runner works.
+function Get-OwnHostName {
+    if ($script:OwnHostNameLooked) { return $script:OwnHostName }
+    $script:OwnHostNameLooked = $true
+    $name = $null
+    try { $name = [System.Net.Dns]::GetHostEntry('').HostName }
+    catch { Write-Verbose 'the host name is not in DNS' }
+    if ($name) { $name = $name.TrimEnd('.') }
+    if (-not (Test-OwnName $name)) {
+        $name = [System.Environment]::MachineName
+        if (-not (Test-OwnName $name)) { $name = $null }
+    }
+    if ($name -and $name -notmatch '\.') {
+        $domain = [System.Environment]::GetEnvironmentVariable('USERDNSDOMAIN')
+        if ($domain -and (Test-OwnName ($name + '.' + $domain.TrimEnd('.')))) { $name = $name + '.' + $domain.TrimEnd('.') }
+    }
+    $script:OwnHostName = $name
+    $name
+}
+
+# The name for EHLO: the site's HELO, else the reverse DNS of the external IP; failing both
+# (no name, or the site sees a local address) the machine's own host name; only without one
+# the literal of a PUBLIC address the site saw. Never the literal of a loopback or private one.
 function Resolve-Helo {
     param($Configured, $HeloAuto, $SeenIp)
     if (Test-Helo $Configured) { return $Configured }
     if (Test-Helo $HeloAuto) { return $HeloAuto }
-    if ($SeenIp -is [string] -and $SeenIp -match '^[0-9]{1,3}(\.[0-9]{1,3}){3}\z') { return ('[' + $SeenIp + ']') }
+    $own = Get-OwnHostName
+    if ($own) { return $own }
+    if ($SeenIp -is [string] -and $SeenIp -match '^[0-9]{1,3}(\.[0-9]{1,3}){3}\z' -and -not (Test-LocalAddress $SeenIp)) { return ('[' + $SeenIp + ']') }
     'localhost'
 }
 
@@ -1119,6 +1151,8 @@ function Invoke-Main {
 $script:LogPath = $null
 $script:BaseUrl = $null
 $script:ApiToken = $null
+$script:OwnHostName = $null
+$script:OwnHostNameLooked = $false
 $script:State = @{
     Port25 = $null; Port25At = $null; HeloAuto = $null; HeloChecked = $false; SeenIp = $null; MailFrom = $null; Settings = $null
     MinVersion = $null; PauseShown = $null; Backoff = 0; RetryAt = [DateTime]::MinValue
