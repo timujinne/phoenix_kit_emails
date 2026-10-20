@@ -4100,7 +4100,7 @@ msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex
 #, elixir-autogen, elixir-format
-msgid "A command typed in the console stays in its history file, token included. Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
+msgid "A command typed in the console may be kept in the console history (older PowerShell versions save every line). Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:499

@@ -4153,8 +4153,8 @@ msgstr "Чтобы токен не был виден в списке проце�
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex
 #, elixir-autogen, elixir-format
-msgid "A command typed in the console stays in its history file, token included. Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
-msgstr "Команда, набранная в консоли, остаётся в файле её истории вместе с токеном. Если это важно, запустите скрипт без токена и введите его в скрытом запросе или используйте -TokenFile."
+msgid "A command typed in the console may be kept in the console history (older PowerShell versions save every line). Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
+msgstr "Команда, набранная в консоли, может сохраниться в истории консоли (старые версии PowerShell сохраняют каждую строку). Если это важно, запустите скрипт без токена и введите его в скрытом запросе или используйте -TokenFile."
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:499
 #, elixir-autogen, elixir-format

@@ -45,8 +45,9 @@ $env:PK_SMTP_RUNNER_TOKEN = 'pk_...'
 powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server https://example.com
 ```
 
-A command typed at the console is also written, token included, to the PSReadLine history
-file. Where that matters, give no token and use the hidden prompt below, or `-TokenFile`.
+A command typed at the console may be kept in the console history (older PowerShell
+versions save every line; current PSReadLine leaves out lines that look like they hold a
+token). Where that matters, give no token and use the hidden prompt below, or `-TokenFile`.
 
 With no token at all, an interactive session asks for it (the input is hidden); a session
 that cannot ask (`-NonInteractive`, redirected input, a service) stops with exit code 2 and
