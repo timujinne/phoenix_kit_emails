@@ -168,6 +168,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
       assert_receive {:email_verify_runner, %{event: :heartbeat}}
     end
 
+    test "settling a session of a runner whose row is gone does not raise" do
+      gone = %Runner{uuid: Ecto.UUID.generate()}
+
+      assert Runners.record_session(
+               gone,
+               "d.example.ee",
+               %{failed: true},
+               "connect_failed",
+               1,
+               @now
+             ) ==
+               []
+
+      assert Runners.record_session(gone, "d.example.ee", %{failed: false}, "answered", 1, @now) ==
+               []
+    end
+
     test "a changed port-25 finding is announced at once", %{actor: actor} do
       Runners.heartbeat(actor, %{port25: "open"}, @now)
       :ok = Verification.subscribe_runner()

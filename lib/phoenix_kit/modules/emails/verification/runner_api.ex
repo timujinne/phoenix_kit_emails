@@ -53,7 +53,6 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
 
     @scope Runners.scope()
     @max_report 50
-    @max_sessions 20
     @outcomes ~w(answered connect_failed timeout reset)
 
     @doc "The scope a key needs to call the runner tools."
@@ -258,7 +257,7 @@ if Code.ensure_loaded?(PhoenixKit.API.Tool) do
           "max_sessions" => %{
             "type" => "integer",
             "minimum" => 0,
-            "maximum" => @max_sessions,
+            "maximum" => SmtpQueue.max_sessions(),
             "description" => "Free session slots of the runner; 0 only sends the heartbeat."
           },
           "runner" => %{

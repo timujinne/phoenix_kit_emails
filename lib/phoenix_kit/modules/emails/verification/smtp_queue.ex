@@ -236,6 +236,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
 
   ## --- Claim ---
 
+  @doc "The most sessions one claim hands out."
+  @spec max_sessions() :: pos_integer()
+  def max_sessions, do: @max_sessions
+
   @doc """
   Hands out up to `max_sessions` sessions (see the moduledoc) to `claimant`, a
   `Runner` row (the built-in runner of the mode `local` has one too).

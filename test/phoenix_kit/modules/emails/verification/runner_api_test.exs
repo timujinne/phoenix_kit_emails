@@ -26,6 +26,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
   alias PhoenixKit.Modules.Emails.Verification.Runner
   alias PhoenixKit.Modules.Emails.Verification.RunnerApi
   alias PhoenixKit.Modules.Emails.Verification.Runners
+  alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueueItem, as: Item
   alias PhoenixKit.Users.Permissions
   alias PhoenixKitEmails.Test.FakeResolver
@@ -107,6 +108,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnerApiTest do
       assert Map.has_key?(tools, @claim) and Map.has_key?(tools, @report)
       assert tools[@claim]["scope"] == "emails.smtp_runner:run"
       assert tools[@report]["input_schema"]["properties"]["results"]["maxItems"] == 50
+    end
+
+    test "the schema allows as many sessions as the queue hands out", %{token: token} do
+      claim = json(list_tools(token))["tools"] |> Enum.find(&(&1["name"] == @claim))
+
+      assert claim["input_schema"]["properties"]["max_sessions"]["maximum"] ==
+               SmtpQueue.max_sessions()
     end
 
     test "and hides them from a key without it", %{owner: owner} do

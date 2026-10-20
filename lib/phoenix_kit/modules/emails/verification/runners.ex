@@ -212,8 +212,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   @spec record_session(term(), String.t(), map(), String.t(), non_neg_integer(), DateTime.t()) ::
           [map()]
   def record_session(%Runner{uuid: uuid}, domain, classification, outcome, settled, now) do
-    runner = repo().one(from(r in Runner, where: r.uuid == ^uuid, lock: "FOR UPDATE"))
+    case repo().one(from(r in Runner, where: r.uuid == ^uuid, lock: "FOR UPDATE")) do
+      nil -> []
+      runner -> settle(runner, domain, classification, outcome, settled, now)
+    end
+  end
 
+  def record_session(_claimant, _domain, _classification, _outcome, _settled, _now), do: []
+
+  defp settle(runner, domain, classification, outcome, settled, now) do
     {streak, domains, last_error} = streak(runner, domain, classification, outcome)
 
     pause? =
@@ -227,12 +234,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
         last_error: last_error
       ] ++ pause_changes(pause?, streak, domains, now)
 
-    from(r in Runner, where: r.uuid == ^uuid) |> repo().update_all(set: changes)
+    from(r in Runner, where: r.uuid == ^runner.uuid) |> repo().update_all(set: changes)
 
-    if pause?, do: [%{event: :paused, runner_uuid: uuid}], else: []
+    if pause?, do: [%{event: :paused, runner_uuid: runner.uuid}], else: []
   end
-
-  def record_session(_claimant, _domain, _classification, _outcome, _settled, _now), do: []
 
   defp streak(runner, domain, %{failed: true}, outcome) do
     cause = if outcome == "connect_failed", do: "connect_failed", else: "smtp_blocked"
