@@ -18,7 +18,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
     * `email_verify_smtp_mail_from` - an override for the `MAIL FROM` address (empty
       by default: the site's sender address is used), see `smtp_mail_from/0`
     * `email_verify_smtp_helo` - the `EHLO` name; empty means "the reverse DNS of the
-      sending IP, found by the runner". Only a plain host name or an IPv4 address
+      sending IP, found by the runner, else the machine's own host name" (never a
+      loopback or private address). Only a plain host name or an IPv4 address
       literal is accepted, anything else counts as empty, see `smtp_helo/0`
     * `email_verify_rcpt_per_session` - addresses of one domain per SMTP session (default `10`)
     * `email_verify_domain_interval_s` - least gap between two sessions to one domain

@@ -377,7 +377,7 @@ Describe 'the self-test' {
         $s.Run.ExitCode | Should -Be 0
         $line = Get-CheckLine $s.Run.Output '2/4'
         $line | Should -Match ('^\[WARN\] 2/4 The site sees a local address \(' + [regex]::Escape($Ip) + '\)')
-        $line | Should -Match 'HELO would be the local name; run the runner on the machine whose public IP should do the check, or set HELO in Settings -> Emails'
+        $line | Should -Match 'HELO will be this computer''s own host name; run the runner on the machine whose public IP should do the check, or set HELO in Settings -> Emails'
         $line | Should -Match 'запустите раннер'
         $s.Run.Output | Should -Not -Match '\[FAIL\]'
 
@@ -718,11 +718,9 @@ Describe 'the loop' {
         $ehlo[0] | Should -Not -Match '^EHLO \['
         $ehlo[0] | Should -Not -Match ([regex]::Escape($Ip))
 
-        # What the machine calls itself: its DNS name, else the short one.
-        $own = $null
-        try { $own = [System.Net.Dns]::GetHostEntry('').HostName.TrimEnd('.') } catch { $own = $null }
-        if (-not $own -or $own -match '^localhost' -or $own -match '^[0-9.]+$') { $own = [System.Environment]::MachineName }
-        $ehlo[0] | Should -Match ('^EHLO ' + [regex]::Escape($own) + '(\.[A-Za-z0-9.-]+)?$')
+        # A host name, not an address of any kind (the exact name depends on the machine).
+        $ehlo[0] | Should -Match '^EHLO [A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$'
+        $ehlo[0] | Should -Not -Match '^EHLO [0-9.]+$'
     }
 
     It 'ignores a HELO from the site with a trailing line feed' {

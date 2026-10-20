@@ -242,6 +242,11 @@
               {gettext("To keep the token out of the process list, set it first and run the same command without -Token:")}
               <code class="font-mono">$env:PK_SMTP_RUNNER_TOKEN='&lt;token&gt;'</code>
             </p>
+            <p class="text-xs text-base-content/70 mt-1">
+              {gettext(
+                "A command typed in the console stays in its history file, token included. Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
+              )}
+            </p>
           </li>
           <li>
             {gettext(
@@ -303,7 +308,7 @@
     />
     <p id={"#{@id}-helo-hint"} class="text-xs text-base-content/70 -mt-3">
       {gettext(
-        "Empty: the reverse DNS name of the runner's IP address (the name of this server in the \"this server\" mode)."
+        "Empty: the reverse DNS name of the runner's IP address; when it has none or the site sees a local address, the computer's own host name (in the \"this server\" mode, the name of this server)."
       )}
     </p>
 
@@ -539,6 +544,9 @@
             <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
           </button>
         </div>
+        <p class="text-xs text-base-content/70">
+          {gettext("A command typed in the console stays in its history file, token included. Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile.")}
+        </p>
       </div>
     </div>
 

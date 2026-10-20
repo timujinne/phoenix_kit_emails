@@ -3597,9 +3597,10 @@ msgstr "Laadi skript alla arvutisse, kust kontroll käivitub:"
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:299
 #, elixir-autogen, elixir-format
-msgid "Empty: the reverse DNS name of the runner's IP address (the name of this server in the \"this server\" mode)."
+msgid "Empty: the reverse DNS name of the runner's IP address; when it has none or the site sees a local address, the computer's own host name (in the \"this server\" mode, the name of this server)."
 msgstr ""
-"Tühi: töötaja IP-aadressi pöördDNS-nimi (režiimis „See server“ selle "
+"Tühi: töötaja IP-aadressi pöördDNS-nimi; kui seda pole või sait näeb "
+"kohalikku aadressi, arvuti enda hostinimi (režiimis „See server“ selle "
 "serveri nimi)."
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:276
@@ -4149,6 +4150,11 @@ msgstr "Lülita sellele serverile"
 #, elixir-autogen, elixir-format
 msgid "To keep the token out of the process list, set it first and run the same command without -Token:"
 msgstr "Et tokenit protsesside loendis ei näidataks, määra see enne ja käivita sama käsk ilma -Tokenita:"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex
+#, elixir-autogen, elixir-format
+msgid "A command typed in the console stays in its history file, token included. Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
+msgstr "Konsoolis sisestatud käsk jääb koos tokeniga selle ajalookirjesse. Kui see on oluline, käivita skript ilma tokenita ja sisesta see peidetud küsimuses või kasuta -TokenFile."
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:499
 #, elixir-autogen, elixir-format

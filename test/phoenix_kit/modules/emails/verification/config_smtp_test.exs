@@ -8,6 +8,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
   use PhoenixKitEmails.DataCase, async: true
 
   alias PhoenixKit.Modules.Emails.Verification.Config
+  alias PhoenixKit.Modules.Emails.Verification.Smtp.Direct
   alias PhoenixKit.Settings
 
   defp put(key, value), do: Settings.update_setting_with_module(key, value, "email_system")
@@ -242,8 +243,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.ConfigSmtpTest do
       assert [_, ms] = Regex.run(~r/HardMs\s*=\s*(\d+)/, source)
       assert String.to_integer(ms) == Config.session_hard_limit_s() * 1000
 
-      assert File.read!("lib/phoenix_kit/modules/emails/verification/smtp/direct.ex") =~
-               "@hard_ms Config.session_hard_limit_s() * 1000"
+      assert Direct.hard_limit_ms() ==
+               Config.session_hard_limit_s() * 1000
     end
 
     test "a setting below the floor reads as the floor, one above it as itself" do

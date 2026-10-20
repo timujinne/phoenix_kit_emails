@@ -3600,9 +3600,10 @@ msgstr "Скачайте скрипт на компьютер, с которог
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:299
 #, elixir-autogen, elixir-format
-msgid "Empty: the reverse DNS name of the runner's IP address (the name of this server in the \"this server\" mode)."
+msgid "Empty: the reverse DNS name of the runner's IP address; when it has none or the site sees a local address, the computer's own host name (in the \"this server\" mode, the name of this server)."
 msgstr ""
-"Пусто: обратное DNS-имя IP-адреса раннера (в режиме «Этот сервер» — имя "
+"Пусто: обратное DNS-имя IP-адреса раннера; если его нет или сайт видит "
+"локальный адрес — собственное имя компьютера (в режиме «Этот сервер» — имя "
 "этого сервера)."
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:276
@@ -4149,6 +4150,11 @@ msgstr "Переключить на этот сервер"
 #, elixir-autogen, elixir-format
 msgid "To keep the token out of the process list, set it first and run the same command without -Token:"
 msgstr "Чтобы токен не был виден в списке процессов, сначала задайте его в сессии и запустите ту же команду без -Token:"
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex
+#, elixir-autogen, elixir-format
+msgid "A command typed in the console stays in its history file, token included. Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
+msgstr "Команда, набранная в консоли, остаётся в файле её истории вместе с токеном. Если это важно, запустите скрипт без токена и введите его в скрытом запросе или используйте -TokenFile."
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:499
 #, elixir-autogen, elixir-format

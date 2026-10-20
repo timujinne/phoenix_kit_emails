@@ -703,7 +703,7 @@ function Invoke-SelfTest {
     $ip = $script:State.SeenIp
     $script:State.HeloAuto = $null
     $script:State.HeloChecked = $true
-    $localHint = ' - HELO would be the local name; run the runner on the machine whose public IP should do the check, or set HELO in Settings -> Emails / имя в HELO было бы локальным: запустите раннер на машине, чей публичный IP должен проверять почту, либо задайте HELO в Settings -> Emails'
+    $localHint = ' - HELO will be this computer''s own host name; run the runner on the machine whose public IP should do the check, or set HELO in Settings -> Emails / в HELO пойдёт собственное имя этого компьютера: запустите раннер на машине, чей публичный IP должен проверять почту, либо задайте HELO в Settings -> Emails'
     if ($ip -and (Test-LocalAddress $ip)) {
         Write-Check 'WARN' '2/4' ('The site sees a local address (' + $ip + ')' + $localHint)
     }

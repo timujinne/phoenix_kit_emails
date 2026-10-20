@@ -70,6 +70,10 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
 
   ## --- A session ---
 
+  @doc "The longest one session may run, in milliseconds (`run/3` gives up after it)."
+  @spec hard_limit_ms() :: pos_integer()
+  def hard_limit_ms, do: @hard_ms
+
   @doc """
   Runs `session` and returns its result entry. Options (tests): `:port`, `:hard_ms`.
   """
