@@ -23,6 +23,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
   alias PhoenixKit.Modules.Emails.Verification.Runner
+  alias PhoenixKit.Modules.Emails.Verification.RunnerKeys
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
   alias PhoenixKit.PubSub.Manager, as: PubSubManager
   alias PhoenixKit.Utils.Date, as: UtilsDate
@@ -311,7 +312,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
       mail_from: mail_from,
       mail_from_source: source,
       mail_from_missing: is_nil(mail_from),
-      owner: runner && owner(runner),
+      owner: owner(mode, runner),
       queue: queue
     }
   end
@@ -382,10 +383,35 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
 
   ## --- The key's owner ---
 
-  defp owner(%Runner{api_key_uuid: @local_key}), do: nil
+  defp owner("local", _runner), do: nil
 
-  defp owner(%Runner{api_key_uuid: key_uuid}) do
+  # The owner of the runner's own key. Before the first connection there is no runner
+  # row, and after a new token was issued the row still points at the revoked key: both
+  # show the owner of the live runner key, as soon as one exists.
+  defp owner(_mode, runner) do
+    own = runner && owner_of_key(runner)
+
+    case own do
+      %{warning: warning} when warning not in [:key_revoked, :key_expired] -> own
+      _ -> active_key_owner() || own
+    end
+  end
+
+  defp owner_of_key(%Runner{api_key_uuid: @local_key}), do: nil
+
+  defp owner_of_key(%Runner{api_key_uuid: key_uuid}) do
     if Config.machine_api_available?(), do: key_owner(key_uuid)
+  rescue
+    _ -> nil
+  end
+
+  defp active_key_owner do
+    with true <- Config.machine_api_available?(),
+         [key | _] <- RunnerKeys.active() do
+      key_owner(key.uuid)
+    else
+      _ -> nil
+    end
   rescue
     _ -> nil
   end

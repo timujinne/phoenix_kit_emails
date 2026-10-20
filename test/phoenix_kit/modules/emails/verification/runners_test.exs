@@ -187,7 +187,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
 
       assert status.state == :never_connected
       assert status.runner == nil
-      assert status.owner == nil
       assert status.paused == nil
       refute status.port25_blocked
       assert status.mode == "runner"
@@ -274,6 +273,50 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
   end
 
   describe "status/1: whose key it is" do
+    test "before the first connection: the owner of the live runner key", %{
+      owner: owner,
+      key: key
+    } do
+      assert %{runner: nil, owner: owner_info} = Runners.status(@now)
+      assert %{key_uuid: key_uuid, user_uuid: user_uuid, email: email, warning: nil} = owner_info
+      assert key_uuid == key.uuid
+      assert user_uuid == owner.uuid
+      assert email == owner.email
+    end
+
+    test "before the first connection and the owner is deactivated: the same warning", %{
+      owner: owner
+    } do
+      owner |> Ecto.Changeset.change(is_active: false) |> Repo.update!()
+
+      assert %{runner: nil, owner: %{warning: :owner_inactive}} = Runners.status(@now)
+    end
+
+    test "before the first connection and no runner key: no owner", %{owner: owner, key: key} do
+      {:ok, _} = Keys.revoke(key, owner.uuid)
+
+      assert %{runner: nil, owner: nil} = Runners.status(@now)
+    end
+
+    test "the runner row is revoked and a new token was issued: the new owner is shown", %{
+      owner: owner,
+      key: key,
+      actor: actor
+    } do
+      Runners.heartbeat(actor, %{}, @now)
+      {:ok, _} = Keys.revoke(key, owner.uuid)
+      {new_key, _token} = issue_key(owner)
+
+      assert %{owner: %{key_uuid: key_uuid, warning: nil}} = Runners.status(@now)
+      assert key_uuid == new_key.uuid
+    end
+
+    test "the mode local has no owner" do
+      put_setting("email_verify_smtp_mode", "local")
+
+      assert %{owner: nil} = Runners.status(@now)
+    end
+
     test "the owner, as the page shows them", %{owner: owner, key: key, actor: actor} do
       Runners.heartbeat(actor, %{}, @now)
       owner |> Ecto.Changeset.change(first_name: "Mari", last_name: "Tamm") |> Repo.update!()

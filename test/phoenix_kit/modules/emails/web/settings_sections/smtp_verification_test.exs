@@ -525,6 +525,32 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       refute html =~ "The runner will stop"
     end
 
+    test "whose key it is, before the runner has connected", %{admin: admin} do
+      {_key, _token} = runner_key(admin)
+
+      html = render_section()
+
+      assert html =~ "Not connected yet"
+      assert html =~ "The runner works with the key of #{admin.email}."
+    end
+
+    test "no runner key and no runner: nobody is named", %{admin: admin} do
+      html = render_section()
+
+      refute html =~ "The runner works with the key of"
+      refute html =~ admin.email
+    end
+
+    test "the owner of the key is deactivated, before the runner has connected", %{admin: admin} do
+      {_key, _token} = runner_key(admin)
+      admin |> Ecto.Changeset.change(is_active: false) |> Repo.update!()
+
+      html = render_section()
+
+      assert html =~ "The runner will stop: the owner of its key, #{admin.email}, is deactivated."
+      assert html =~ "alert-error"
+    end
+
     test "the owner of the key is deactivated: the runner will stop", %{admin: admin} do
       {key, _token} = runner_key(admin)
       heartbeat(key, 5)
