@@ -116,6 +116,24 @@ defmodule PhoenixKit.Modules.Emails.Verification.RunnersTest do
       assert_receive {:email_verify_runner, %{event: :heartbeat}}
     end
 
+    test "settling a session does not postpone the next announcement", %{actor: actor} do
+      runner = Runners.heartbeat(actor, %{}, @now)
+      :ok = Verification.subscribe_runner()
+
+      Runners.record_session(
+        runner,
+        "d.example.ee",
+        %{failed: false},
+        "answered",
+        1,
+        DateTime.add(@now, 3)
+      )
+
+      Runners.heartbeat(actor, %{}, DateTime.add(@now, 6))
+
+      assert_receive {:email_verify_runner, %{event: :heartbeat}}
+    end
+
     test "a changed port-25 finding is announced at once", %{actor: actor} do
       Runners.heartbeat(actor, %{port25: "open"}, @now)
       :ok = Verification.subscribe_runner()

@@ -159,8 +159,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
         jobs_done: runner.jobs_done + settled,
         fail_streak: if(pause?, do: 0, else: streak),
         fail_domains: if(pause?, do: [], else: domains),
-        last_error: last_error,
-        updated_at: now
+        last_error: last_error
       ] ++ pause_changes(pause?, streak, domains, now)
 
     from(r in Runner, where: r.uuid == ^uuid) |> repo().update_all(set: changes)
@@ -198,8 +197,6 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
   """
   @spec clear_pause() :: {:ok, non_neg_integer()}
   def clear_pause do
-    now = UtilsDate.utc_now()
-
     {count, _} =
       from(r in Runner, where: not is_nil(r.paused_until) or r.fail_streak > 0)
       |> repo().update_all(
@@ -207,8 +204,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
           paused_until: nil,
           pause_reason: nil,
           fail_streak: 0,
-          fail_domains: [],
-          updated_at: now
+          fail_domains: []
         ]
       )
 
