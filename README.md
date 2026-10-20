@@ -342,6 +342,9 @@ check is off by default (`email_verify_smtp_mode` is `off`). With the mode `runn
 the server never opens a connection to port 25 itself: it queues the addresses and
 a runner on the user's own machine, authenticated by an API key of core's machine
 API (core 2.63.0 and later), takes the work and reports what the mail hosts said.
+With the mode `local` the site's own server does the checking, from its own IP
+address (a built-in runner on the same queue, with the same pauses and throttling);
+leave it off when other sites share that address.
 See [docs/smtp-runner.md](https://github.com/BeamLabEU/phoenix_kit_emails/blob/main/docs/smtp-runner.md) for the runner script.
 
 ## Development
