@@ -286,6 +286,29 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.DirectTest do
     end
   end
 
+  describe "connect_budget/3" do
+    test "a connect wait is cut to what is left of the session" do
+      assert Direct.connect_budget(%{connect_ms: 1_000_000}, 10_000, 5_000) == {:ok, 5_000}
+    end
+
+    test "a connect wait shorter than what is left stays as it is" do
+      assert Direct.connect_budget(%{connect_ms: 20_000}, 100_000, 5_000) == {:ok, 20_000}
+    end
+
+    test "nothing is left once the session limit has passed" do
+      assert Direct.connect_budget(%{connect_ms: 20_000}, 5_000, 5_000) == :expired
+      assert Direct.connect_budget(%{connect_ms: 20_000}, 4_000, 5_000) == :expired
+    end
+
+    test "a session past its limit connects to no host" do
+      server = FakeSmtpServer.start(@ok_spec)
+
+      {:ok, report} = Direct.run(plain_session(), @sender, port: server.port, hard_ms: 0)
+
+      assert %{"outcome" => "connect_failed", "steps" => []} = report
+    end
+  end
+
   describe "where it may connect" do
     test "the test config allows the loopback interface only" do
       assert Application.get_env(:phoenix_kit_emails, :verification_smtp_loopback_only) == true

@@ -20,8 +20,9 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunner do
        was switched to `local`. A port found `"blocked"` starts no session until a
        later self-test finds it open.
     3. `SmtpQueue.claim/3` for the free slots (at most `sessions_limit/0` sessions are
-       leased at a time, counted from the queue, so two cycles overlapping still stay
-       within it), no claim without a `MAIL FROM` (`claim` hands out nothing then) and
+       leased at a time, counted from the queue just before the claim; two cycles
+       overlapping may briefly exceed it, which the one-live-session-per-domain rule
+       keeps small), no claim without a `MAIL FROM` (`claim` hands out nothing then) and
        none while the runner is paused.
     4. The sessions run concurrently, each in its own task, then their results are
        reported together.
@@ -50,7 +51,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunner do
   @selftest_every_s 600
   @busy_delay_s 1
   @throttled_delay_s 5
-  # A session ends within the 240 s of `Smtp.Direct` plus its connect waits.
+  # A session ends within the 240 s of `Smtp.Direct` (its connect waits count inside that
+  # limit); the rest is room for the report.
   @task_timeout_ms 360_000
 
   @type cycle_result :: %{sessions: non_neg_integer(), held_back?: boolean()}

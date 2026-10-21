@@ -12,7 +12,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunnerWorker do
   At most one job waits (`unique` over the states `available`, `scheduled`, `retryable`,
   for ever): a wake while a job is waiting adds nothing, and a wake during a cycle adds the
   job that runs next. Two cycles overlapping are safe all the same: the queue hands out
-  each address once and the runner's concurrency is counted from the queue.
+  each address once, and the runner's concurrency is counted from the queue before each
+  claim (so an overlap may briefly exceed the limit, never hand out an address twice).
 
   A cycle that fails (the database, a bug) is logged and the chain goes on, so one bad
   moment does not stop the checks. A node killed in the middle of a cycle leaves its job

@@ -168,7 +168,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
       outcome: "answered"
     }
 
-    case connect(host, cfg) do
+    case connect_within_session(host, cfg, hard) do
       {:ok, sock} ->
         try do
           %{state | sock: sock} |> dialogue(session, cfg) |> quit()
@@ -178,6 +178,23 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
 
       :error ->
         %{state | outcome: "connect_failed"}
+    end
+  end
+
+  @doc false
+  # The connect wait, cut to what is left of the session: the limit counts from the start,
+  # so a long connect wait must not outlive it. `:expired` when nothing is left.
+  @spec connect_budget(%{connect_ms: pos_integer()}, integer(), integer()) ::
+          {:ok, pos_integer()} | :expired
+  def connect_budget(%{connect_ms: connect_ms}, hard, now) when hard > now,
+    do: {:ok, min(connect_ms, hard - now)}
+
+  def connect_budget(_cfg, _hard, _now), do: :expired
+
+  defp connect_within_session(host, cfg, hard) do
+    case connect_budget(cfg, hard, now_ms()) do
+      {:ok, wait_ms} -> connect(host, cfg.port, wait_ms)
+      :expired -> :error
     end
   end
 
@@ -311,7 +328,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
 
     read_ms = seconds_ms(Map.get(settings, :read_timeout_s), 30)
 
-    case connect(host, cfg) do
+    case connect(host, cfg.port, cfg.connect_ms) do
       {:ok, sock} ->
         try do
           state = %{
@@ -349,7 +366,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
 
   ## --- The socket ---
 
-  defp connect(host, cfg) do
+  defp connect(host, port, wait_ms) do
     guard!(host)
 
     options = [
@@ -361,7 +378,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
       send_timeout_close: true
     ]
 
-    case :gen_tcp.connect(String.to_charlist(host), cfg.port, options, cfg.connect_ms) do
+    case :gen_tcp.connect(String.to_charlist(host), port, options, wait_ms) do
       {:ok, sock} -> {:ok, sock}
       {:error, _reason} -> :error
     end
