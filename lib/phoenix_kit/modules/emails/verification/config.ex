@@ -61,9 +61,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
       value counts as `"temp"`. The `disposable` flag is set either way
     * `email_verify_dns_max_attempts` - how many times a batch job tries an address
       whose DNS lookup failed transiently before keeping the `temp` verdict (default `3`)
-    * `email_verify_grey_retry_minutes` - least wait before a greylisted address is
-      tried again; a batch job picks the wait between this and twice this, the SMTP
-      queue uses it as it is (default `20`)
+    * `email_verify_grey_retry_minutes` - wait before a greylisted address is
+      tried again in the SMTP queue (default `20`)
     * `email_verify_grey_max_attempts` - greylist attempts before the `temp` verdict
       is kept (default `3`)
     * `email_verify_lists_dir` - optional external dictionary directory
@@ -337,11 +336,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Config do
   @spec dns_max_attempts() :: pos_integer()
   def dns_max_attempts, do: positive_integer("email_verify_dns_max_attempts", 3)
 
-  @doc "How many attempts a batch job makes on a greylisted address."
+  @doc "How many times the SMTP queue tries a greylisted address."
   @spec grey_max_attempts() :: pos_integer()
   def grey_max_attempts, do: positive_integer("email_verify_grey_max_attempts", 3)
 
-  @doc "The least wait, in minutes, before a greylisted address is tried again."
+  @doc "The wait, in minutes, before a greylisted address is tried again."
   @spec grey_retry_minutes() :: pos_integer()
   def grey_retry_minutes, do: positive_integer("email_verify_grey_retry_minutes", 20)
 

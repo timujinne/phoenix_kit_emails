@@ -20,8 +20,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker do
   cancelled while the job ran, the queued row is cancelled too, unless another live
   batch needs the address.
 
-  A `"temp"` verdict caused by a failed DNS lookup (`"dns_error"`), or by greylisting
-  (only an SMTP result can say that), is put off with `{:snooze, seconds}` instead
+  A `"temp"` verdict caused by a failed DNS lookup (`"dns_error"`) is put off with `{:snooze, seconds}` instead
   of being counted: see `Verification.Retry`. Snoozing does not use up an Oban
   attempt; the number of snoozes (`meta["snoozed"]`) is what the retry limit
   counts. Once the limit is reached the `"temp"` verdict is kept and counted.

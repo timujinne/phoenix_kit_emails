@@ -499,38 +499,19 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
     end
   end
 
-  describe "Retry.decide/2 (greylist path, reachable only from SMTP results)" do
+  describe "Retry.decide/2" do
     alias PhoenixKit.Modules.Emails.Verification.Retry
 
     defp temp(reason), do: %Result{status: "temp", reason: reason}
-
-    test "greylist snoozes 20 to 40 minutes by default" do
-      for _ <- 1..30 do
-        assert {:snooze, seconds} = Retry.decide(temp("greylist"), 0)
-        assert seconds in 1200..2400
-      end
-    end
-
-    test "the minimum is a setting and the window is up to double of it" do
-      set_setting("email_verify_grey_retry_minutes", 10)
-
-      for _ <- 1..30 do
-        assert {:snooze, seconds} = Retry.decide(temp("greylist"), 0)
-        assert seconds in 600..1200
-      end
-    end
-
-    test "gives up after the maximum of greylist attempts" do
-      set_setting("email_verify_grey_max_attempts", 2)
-
-      assert {:snooze, _} = Retry.decide(temp("greylist"), 0)
-      assert :done = Retry.decide(temp("greylist"), 1)
-    end
 
     test "everything else is final" do
       assert :done = Retry.decide(%Result{status: "invalid", reason: "no_mx"}, 0)
       assert :done = Retry.decide(%Result{status: "not_sure", reason: "smtp_disabled"}, 0)
       assert :done = Retry.decide(temp("disposable"), 0)
+    end
+
+    test "a greylisted result is the SMTP queue's to retry, not the batch job's" do
+      assert :done = Retry.decide(temp("greylisted"), 0)
     end
   end
 
