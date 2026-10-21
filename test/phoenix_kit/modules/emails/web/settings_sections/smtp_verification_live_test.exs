@@ -15,6 +15,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
 
   alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay
+  alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKitEmails.Test.LiveEndpoint
   alias PhoenixKitEmails.Test.SectionHost
 
@@ -103,6 +105,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
     # The relay asks the page process; give it a moment to answer.
     assert eventually(fn -> not (render(view) =~ "Your account cannot be read here") end)
     assert render(view) =~ "Issue a new token"
+  end
+
+  test "the relay reads the scope out of the state of a real LiveView", %{view: view} do
+    # The tripwire for `Relay.scope_of/2`: it reads the state of the LiveView process, whose
+    # shape is LiveView's own. A LiveView that changes it fails here, not silently in prod.
+    assert %Scope{} = Relay.scope_of(view.pid)
   end
 
   defp eventually(fun, tries \\ 50) do

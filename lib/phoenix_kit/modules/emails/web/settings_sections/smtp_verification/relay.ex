@@ -60,7 +60,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay 
   a few times, with a short pause (`:attempts`, `:timeout`, `:backoff_ms`).
 
   This lookup is a stopgap: it goes away when core passes `phoenix_kit_current_scope` to
-  the settings sections itself.
+  the settings sections itself. It depends on the shape of LiveView's process state;
+  `smtp_verification_live_test.exs` reads the scope out of a real LiveView and is what
+  fails when that shape changes.
   """
   @spec scope_of(pid(), keyword()) :: Scope.t() | nil
   def scope_of(view, opts \\ []) when is_pid(view) do
