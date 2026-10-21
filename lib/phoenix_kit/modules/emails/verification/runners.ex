@@ -20,6 +20,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
 
   import Ecto.Query
 
+  require Logger
+
   alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Pipeline
   alias PhoenixKit.Modules.Emails.Verification.Runner
@@ -213,8 +215,15 @@ defmodule PhoenixKit.Modules.Emails.Verification.Runners do
           [map()]
   def record_session(%Runner{uuid: uuid}, domain, classification, outcome, settled, now) do
     case repo().one(from(r in Runner, where: r.uuid == ^uuid, lock: "FOR UPDATE")) do
-      nil -> []
-      runner -> settle(runner, domain, classification, outcome, settled, now)
+      nil ->
+        Logger.warning(
+          "[Emails.Verification] a session was settled for the runner #{uuid} whose row is gone"
+        )
+
+        []
+
+      runner ->
+        settle(runner, domain, classification, outcome, settled, now)
     end
   end
 

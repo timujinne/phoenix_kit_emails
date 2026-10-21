@@ -10,6 +10,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.QueueSweepWorkerTest do
   use Oban.Testing, repo: PhoenixKitEmails.Test.Repo
 
   import Ecto.Query
+  import ExUnit.CaptureLog
   import PhoenixKitEmails.Test.SmtpHelpers
 
   alias PhoenixKit.Modules.Emails.Verification
@@ -73,6 +74,34 @@ defmodule PhoenixKit.Modules.Emails.Verification.QueueSweepWorkerTest do
     assert :ok = perform_job(QueueSweepWorker, %{})
 
     assert_enqueued(worker: QueueSweepWorker)
+  end
+
+  test "the chain goes on while a batch item awaits the SMTP result, with nothing queued or leased",
+       %{domain: domain} do
+    queue(domain, ~w(a))
+    email = "a@" <> domain
+    batch_uuid = awaiting_batch(email)
+    Repo.delete_all(Item)
+    Repo.delete_all(Oban.Job)
+
+    assert :ok = perform_job(QueueSweepWorker, %{})
+
+    assert Repo.get_by!(BatchItem, batch_uuid: batch_uuid, email: email).state == "awaiting_smtp"
+    assert_enqueued(worker: QueueSweepWorker)
+  end
+
+  test "a sweep that raises is logged and the next run is still scheduled", %{domain: domain} do
+    queue(domain, ~w(a))
+    Repo.delete_all(Oban.Job)
+    Repo.query!("ALTER TABLE phoenix_kit_email_verify_smtp_queue RENAME TO smtp_queue_gone")
+
+    log =
+      capture_log(fn ->
+        assert :ok = perform_job(QueueSweepWorker, %{})
+      end)
+
+    assert log =~ "the SMTP queue sweep failed"
+    assert [_one] = all_enqueued(worker: QueueSweepWorker)
   end
 
   test "with the mode off a run settles what is queued", %{domain: domain} do

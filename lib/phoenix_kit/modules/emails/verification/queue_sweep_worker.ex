@@ -15,7 +15,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.QueueSweepWorker do
     * finishes the batch items that wait for an address the queue no longer holds
       (`SmtpQueue.repair_stranded/0`).
 
-  Then it puts its successor on the queue and ends, while addresses are queued or leased
+  A sweep that raises is logged and does not end the chain: the successor is put on the
+  queue all the same. Then it puts its successor on the queue and ends, while addresses are queued or leased
   or batch items wait for the SMTP result. An empty queue ends the chain, and the next
   queued address starts it again (`schedule/1`, like `LocalRunnerWorker`). A host may also
   list the worker in its Oban crontab; a run that finds a job waiting adds nothing.
@@ -24,6 +25,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.QueueSweepWorker do
   use Oban.Worker, queue: :email_verification, max_attempts: 3
 
   import Ecto.Query
+
+  require Logger
 
   alias PhoenixKit.Modules.Emails.Verification.Batch
   alias PhoenixKit.Modules.Emails.Verification.BatchItem
@@ -53,8 +56,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.QueueSweepWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    sweep()
-    if work_left?(), do: schedule(), else: :ok
+    if sweep_failed?() or work_left_or_unknown?(), do: schedule(), else: :ok
   end
 
   @doc false
@@ -69,6 +71,27 @@ defmodule PhoenixKit.Modules.Emails.Verification.QueueSweepWorker do
 
     SmtpQueue.repair_stranded()
     :ok
+  end
+
+  # A sweep that raised (the database was away for a moment) must not end the chain:
+  # nothing would start it again until a new address is queued. The job still ends `:ok`,
+  # so Oban does not retry it on top of the successor; the unique insert keeps one job.
+  defp sweep_failed? do
+    sweep()
+    false
+  rescue
+    error ->
+      Logger.error(
+        "[Emails.Verification] the SMTP queue sweep failed: " <> Exception.message(error)
+      )
+
+      true
+  end
+
+  defp work_left_or_unknown? do
+    work_left?()
+  rescue
+    _ -> true
   end
 
   defp work_left? do

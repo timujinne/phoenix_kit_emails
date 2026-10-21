@@ -584,26 +584,25 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
     count
   end
 
-  defp expire(%Item{} = row, now) do
-    expiries = row.lease_expiries + 1
-    row = %{row | attempts: row.attempts + 1, lease_expiries: expiries}
-
-    if expiries >= Config.smtp_max_attempts() do
-      verdict = %{status: "not_sure", reason: "smtp_unavailable", level: "mx", catch_all: nil}
-      {:settled, batches} = settle_final(row, verdict, %{}, now)
-      batches
-    else
-      requeue(row, [lease_expiries: expiries], nil, "lease_expired", now, keep_lease: true)
-      []
-    end
-  end
-
   @unavailable_verdict %{
     status: "not_sure",
     reason: "smtp_unavailable",
     level: "mx",
     catch_all: nil
   }
+
+  defp expire(%Item{} = row, now) do
+    expiries = row.lease_expiries + 1
+    row = %{row | attempts: row.attempts + 1, lease_expiries: expiries}
+
+    if expiries >= Config.smtp_max_attempts() do
+      {:settled, batches} = settle_final(row, @unavailable_verdict, %{}, now)
+      batches
+    else
+      requeue(row, [lease_expiries: expiries], nil, "lease_expired", now, keep_lease: true)
+      []
+    end
+  end
 
   @doc """
   Gives up the rows that have waited in the queue longer than
