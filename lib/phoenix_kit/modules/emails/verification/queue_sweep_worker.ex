@@ -15,11 +15,13 @@ defmodule PhoenixKit.Modules.Emails.Verification.QueueSweepWorker do
     * finishes the batch items that wait for an address the queue no longer holds
       (`SmtpQueue.repair_stranded/0`).
 
-  A sweep that raises is logged and does not end the chain: the successor is put on the
-  queue all the same. Then it puts its successor on the queue and ends, while addresses are queued or leased
+  Then it puts its successor on the queue and ends, while addresses are queued or leased
   or batch items wait for the SMTP result. An empty queue ends the chain, and the next
   queued address starts it again (`schedule/1`, like `LocalRunnerWorker`). A host may also
   list the worker in its Oban crontab; a run that finds a job waiting adds nothing.
+
+  A sweep that raises is logged and does not end the chain: the successor is put on the
+  queue all the same.
   """
 
   use Oban.Worker, queue: :email_verification, max_attempts: 3

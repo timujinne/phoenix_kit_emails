@@ -184,7 +184,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
   @doc false
   # The connect wait, cut to what is left of the session: the limit counts from the start,
   # so a long connect wait must not outlive it. `:expired` when nothing is left.
-  @spec connect_budget(%{connect_ms: pos_integer()}, integer(), integer()) ::
+  @spec connect_budget(
+          %{required(:connect_ms) => pos_integer(), optional(atom()) => term()},
+          integer(),
+          integer()
+        ) ::
           {:ok, pos_integer()} | :expired
   def connect_budget(%{connect_ms: connect_ms}, hard, now) when hard > now,
     do: {:ok, min(connect_ms, hard - now)}
