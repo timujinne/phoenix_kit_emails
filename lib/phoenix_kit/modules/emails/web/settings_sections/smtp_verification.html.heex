@@ -1,0 +1,558 @@
+<div class="space-y-6" id={@id}>
+  <%!-- Who opens the SMTP connections. The change is saved at once (and a switch to
+       "off" settles what was waiting), like the switches of the sections next door.
+       Only "this server" asks first: until it is confirmed the radio shows the choice,
+       the saved mode does not change. --%>
+  <form id={"#{@id}-mode"} phx-change="set_mode" phx-target={@myself}>
+    <fieldset class="fieldset">
+      <legend class="fieldset-legend text-lg font-semibold">
+        {gettext("Mailbox check")}
+      </legend>
+
+      <label class="label flex w-full cursor-pointer items-start justify-start gap-3 whitespace-normal py-1">
+        <input
+          type="radio"
+          name="mode"
+          value="off"
+          class="radio radio-sm mt-0.5 shrink-0"
+          checked={@mode == "off" and not @confirm_local?}
+        />
+        <span class="min-w-0 flex-1">{gettext("Off — the domain only (the result is \"Domain OK, no SMTP\")")}</span>
+      </label>
+
+      <label class="label flex w-full cursor-pointer items-start justify-start gap-3 whitespace-normal py-1">
+        <input
+          type="radio"
+          name="mode"
+          value="local"
+          class="radio radio-sm mt-0.5 shrink-0"
+          checked={@mode == "local" or @confirm_local?}
+        />
+        <span class="min-w-0 flex-1">{gettext("This server — connections go from the site's IP address")}</span>
+      </label>
+      <p class="text-xs text-warning flex items-start gap-1 ml-9">
+        <.icon name="hero-exclamation-triangle" class="w-4 h-4 shrink-0" />
+        {gettext(
+          "Do not enable it if other sites share this IP address: a mail host that blocks it blocks them too."
+        )}
+      </p>
+
+      <label class="label flex w-full cursor-pointer items-start justify-start gap-3 whitespace-normal py-1">
+        <input
+          type="radio"
+          name="mode"
+          value="runner"
+          class="radio radio-sm mt-0.5 shrink-0"
+          checked={@mode == "runner" and not @confirm_local?}
+          disabled={@api_unavailable?}
+        />
+        <span class="min-w-0 flex-1">{gettext("Runner on your computer")}</span>
+      </label>
+      <p :if={@api_unavailable?} class="text-xs text-base-content/70 ml-9">
+        {gettext(
+          "This version of PhoenixKit has no machine API. The runner needs PhoenixKit 2.63 or newer."
+        )}
+      </p>
+    </fieldset>
+  </form>
+
+  <%!-- The runner: a remote one, or the built-in one of this server --%>
+  <div :if={@mode in ["runner", "local"]} class="card bg-base-200/40" id={"#{@id}-#{@mode}"}>
+    <div class="card-body p-4 space-y-4">
+      <%!-- What must be on in core first --%>
+      <div :for={precondition <- @preconditions} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <div class="text-sm space-y-2">
+          <%= case precondition do %>
+            <% :no_machine_api -> %>
+              <p>
+                {gettext(
+                  "This version of PhoenixKit has no machine API, so no runner can connect. Update PhoenixKit to 2.63 or newer."
+                )}
+              </p>
+            <% :api_admin_disabled -> %>
+              <p>
+                {gettext("The machine API is switched off, so the runner cannot connect.")}
+              </p>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  class="btn btn-warning btn-sm"
+                  phx-click="request_enable_api"
+                  phx-target={@myself}
+                  disabled={not @can_api?}
+                >
+                  {gettext("Enable the machine API")}
+                </button>
+                <span :if={not @can_api?} class="text-xs">
+                  {gettext("You need the API permission for this.")}
+                </span>
+                <.pk_link navigate={@api_settings_path} class="link text-sm">
+                  {gettext("Settings → API")}
+                </.pk_link>
+              </div>
+            <% :module_api_disabled -> %>
+              <p>
+                {gettext("The API of the Emails module is switched off, so the runner cannot connect.")}
+                <.pk_link navigate={@api_settings_path} class="link">
+                  {gettext("Settings → API")}
+                </.pk_link>
+              </p>
+            <% {:tools_hidden, names} -> %>
+              <p>
+                {gettext("These runner tools are hidden, so the runner cannot work: %{names}.",
+                  names: Enum.join(names, ", ")
+                )}
+                <.pk_link navigate={@api_settings_path} class="link">
+                  {gettext("Settings → API")}
+                </.pk_link>
+              </p>
+          <% end %>
+        </div>
+      </div>
+
+      <%!-- Status --%>
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <%!-- Only the state is announced to a screen reader, not the clock that ticks. --%>
+        <span class="sr-only" role="status" aria-live="polite">{@view.state_text}</span>
+        <span class={["inline-block size-2.5 rounded-full shrink-0", @view.dot]} aria-hidden="true">
+        </span>
+        <span :if={@view.paused} class="font-medium">
+          {gettext("Paused: %{reason}", reason: @view.paused.reason)}
+        </span>
+        <span :if={is_nil(@view.paused)} class="min-w-0 break-words">{Enum.join(@view.segments, " · ")}</span>
+        <button
+          :if={@view.paused}
+          type="button"
+          class="btn btn-xs btn-warning"
+          phx-click="clear_pause"
+          phx-target={@myself}
+        >
+          {gettext("Resume")}
+        </button>
+      </div>
+      <p :if={@view.paused} class="text-xs text-base-content/70 break-words">
+        {Enum.join(@view.segments, " · ")}
+      </p>
+
+      <div :if={@view.port25_blocked? and @mode == "runner"} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "Port 25 is closed on the runner's machine (the provider or a firewall). No mailbox can be checked from there."
+          )}
+        </span>
+      </div>
+
+      <div :if={@view.port25_blocked? and @mode == "local"} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "Port 25 is closed on this server (the host or a firewall). No mailbox can be checked from here; the server looks again every ten minutes."
+          )}
+        </span>
+      </div>
+
+      <div :if={@view.mail_from_missing? and @mode == "runner"} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "There is no usable sender address, so the runner starts no sessions. Set the sender in this card or in the settings of this page."
+          )}
+        </span>
+      </div>
+
+      <div :if={@view.mail_from_missing? and @mode == "local"} class="alert alert-warning py-2">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span class="text-sm">
+          {gettext(
+            "There is no usable sender address, so the server starts no sessions. Set the sender below or in the settings of this page."
+          )}
+        </span>
+      </div>
+
+      <%!-- The built-in runner: where the connections come from --%>
+      <p :if={@mode == "local" and @local_info} class="text-sm text-base-content/70 break-words">
+        {gettext(
+          "The checks run on this server (%{host}) and go out from its IP address, with the EHLO name %{helo}.",
+          host: @local_info.host,
+          helo: @local_info.helo
+        )}
+      </p>
+
+      <%!-- Whose key --%>
+      <div :if={@mode == "runner" and @view.owner} class="text-sm space-y-2">
+        <p class="text-base-content/70 break-words">
+          {gettext("The runner works with the key of %{who}.", who: @view.owner.who)}
+        </p>
+        <div :if={@view.owner.warning} class="alert alert-error py-2">
+          <.icon name="hero-no-symbol" class="w-5 h-5 shrink-0" />
+          <span>{@view.owner.warning}</span>
+        </div>
+      </div>
+
+      <%!-- Token --%>
+      <div :if={@mode == "runner"} class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="btn btn-primary btn-sm"
+          phx-click="issue_token"
+          phx-target={@myself}
+          disabled={not @can_api? or :no_machine_api in @preconditions}
+          data-confirm={
+            @active_keys > 0 &&
+              gettext("Issue a new token? The current token of the runner stops working.")
+          }
+        >
+          <.icon name="hero-key" class="w-4 h-4" />
+          {gettext("Issue a new token")}
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline btn-sm"
+          phx-click="revoke_token"
+          phx-target={@myself}
+          disabled={not @can_api? or @active_keys == 0}
+          data-confirm={gettext("Revoke the token? The runner stops within a minute.")}
+        >
+          {gettext("Revoke")}
+        </button>
+        <span :if={@scope_state == :known and not @can_api?} class="text-xs text-base-content/70">
+          {gettext("You need the API permission to issue a token.")}
+        </span>
+        <span :if={@scope_state == :unknown} class="text-xs text-base-content/70">
+          {gettext(
+            "Your account cannot be read here. Issue a key with the scope emails.smtp_runner:run in Settings → API."
+          )}
+        </span>
+      </div>
+
+      <%!-- Connecting --%>
+      <div :if={@mode == "runner"} class="text-sm space-y-2">
+        <h4 class="font-semibold">{gettext("Connecting")}</h4>
+        <ol class="list-decimal ml-5 space-y-2">
+          <li>
+            {gettext("Download the script to the computer the check will run from:")}
+            <a href={@script_path} download class="link font-mono">pk-smtp-runner.ps1</a>
+          </li>
+          <li>
+            {gettext("Start it in PowerShell, with the token issued here:")}
+            <pre class="bg-base-300/60 rounded p-2 mt-1 text-xs overflow-x-auto"><code>$env:PK_SMTP_RUNNER_TOKEN='&lt;token&gt;'
+powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server {@site_url}</code></pre>
+            <p class="text-xs text-base-content/70 mt-1">
+              {gettext("Or pass the token on the command line (it can then be seen in the process list):")}
+            </p>
+            <pre class="bg-base-300/60 rounded p-2 mt-1 text-xs overflow-x-auto"><code>powershell -ExecutionPolicy Bypass -File pk-smtp-runner.ps1 -Server {@site_url} -Token &lt;token&gt;</code></pre>
+            <p class="text-xs text-base-content/70 mt-1">
+              {gettext(
+                "A command typed in the console may be kept in the console history (older PowerShell versions save every line). Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
+              )}
+            </p>
+          </li>
+          <li>
+            {gettext(
+              "To start it with the computer, add -Install (a Task Scheduler job; the token is kept encrypted)."
+            )}
+          </li>
+          <li>{gettext("The status above turns to \"Online\".")}</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <%!-- Sender, HELO, numbers: nothing to set while no SMTP connection is opened. --%>
+  <form
+    :if={@mode != "off"}
+    id={"#{@id}-settings"}
+    phx-change="validate"
+    phx-submit="save"
+    phx-target={@myself}
+    class="space-y-4"
+  >
+    <p :if={@error_messages["base"]} role="alert" class="text-sm text-error">
+      {@error_messages["base"]}
+    </p>
+
+    <.input
+      id={"#{@id}-mail-from"}
+      name="smtp[mail_from]"
+      type="text"
+      label={gettext("Sender address (MAIL FROM)")}
+      value={@form["mail_from"]}
+      placeholder={@site_sender || ""}
+      errors={List.wrap(@error_messages["mail_from"])}
+      autocomplete="off"
+      aria-describedby={"#{@id}-mail-from-hint"}
+    />
+    <p id={"#{@id}-mail-from-hint"} class="text-xs text-base-content/70 -mt-3 break-words">
+      {gettext("Empty: the sender address of the site is used.")}
+      <%= case @view.mail_from_source do %>
+        <% :override -> %>
+          {gettext("In use: %{address} (set here).", address: @view.mail_from)}
+        <% :site_sender -> %>
+          {gettext("In use: %{address} (the sender address of the site).", address: @view.mail_from)}
+        <% :none -> %>
+          {gettext("There is no usable sender address; no session can start.")}
+      <% end %>
+    </p>
+
+    <.input
+      id={"#{@id}-helo"}
+      name="smtp[helo]"
+      type="text"
+      label={gettext("HELO name")}
+      value={@form["helo"]}
+      placeholder={gettext("automatic")}
+      errors={List.wrap(@error_messages["helo"])}
+      autocomplete="off"
+      aria-describedby={"#{@id}-helo-hint"}
+    />
+    <p id={"#{@id}-helo-hint"} class="text-xs text-base-content/70 -mt-3">
+      {gettext(
+        "Empty: the reverse DNS name of the runner's IP address; when it has none or the site sees a local address, the computer's own host name (in the \"this server\" mode, the name of this server)."
+      )}
+    </p>
+
+    <%!-- Open or shut is an assign, not a <details>: a patch of the section (the runner's
+         status moves every few seconds) would shut a DOM-only state. --%>
+    <div class="rounded-box bg-base-200/40">
+      <button
+        type="button"
+        class="flex w-full items-center justify-between gap-2 p-4 text-left text-sm font-semibold"
+        phx-click="toggle_advanced"
+        phx-target={@myself}
+        aria-expanded={to_string(@advanced_open?)}
+        aria-controls={"#{@id}-advanced"}
+      >
+        <span>
+          {gettext("Advanced")}
+          <span class="font-normal text-base-content/70">({@advanced_summary})</span>
+        </span>
+        <.icon
+          name={if @advanced_open?, do: "hero-chevron-up", else: "hero-chevron-down"}
+          class="w-4 h-4 shrink-0"
+        />
+      </button>
+      <div id={"#{@id}-advanced"} class={["px-4 pb-4", not @advanced_open? && "hidden"]}>
+        <p id={"#{@id}-lease-hint"} class="text-xs text-base-content/70">
+          {gettext(
+            "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s.",
+            limit: @session_limit_s,
+            floor: @lease_floor_s
+          )}
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 pt-2">
+          <.input
+            :for={input <- @number_inputs}
+            id={"#{@id}-#{input.field}"}
+            name={"smtp[#{input.field}]"}
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            label={input.label}
+            value={input.value}
+            errors={List.wrap(input.error)}
+            autocomplete="off"
+          />
+          <.input
+            id={"#{@id}-selftest-host"}
+            name="smtp[selftest_host]"
+            type="text"
+            label={gettext("Port 25 self-test host")}
+            value={@form["selftest_host"]}
+            placeholder={gettext("automatic")}
+            errors={List.wrap(@error_messages["selftest_host"])}
+            autocomplete="off"
+          />
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-sm">{gettext("Save")}</button>
+  </form>
+
+  <%!-- Connections from the site's own IP address: ask first. --%>
+  <.modal
+    show={@confirm_local?}
+    on_close="cancel_switch_local"
+    id={"#{@id}-switch-local-modal"}
+    max_width="md"
+  >
+    <:title>
+      <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
+      {gettext("Check mailboxes from this server?")}
+    </:title>
+
+    <div class="space-y-2 text-sm">
+      <p>
+        {gettext(
+          "The connections to other mail hosts will go out from the IP address of the server this site runs on."
+        )}
+      </p>
+      <p>
+        {gettext(
+          "Do not enable it if other sites share this IP address: a mail host that blocks it blocks them too."
+        )}
+      </p>
+      <p>
+        {gettext(
+          "On switching, the server tests whether its port 25 is open; if it is closed, no mailbox can be checked from here."
+        )}
+      </p>
+    </div>
+
+    <:actions>
+      <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_switch_local" phx-target={@myself}>
+        {gettext("Cancel")}
+      </button>
+      <button type="button" class="btn btn-warning btn-sm" phx-click="confirm_switch_local" phx-target={@myself}>
+        {gettext("Switch to this server")}
+      </button>
+    </:actions>
+  </.modal>
+
+  <%!-- Enabling the machine API turns on an API of the whole site: ask first. --%>
+  <.modal
+    show={@confirm_api?}
+    on_close="cancel_enable_api"
+    id={"#{@id}-enable-api-modal"}
+    max_width="md"
+  >
+    <:title>
+      <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
+      {gettext("Enable the machine API?")}
+    </:title>
+
+    <p class="text-sm">
+      {gettext(
+        "This switches on the admin API (/api/admin/v1) of the whole site: any API key with a suitable scope can call it. Keys are issued in Settings → API; the token issued here can only fetch and report SMTP verification jobs."
+      )}
+    </p>
+
+    <:actions>
+      <button type="button" class="btn btn-ghost btn-sm" phx-click="cancel_enable_api" phx-target={@myself}>
+        {gettext("Cancel")}
+      </button>
+      <button type="button" class="btn btn-warning btn-sm" phx-click="confirm_enable_api" phx-target={@myself}>
+        {gettext("Enable the machine API")}
+      </button>
+    </:actions>
+  </.modal>
+
+  <%!-- The token, once --%>
+  <.modal
+    show={@new_token != nil}
+    on_close="dismiss_token"
+    id={"#{@id}-token-modal"}
+    max_width="xl"
+    closeable={false}
+  >
+    <:title>
+      <.icon name="hero-key" class="w-5 h-5 text-success" />
+      {gettext("Copy the token now")}
+    </:title>
+
+    <div :if={@new_token} class="space-y-4">
+      <div class="alert alert-warning text-sm">
+        <.icon name="hero-exclamation-triangle" class="w-5 h-5 shrink-0" />
+        <span>
+          {gettext(
+            "The token is shown once. If it is lost, issue a new one."
+          )}
+        </span>
+      </div>
+
+      <p :if={@new_token.revoked > 0} class="text-sm">
+        {gettext("The previous token was revoked: there is one runner per site.")}
+      </p>
+      <p :if={@new_token.left > 0} class="text-sm text-warning">
+        {gettext("%{n} older token(s) of other admins still work. Revoke them in Settings → API.",
+          n: @new_token.left
+        )}
+      </p>
+
+      <div class="space-y-1">
+        <label class="label" for={"#{@id}-new-token"}>
+          <span class="font-semibold">{gettext("Token")}</span>
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            id={"#{@id}-new-token"}
+            type="text"
+            readonly
+            autocomplete="off"
+            spellcheck="false"
+            value={@new_token.token}
+            class="input w-full font-mono text-sm"
+          />
+          <button
+            type="button"
+            id={"#{@id}-copy-token"}
+            class="btn btn-sm btn-outline"
+            phx-hook="CopyToClipboard"
+            data-copy-target={"##{@id}-new-token"}
+          >
+            <span data-copy-idle>{gettext("Copy")}</span>
+            <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-1">
+        <label class="label" for={"#{@id}-new-env-command"}>
+          <span class="font-semibold">{gettext("Command for PowerShell")}</span>
+        </label>
+        <div class="flex items-start gap-2">
+          <textarea
+            id={"#{@id}-new-env-command"}
+            readonly
+            rows="3"
+            spellcheck="false"
+            class="textarea w-full font-mono text-xs"
+          >{@new_token.env_command}</textarea>
+          <button
+            type="button"
+            id={"#{@id}-copy-env-command"}
+            class="btn btn-sm btn-outline"
+            phx-hook="CopyToClipboard"
+            data-copy-target={"##{@id}-new-env-command"}
+          >
+            <span data-copy-idle>{gettext("Copy")}</span>
+            <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
+          </button>
+        </div>
+        <label class="label" for={"#{@id}-new-command"}>
+          <span class="text-xs">{gettext("Or pass the token on the command line (it can then be seen in the process list):")}</span>
+        </label>
+        <div class="flex items-start gap-2">
+          <textarea
+            id={"#{@id}-new-command"}
+            readonly
+            rows="2"
+            spellcheck="false"
+            class="textarea w-full font-mono text-xs"
+          >{@new_token.command}</textarea>
+          <button
+            type="button"
+            id={"#{@id}-copy-command"}
+            class="btn btn-sm btn-outline"
+            phx-hook="CopyToClipboard"
+            data-copy-target={"##{@id}-new-command"}
+          >
+            <span data-copy-idle>{gettext("Copy")}</span>
+            <span data-copy-feedback class="hidden">{gettext("Copied!")}</span>
+          </button>
+        </div>
+        <p class="text-xs text-base-content/70">
+          {gettext("A command typed in the console may be kept in the console history (older PowerShell versions save every line). Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile.")}
+        </p>
+      </div>
+    </div>
+
+    <:actions>
+      <button type="button" class="btn btn-primary btn-sm" phx-click="dismiss_token" phx-target={@myself}>
+        {gettext("I have copied the token")}
+      </button>
+    </:actions>
+  </.modal>
+</div>

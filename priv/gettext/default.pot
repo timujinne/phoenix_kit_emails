@@ -529,6 +529,7 @@ msgstr ""
 #: lib/phoenix_kit/modules/emails/web/emails.html.heex:799
 #: lib/phoenix_kit/modules/emails/web/metrics.html.heex:166
 #: lib/phoenix_kit/modules/emails/web/queue.html.heex:156
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:375
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:517
 #: lib/phoenix_kit/modules/emails/web/template_editor.html.heex:703
 #: lib/phoenix_kit/modules/emails/web/templates.html.heex:638
@@ -2999,6 +3000,7 @@ msgid "Recording"
 msgstr ""
 
 #: lib/phoenix_kit/modules/emails/web/settings_sections/amazon_ses_sqs.html.heex:282
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:352
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
@@ -3481,4 +3483,633 @@ msgstr ""
 #: lib/phoenix_kit/modules/emails/web/template_editor.ex:199
 #, elixir-autogen, elixir-format
 msgid "Every translation must be text. Nothing was saved."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:346
+#, elixir-autogen, elixir-format
+msgid "%{n} in the queue"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:352
+#, elixir-autogen, elixir-format
+msgid "%{n} min ago"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:410
+#, elixir-autogen, elixir-format
+msgid "%{n} older token(s) of other admins still work. Revoke them in Settings → API."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:351
+#, elixir-autogen, elixir-format
+msgid "%{n} s ago"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:448
+#, elixir-autogen, elixir-format
+msgid "%{rcpt} addresses per session, %{interval} s between sessions to a domain, greylist retry %{retry} min × %{attempts}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:443
+#, elixir-autogen, elixir-format
+msgid "A whole number above zero."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:412
+#, elixir-autogen, elixir-format
+msgid "Addresses per session"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:316
+#, elixir-autogen, elixir-format
+msgid "Advanced"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:444
+#, elixir-autogen, elixir-format
+msgid "At most %{max}."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:421
+#, elixir-autogen, elixir-format
+msgid "Blocks that pause a domain"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:444
+#, elixir-autogen, elixir-format
+msgid "Command for PowerShell"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:418
+#, elixir-autogen, elixir-format
+msgid "Connect timeout, s"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:230
+#, elixir-autogen, elixir-format
+msgid "Connecting"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:437
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:462
+#, elixir-autogen, elixir-format
+msgid "Copied!"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:436
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:461
+#, elixir-autogen, elixir-format
+msgid "Copy"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:393
+#, elixir-autogen, elixir-format
+msgid "Copy the token now"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Do not enable it if other sites share this IP address: a mail host that blocks it blocks them too."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:423
+#, elixir-autogen, elixir-format
+msgid "Domain pause, min"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:425
+#, elixir-autogen, elixir-format
+msgid "Domains those sessions must span"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:233
+#, elixir-autogen, elixir-format
+msgid "Download the script to the computer the check will run from:"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:299
+#, elixir-autogen, elixir-format
+msgid "Empty: the reverse DNS name of the runner's IP address; when it has none or the site sees a local address, the computer's own host name (in the \"this server\" mode, the name of this server)."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:276
+#, elixir-autogen, elixir-format
+msgid "Empty: the sender address of the site is used."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:83
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:378
+#, elixir-autogen, elixir-format
+msgid "Enable the machine API"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:364
+#, elixir-autogen, elixir-format
+msgid "Enable the machine API?"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:424
+#, elixir-autogen, elixir-format
+msgid "Failed sessions that pause the runner"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:476
+#, elixir-autogen, elixir-format
+msgid "Failed to save the mode"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:415
+#, elixir-autogen, elixir-format
+msgid "Greylist attempts"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:414
+#, elixir-autogen, elixir-format
+msgid "Greylist retry, min"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:291
+#, elixir-autogen, elixir-format
+msgid "HELO name"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:470
+#, elixir-autogen, elixir-format
+msgid "I have copied the token"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:279
+#, elixir-autogen, elixir-format
+msgid "In use: %{address} (set here)."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:281
+#, elixir-autogen, elixir-format
+msgid "In use: %{address} (the sender address of the site)."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:206
+#, elixir-autogen, elixir-format
+msgid "Issue a new token"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "Issue a new token? The current token of the runner stops working."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:441
+#, elixir-autogen, elixir-format
+msgid "Letters, digits, hyphens and dots only (or an address like [203.0.113.9])."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:417
+#, elixir-autogen, elixir-format
+msgid "Lost sessions before giving up"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Mailbox check"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/emails.ex:1075
+#, elixir-autogen, elixir-format
+msgid "Mailbox verification (SMTP)"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:619
+#, elixir-autogen, elixir-format
+msgid "Mailbox verification by SMTP is off"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:623
+#, elixir-autogen, elixir-format
+msgid "Mailbox verification by SMTP is off; %{n} addresses that were waiting for it were settled without it"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:629
+#, elixir-autogen, elixir-format
+msgid "Mailbox verification will run from this server"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:632
+#, elixir-autogen, elixir-format
+msgid "Mailbox verification will run through the runner"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:436
+#, elixir-autogen, elixir-format
+msgid "Not a usable sender address (an address on example.com or localhost does not count)."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:288
+#, elixir-autogen, elixir-format
+msgid "Not connected yet"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:18
+#, elixir-autogen, elixir-format
+msgid "Off — the domain only (the result is \"Domain OK, no SMTP\")"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:413
+#, elixir-autogen, elixir-format
+msgid "Pause between sessions to a domain, s"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:272
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:119
+#, elixir-autogen, elixir-format
+msgid "Paused: %{reason}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "Port 25 is closed on the runner's machine (the provider or a firewall). No mailbox can be checked from there."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:342
+#, elixir-autogen, elixir-format
+msgid "Port 25 self-test host"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:419
+#, elixir-autogen, elixir-format
+msgid "Read timeout, s"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:129
+#, elixir-autogen, elixir-format
+msgid "Resume"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:216
+#, elixir-autogen, elixir-format
+msgid "Revoke"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Revoke the token? The runner stops within a minute."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Runner on your computer"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:426
+#, elixir-autogen, elixir-format
+msgid "Runner pause, min"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:420
+#, elixir-autogen, elixir-format
+msgid "Runner poll when idle, s"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "Sender address (MAIL FROM)"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:495
+#, elixir-autogen, elixir-format
+msgid "Settings saved"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:89
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:96
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Settings → API"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:508
+#, elixir-autogen, elixir-format
+msgid "Some fields are not valid"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:237
+#, elixir-autogen, elixir-format
+msgid "Start it in PowerShell, with the token issued here:"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:645
+#, elixir-autogen, elixir-format
+msgid "That action is not available."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "The API of the Emails module is switched off, so the runner cannot connect."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:561
+#, elixir-autogen, elixir-format
+msgid "The machine API could not be switched on"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:558
+#, elixir-autogen, elixir-format
+msgid "The machine API is on"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:73
+#, elixir-autogen, elixir-format
+msgid "The machine API is switched off, so the runner cannot connect."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:407
+#, elixir-autogen, elixir-format
+msgid "The previous token was revoked: there is one runner per site."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:514
+#, elixir-autogen, elixir-format
+msgid "The runner is no longer paused"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:472
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:615
+#, elixir-autogen, elixir-format
+msgid "The runner needs the machine API of PhoenixKit 2.63 or newer."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:372
+#, elixir-autogen, elixir-format
+msgid "The runner will stop: the owner of its key, %{who}, is deactivated. Issue a new token."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:379
+#, elixir-autogen, elixir-format
+msgid "The runner will stop: the owner of its key, %{who}, no longer has the \"emails\" permission. Issue a new token."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:184
+#, elixir-autogen, elixir-format
+msgid "The runner works with the key of %{who}."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:388
+#, elixir-autogen, elixir-format
+msgid "The runner's token has expired, so the runner has stopped. Issue a new token."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:385
+#, elixir-autogen, elixir-format
+msgid "The runner's token was revoked, so the runner has stopped. Issue a new token."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:445
+#, elixir-autogen, elixir-format
+msgid "The settings could not be saved."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:245
+#, elixir-autogen, elixir-format
+msgid "The status above turns to \"Online\"."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:638
+#, elixir-autogen, elixir-format
+msgid "The token belongs to another admin and was not revoked. Revoke it in Settings → API."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:617
+#, elixir-autogen, elixir-format
+msgid "The token could not be issued"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:536
+#, elixir-autogen, elixir-format
+msgid "The token could not be revoked"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:400
+#, elixir-autogen, elixir-format
+msgid "The token is shown once. If it is lost, issue a new one."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "There is no usable sender address, so the runner starts no sessions. Set the sender in this card or in the settings of this page."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:283
+#, elixir-autogen, elixir-format
+msgid "There is no usable sender address; no session can start."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:530
+#, elixir-autogen, elixir-format
+msgid "There was no active token to revoke"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:101
+#, elixir-autogen, elixir-format
+msgid "These runner tools are hidden, so the runner cannot work: %{names}."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "This server — connections go from the site's IP address"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:368
+#, elixir-autogen, elixir-format
+msgid "This switches on the admin API (/api/admin/v1) of the whole site: any API key with a suitable scope can call it. Keys are issued in Settings → API; the token issued here can only fetch and report SMTP verification jobs."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "This version of PhoenixKit has no machine API, so no runner can connect. Update PhoenixKit to 2.63 or newer."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:50
+#, elixir-autogen, elixir-format
+msgid "This version of PhoenixKit has no machine API. The runner needs PhoenixKit 2.63 or newer."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:416
+#, elixir-autogen, elixir-format
+msgid "Time to finish a session, s"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "To start it with the computer, add -Install (a Task Scheduler job; the token is kept encrypted)."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:417
+#, elixir-autogen, elixir-format
+msgid "Token"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:634
+#, elixir-autogen, elixir-format
+msgid "Token revoked"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:643
+#, elixir-autogen, elixir-format
+msgid "Token revoked; %{left} more belong to other admins and still work"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:422
+#, elixir-autogen, elixir-format
+msgid "Window for those blocks, min"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:658
+#, elixir-autogen, elixir-format
+msgid "You are not allowed to do that."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "You need the API permission for this."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:606
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:219
+#, elixir-autogen, elixir-format
+msgid "You need the API permission to issue a token."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:222
+#, elixir-autogen, elixir-format
+msgid "Your account cannot be read here. Issue a key with the scope emails.smtp_runner:run in Settings → API."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:610
+#, elixir-autogen, elixir-format
+msgid "Your account cannot hold the runner token: it needs the \"emails\" permission, and the runner tools must not be hidden in Settings → API."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:294
+#, elixir-autogen, elixir-format
+msgid "answered %{ago}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:293
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:344
+#, elixir-autogen, elixir-format
+msgid "automatic"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:305
+#, elixir-autogen, elixir-format
+msgid "last seen %{at}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:276
+#, elixir-autogen, elixir-format
+msgid "no reason recorded"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:342
+#, elixir-autogen, elixir-format
+msgid "port 25 closed"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:341
+#, elixir-autogen, elixir-format
+msgid "port 25 open"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:304
+#, elixir-autogen, elixir-format
+msgctxt "smtp runner status"
+msgid "Offline"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:293
+#, elixir-autogen, elixir-format
+msgctxt "smtp runner status"
+msgid "Online"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:314
+#, elixir-autogen, elixir-format
+msgid "Not started yet"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:148
+#, elixir-autogen, elixir-format
+msgid "Port 25 is closed on this server (the host or a firewall). No mailbox can be checked from here; the server looks again every ten minutes."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:174
+#, elixir-autogen, elixir-format
+msgid "The checks run on this server (%{host}) and go out from its IP address, with the EHLO name %{helo}."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:166
+#, elixir-autogen, elixir-format
+msgid "There is no usable sender address, so the server starts no sessions. Set the sender below or in the settings of this page."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:330
+#, elixir-autogen, elixir-format
+msgid "last cycle %{at}"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:329
+#, elixir-autogen, elixir-format
+msgctxt "smtp local runner status"
+msgid "Not responding"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:338
+#, elixir-autogen, elixir-format
+msgctxt "smtp local runner status"
+msgid "Ready"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:339
+#, elixir-autogen, elixir-format
+msgctxt "smtp local runner status"
+msgid "Working"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:366
+#, elixir-autogen, elixir-format
+msgid "Check mailboxes from this server?"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:372
+#, elixir-autogen, elixir-format
+msgid "The connections to other mail hosts will go out from the IP address of the server this site runs on."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:382
+#, elixir-autogen, elixir-format
+msgid "On switching, the server tests whether its port 25 is open; if it is closed, no mailbox can be checked from here."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:392
+#, elixir-autogen, elixir-format
+msgid "Switch to this server"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:239
+#, elixir-autogen, elixir-format
+msgid "Or pass the token on the command line (it can then be seen in the process list):"
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex
+#, elixir-autogen, elixir-format
+msgid "A command typed in the console may be kept in the console history (older PowerShell versions save every line). Where that matters, run the script without a token and type it at the hidden prompt, or use -TokenFile."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.ex:448
+#, elixir-autogen, elixir-format
+msgid "At least %{min}."
+msgstr ""
+
+#: lib/phoenix_kit/modules/emails/web/settings_sections/smtp_verification.html.heex:333
+#, elixir-autogen, elixir-format
+msgid "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s."
 msgstr ""

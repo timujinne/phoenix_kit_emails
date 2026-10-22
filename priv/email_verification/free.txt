@@ -1,0 +1,136 @@
+# Major free mailbox providers. One lowercase domain per line. A "name.*" line
+# matches the name followed by any TLD / second-level suffix (yahoo.com, yahoo.co.uk).
+# A listed domain does not cover its subdomains. Hand-curated, no third-party source;
+# the list is a flag only (free = true), it never changes a verdict. See SOURCES.md.
+# --- global ---
+gmail.com
+googlemail.com
+outlook.*
+hotmail.*
+live.*
+msn.com
+windowslive.com
+yahoo.*
+ymail.com
+rocketmail.com
+aol.*
+icloud.com
+me.com
+mac.com
+protonmail.com
+protonmail.ch
+proton.me
+pm.me
+mail.com
+email.com
+zoho.com
+zohomail.eu
+tutanota.com
+tutanota.de
+tuta.com
+tuta.io
+fastmail.com
+fastmail.fm
+hushmail.com
+gmx.*
+yandex.*
+ya.ru
+mail.ru
+inbox.ru
+list.ru
+bk.ru
+internet.ru
+rambler.ru
+lenta.ru
+autorambler.ru
+# --- Germany / Austria / Switzerland ---
+web.de
+t-online.de
+freenet.de
+arcor.de
+bluewin.ch
+# --- Czechia / Slovakia / Poland ---
+seznam.cz
+email.cz
+post.cz
+centrum.cz
+atlas.cz
+volny.cz
+zoznam.sk
+azet.sk
+wp.pl
+o2.pl
+onet.pl
+onet.eu
+interia.pl
+interia.eu
+op.pl
+poczta.fm
+tlen.pl
+gazeta.pl
+# --- Bulgaria / Romania / Hungary ---
+abv.bg
+mail.bg
+dir.bg
+gbg.bg
+yahoo.ro
+freemail.hu
+citromail.hu
+# --- Baltics ---
+mail.ee
+hot.ee
+online.ee
+neti.ee
+zone.ee
+inbox.lv
+mail.lv
+one.lv
+tvnet.lv
+inbox.lt
+takas.lt
+zebra.lt
+delfi.lt
+# --- Ukraine / Belarus / Kazakhstan ---
+ukr.net
+i.ua
+meta.ua
+email.ua
+bigmir.net
+ua.fm
+tut.by
+mail.kz
+# --- France / Italy / Spain / Portugal ---
+orange.fr
+wanadoo.fr
+free.fr
+laposte.net
+sfr.fr
+neuf.fr
+libero.it
+virgilio.it
+tiscali.it
+alice.it
+tin.it
+terra.es
+sapo.pt
+# --- UK / USA / elsewhere ---
+btinternet.com
+sky.com
+virginmedia.com
+talktalk.net
+comcast.net
+verizon.net
+att.net
+sbcglobal.net
+bellsouth.net
+cox.net
+charter.net
+earthlink.net
+qq.com
+163.com
+126.com
+sina.com
+naver.com
+daum.net
+hanmail.net
+rediffmail.com

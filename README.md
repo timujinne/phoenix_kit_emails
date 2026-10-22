@@ -324,6 +324,29 @@ lib/
 | `phoenix_kit_email_events` | Delivery/bounce/complaint/open/click events |
 | `phoenix_kit_email_templates` | Reusable email templates |
 
+## Address verification
+
+`PhoenixKit.Modules.Emails.Verification` checks e-mail addresses (syntax, word
+lists, DNS MX) and stores one verdict per address; `Verification.start_batch/4`
+verifies a whole list in the background, with progress on a PubSub topic. Batches
+run on the Oban queue `email_verification`, which the host's Oban config must
+declare (core 2.28.0 and later adds it on install/update; with an older core, or
+an app that was set up before, add it by hand):
+
+```elixir
+config :my_app, Oban, queues: [email_verification: 5, ...]
+```
+
+`Verification.queue_configured?/0` tells whether it is there. The mailbox (SMTP)
+check is off by default (`email_verify_smtp_mode` is `off`). With the mode `runner`
+the server never opens a connection to port 25 itself: it queues the addresses and
+a runner on the user's own machine, authenticated by an API key of core's machine
+API (core 2.63.0 and later), takes the work and reports what the mail hosts said.
+With the mode `local` the site's own server does the checking, from its own IP
+address (a built-in runner on the same queue, with the same pauses and throttling);
+leave it off when other sites share that address.
+See [docs/smtp-runner.md](https://github.com/BeamLabEU/phoenix_kit_emails/blob/main/docs/smtp-runner.md) for the runner script.
+
 ## Development
 
 ```bash

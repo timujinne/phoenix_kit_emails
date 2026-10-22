@@ -71,3 +71,28 @@ config :phoenix_kit,
 # `Req.Test.stub/2` inside each test) actually varies.
 config :phoenix_kit_emails,
   brevo_client_req_options: [plug: {Req.Test, PhoenixKit.Modules.Emails.BrevoPollingJobTest.Stub}]
+
+# No pause before a negative DNS answer is confirmed: tests script the answers.
+config :phoenix_kit_emails, verification_confirm_pause_ms: 0
+
+# No test may reach the real DNS by accident: unless a test hands a resolver to the
+# call itself, the answers come from the scripted fake (an unscripted domain is
+# `:nxdomain`). The one live-DNS test is tagged `:external`.
+config :phoenix_kit_emails, verification_resolver: PhoenixKitEmails.Test.FakeResolver
+
+# The built-in SMTP runner (mode "local") may connect to the loopback interface only, and
+# to port 1 unless a test hands it the port of its own fake mail host: no test can reach
+# a real mail server, whatever it forgets to script.
+config :phoenix_kit_emails,
+  verification_smtp_loopback_only: true,
+  verification_smtp_port: 1
+
+# Users are registered for real in the tests of the API and the settings section (each
+# needs a password hash): the cheapest bcrypt cost keeps those tests fast.
+config :bcrypt_elixir, log_rounds: 4
+
+# The endpoint behind the LiveView tests of the settings sections (nothing listens).
+config :phoenix_kit_emails, PhoenixKitEmails.Test.LiveEndpoint,
+  server: false,
+  secret_key_base: "test_secret_key_base_at_least_64_bytes_long_for_phoenix_kit_emails_live",
+  live_view: [signing_salt: "emails_live_test"]

@@ -1,0 +1,2 @@
+# Address patterns that always get the fake flag (flag only, never a verdict), on top
+# of the built-in heuristic. Shipped empty; a host adds its own. Same entry forms as typos.txt.

@@ -117,7 +117,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Install do
     Next steps:
     1. Run `mix deps.get` if you haven't already
     2. Add Oban queues AND the reconcile Cron entry to config/config.exs —
-       ALL FOUR queues below are required (not just emails/sqs_polling):
+       ALL queues below are required (not just emails/sqs_polling):
        one per event-tracker chain (sqs_polling, brevo_polling), plus
        event_tracker_reconcile for the tracker-lifecycle correctness
        backbone (see PhoenixKit.Modules.Emails.EventTrackerReconcileWorker's
@@ -131,7 +131,8 @@ defmodule Mix.Tasks.PhoenixKitEmails.Install do
              sqs_polling: 1,
              brevo_polling: 1,
              event_tracker_reconcile: 1,
-             email_archival: 1
+             email_archival: 1,
+             email_verification: 5
            ],
            plugins: [
              Oban.Plugins.Pruner,
@@ -142,6 +143,11 @@ defmodule Mix.Tasks.PhoenixKitEmails.Install do
                 {"0 * * * *", PhoenixKit.Modules.Emails.ArchiveWorker}
               ]}
            ]
+
+       The `email_verification` queue runs the e-mail address verification
+       batches (`Verification.start_batch/4`); without it those jobs are
+       stored and never run. Its limit is how many addresses one node checks
+       at once.
 
        The `email_archival` entry is what gives S3 archival a schedule.
        Without it the feature is inert no matter what the settings page
