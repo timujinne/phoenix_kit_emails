@@ -106,7 +106,7 @@
                           <label class="text-sm font-medium text-base-content/70">
                             {gettext("Template")}
                           </label>
-                          <div class="flex items-center gap-2">
+                          <div class="flex flex-wrap items-center gap-2">
                             <span class="badge badge-primary badge-sm h-auto">
                               {@email_log.template_name}
                             </span>
@@ -117,6 +117,10 @@
                             >
                               {gettext("View related emails")}
                             </button>
+                            <SourceBadges.log_source
+                              log={@email_log}
+                              template_exists?={@log_template_exists?}
+                            />
                           </div>
                         </div>
                       <% end %>

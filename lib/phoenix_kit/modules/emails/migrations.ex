@@ -158,6 +158,20 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   so no DDL is involved. Nothing is dropped and no existing row changes. `down/1`
   leaves all of it standing.
 
+  ## What V6 is
+
+  Two nullable columns on `phoenix_kit_email_logs` (#48): `template_uuid` (the
+  database row the message was built from) and `template_source` (`"db"`,
+  `"file"` or `"module"`; `NULL` for a message without a template). Core
+  resolves `active row -> host file override -> module default`, but its
+  `send_from_template` passes only the row's uuid and the notification mails
+  pass no layer at all, so the layer is derived in
+  `PhoenixKit.Modules.Emails.TemplateSources.origin/3`.
+
+  Nullable, no default, no foreign key: older rows genuinely have no known layer
+  and a deleted template must not break its log lines. `down/1` only moves the
+  marker, as everywhere in this chain.
+
   ## Which tables, and which one is NOT here
 
   Adopted: `phoenix_kit_email_logs`, `phoenix_kit_email_events`,
@@ -317,7 +331,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
 
   use Ecto.Migration
 
-  @current_version 5
+  @current_version 6
   @marker_prefix "pke_schema:"
   @version_table "phoenix_kit_email_logs"
 
@@ -561,7 +575,14 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     # V5. How many items of a batch wait for their SMTP result (batch item state
     # `awaiting_smtp`). A counter and not a query: it is broadcast with every
     # progress message of a batch of up to a hundred thousand addresses.
-    {5, "phoenix_kit_email_verify_batches", "\"awaiting_smtp\" integer DEFAULT 0 NOT NULL"}
+    {5, "phoenix_kit_email_verify_batches", "\"awaiting_smtp\" integer DEFAULT 0 NOT NULL"},
+    # V6. Which layer built the message (#48): the database row (`template_uuid`
+    # is its uuid) or, without one, `"file"` / `"module"`. Both nullable, no
+    # default and no foreign key: every older row has no known layer, a deleted
+    # template must not take its log lines with it, and `template_source` is a
+    # short label the schema validates.
+    {6, "phoenix_kit_email_logs", "\"template_uuid\" uuid"},
+    {6, "phoenix_kit_email_logs", "\"template_source\" character varying(16)"}
   ]
 
   # `{version, statement}` — see `@owned_columns` for why the tag exists.

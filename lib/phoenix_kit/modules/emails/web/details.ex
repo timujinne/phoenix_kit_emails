@@ -45,6 +45,8 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.BrevoOnDemandSync
   alias PhoenixKit.Modules.Emails.Log
+  alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKit.Modules.Emails.Web.SourceBadges
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.Routes
 
@@ -65,6 +67,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
         |> assign(:email_log, nil)
         |> assign(:events, [])
         |> assign(:related_emails, [])
+        |> assign(:log_template_exists?, false)
         |> assign(:loading, true)
         |> assign(:syncing, false)
         |> assign(:page_title, gettext("Email Details"))
@@ -223,6 +226,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
       |> assign(:email_log, email_log)
       |> assign(:events, events)
       |> assign(:related_emails, related_emails)
+      |> assign(:log_template_exists?, template_exists?(email_log))
       |> assign(:loading, false)
       |> assign(:show_headers, false)
       |> assign(:show_body, false)
@@ -233,6 +237,7 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
         |> assign(:email_log, nil)
         |> assign(:events, [])
         |> assign(:related_emails, [])
+        |> assign(:log_template_exists?, false)
         |> assign(:loading, false)
 
       error ->
@@ -243,6 +248,12 @@ defmodule PhoenixKit.Modules.Emails.Web.Details do
         |> put_flash(:error, gettext("Failed to load email data"))
     end
   end
+
+  # The link to the row is drawn only while the row still exists.
+  defp template_exists?(%Log{template_source: "db", template_uuid: uuid}) when is_binary(uuid),
+    do: Templates.get_template(uuid) != nil
+
+  defp template_exists?(_log), do: false
 
   # Get related emails (same campaign or template)
   defp get_related_emails(%Log{

@@ -347,6 +347,9 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
     {:noreply, assign(socket, :changeset, updated_changeset)}
   end
 
+  defp saved_template_uuid(%{assigns: %{template: %Template{uuid: uuid}}}), do: uuid
+  defp saved_template_uuid(_socket), do: nil
+
   ## --- Info Handlers ---
 
   @impl true
@@ -373,8 +376,13 @@ defmodule PhoenixKit.Modules.Emails.Web.TemplateEditor do
 
     # skip_queue: the flash below reports the outcome, so the send must be the
     # real one — a queued test would report success before anything was sent.
+    # What is sent is the editor's form, which may hold unsaved edits, so it is
+    # the database template's content when the template has been saved; a new
+    # one has no row and no layer to name.
     case PhoenixKit.Mailer.deliver_email(email,
            template_name: temp_template.name,
+           template_uuid: saved_template_uuid(socket),
+           template_source: if(saved_template_uuid(socket), do: "db"),
            campaign_id: "template_test",
            skip_queue: true
          ) do

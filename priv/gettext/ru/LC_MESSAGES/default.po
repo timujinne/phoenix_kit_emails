@@ -4166,6 +4166,41 @@ msgstr "Не меньше %{min}."
 msgid "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s."
 msgstr "Сессия может идти до %{limit} с, поэтому время на завершение сессии не может быть меньше %{floor} с."
 
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Database template"
+msgstr "Шаблон из базы данных"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "File override"
+msgstr "Файловый оверрайд"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Default template"
+msgstr "Шаблон по умолчанию"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Open template"
+msgstr "Открыть шаблон"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a template stored in the database."
+msgstr "Письмо собрано из шаблона, хранящегося в базе данных."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a file override supplied by the host."
+msgstr "Письмо собрано из файлового оверрайда, который предоставил хост."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a default: one shipped by core or a module, or supplied by the host in code."
+msgstr "Письмо собрано из шаблона по умолчанию: его поставляет ядро или модуль, либо хост задаёт его в коде."
+
 #, elixir-autogen, elixir-format
 msgid "Process Amazon SES events"
 msgstr "Обработка событий Amazon SES"

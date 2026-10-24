@@ -18,6 +18,7 @@ defmodule PhoenixKit.Modules.Emails.TemplateSources do
   """
 
   alias PhoenixKit.Modules.Emails.Template
+  alias PhoenixKit.Modules.Emails.Templates
 
   require Logger
 
@@ -69,6 +70,99 @@ defmodule PhoenixKit.Modules.Emails.TemplateSources do
   end
 
   def layers(_template, _sources), do: []
+
+  @typedoc "`{source, template_uuid}` of `origin/3`."
+  @type origin :: {String.t() | nil, String.t() | nil}
+
+  @doc """
+  The layer that built a message, for the log: `{source, template_uuid}`.
+
+  `source` is `"db"`, `"file"` or `"module"`, and it is `nil` whenever there is
+  no direct evidence of one. Core names the row (`template_uuid`) only on
+  `send_from_template`, and not on the notification mails that resolve a
+  template themselves, so the answer is looked up from the name, cheapest
+  decisive evidence first:
+
+    1. `uuid` is a valid uuid: that row, `{"db", uuid}`.
+    2. An active row has the name: `{"db", row_uuid}`. Core resolves this layer
+       first, so a row that is there is the one a send used.
+    3. A host file override of the name exists for the message's `:locale`
+       (a locale, its base language or the locale-less file; any content part):
+       `{"file", nil}`. A file for another locale does not count.
+    4. The name is in the catalog of defaults (core's, an enabled module's):
+       `{"module", nil}`.
+    5. Otherwise `{nil, nil}`: a message with its own content and a name that
+       nothing resolves, such as a test send.
+
+  Every lookup is one indexed query, a cached file probe (`Overrides.locate/4`
+  caches absence too) or an in-memory list; nothing scans the override roots.
+  Never raises.
+
+  Options: `:locale`, and for a host with files elsewhere and for tests the same
+  `:roots`, `:overrides`, `:content`, `:catalog` as `load/1`.
+  """
+  @spec origin(term(), term(), keyword()) :: origin()
+  def origin(name, uuid, opts \\ [])
+
+  def origin(name, _uuid, _opts) when not is_binary(name) or name == "", do: {nil, nil}
+
+  def origin(name, uuid, opts) do
+    case cast_uuid(uuid) do
+      nil -> origin_by_name(name, opts)
+      uuid -> {"db", uuid}
+    end
+  rescue
+    error -> failed("the source of #{inspect(name)}", error, {nil, nil})
+  catch
+    :exit, _ -> {nil, nil}
+  end
+
+  @doc "A well-formed uuid string, or `nil` (a log must not fail over a bad one)."
+  @spec cast_uuid(term()) :: String.t() | nil
+  def cast_uuid(uuid) when is_binary(uuid) and byte_size(uuid) == 36 do
+    case Ecto.UUID.cast(uuid) do
+      {:ok, uuid} -> uuid
+      :error -> nil
+    end
+  end
+
+  def cast_uuid(_uuid), do: nil
+
+  defp origin_by_name(name, opts) do
+    cond do
+      match?(%Template{}, row = Templates.get_active_template_by_name(name)) -> {"db", row.uuid}
+      file_override?(name, opts) -> {"file", nil}
+      has_default?(name, opts) -> {"module", nil}
+      true -> {nil, nil}
+    end
+  end
+
+  defp file_override?(name, opts) do
+    overrides = Keyword.get(opts, :overrides, PhoenixKit.Templates.Overrides)
+    content = Keyword.get(opts, :content, PhoenixKit.Email.Content)
+
+    if exported?(overrides, :locate, 4) and
+         (Keyword.has_key?(opts, :roots) or exported?(content, :override_paths, 0)) do
+      roots = Keyword.get_lazy(opts, :roots, fn -> content.override_paths() end)
+      locale = Keyword.get(opts, :locale)
+
+      Enum.any?(@content_parts, fn part ->
+        case overrides.locate(roots, name, part, locale) do
+          {_path, text} when is_binary(text) -> String.trim(text) != ""
+          _ -> false
+        end
+      end)
+    else
+      false
+    end
+  end
+
+  defp has_default?(name, opts) do
+    catalog = Keyword.get(opts, :catalog, PhoenixKit.Email.Catalog)
+
+    exported?(catalog, :entries, 0) and
+      Enum.any?(catalog.entries(), &(&1.name == name and has_defaults?(&1)))
+  end
 
   defp load_overrides(opts) do
     overrides = Keyword.get(opts, :overrides, PhoenixKit.Templates.Overrides)

@@ -17,6 +17,8 @@ defmodule PhoenixKit.Modules.Emails.Log do
   - `body_preview`: Preview of email content (first 500+ characters)
   - `body_full`: Complete email body content (optional, settings-controlled)
   - `template_name`: Name/identifier of email template used
+  - `template_uuid`: Database template row the message was built from, if any
+  - `template_source`: Layer that built the message: `"db"`, `"file"` or `"module"`
   - `campaign_id`: Campaign or group identifier for analytics
   - `attachments_count`: Number of email attachments
   - `size_bytes`: Total email size in bytes
@@ -170,6 +172,8 @@ defmodule PhoenixKit.Modules.Emails.Log do
   alias PhoenixKit.Modules.Emails.Event
   alias PhoenixKit.Utils.Date, as: UtilsDate
   alias PhoenixKit.Utils.UUID, as: UUIDUtils
+  @template_sources ~w(db file module)
+
   @primary_key {:uuid, UUIDv7, autogenerate: true}
 
   @type t :: %__MODULE__{}
@@ -184,6 +188,8 @@ defmodule PhoenixKit.Modules.Emails.Log do
     field(:body_preview, :string)
     field(:body_full, :string)
     field(:template_name, :string)
+    field(:template_uuid, UUIDv7)
+    field(:template_source, :string)
     field(:locale, :string, default: "en")
     field(:campaign_id, :string)
     field(:attachments_count, :integer, default: 0)
@@ -258,6 +264,8 @@ defmodule PhoenixKit.Modules.Emails.Log do
       :body_preview,
       :body_full,
       :template_name,
+      :template_uuid,
+      :template_source,
       :locale,
       :campaign_id,
       :attachments_count,
@@ -288,6 +296,7 @@ defmodule PhoenixKit.Modules.Emails.Log do
     |> validate_email_format(:from)
     # RFC 2822 limit
     |> validate_length(:subject, max: 998)
+    |> validate_inclusion(:template_source, @template_sources)
     |> validate_number(:attachments_count, greater_than_or_equal_to: 0)
     |> validate_number(:size_bytes, greater_than_or_equal_to: 0)
     |> validate_number(:retry_count, greater_than_or_equal_to: 0)

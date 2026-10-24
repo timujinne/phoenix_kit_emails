@@ -146,6 +146,8 @@ defmodule PhoenixKit.Modules.Emails.Provider do
         email
         |> PhoenixKit.Mailer.deliver_email(
           template_name: template.name,
+          template_uuid: template.uuid,
+          template_source: "db",
           user_uuid: user_uuid,
           source_module: "emails",
           skip_queue: true
@@ -165,8 +167,10 @@ defmodule PhoenixKit.Modules.Emails.Provider do
             "Test Email\nSent at #{timestamp}\nRecipient: #{recipient_email}"
           )
 
+        # The body is built in code above: no template layer built it.
         PhoenixKit.Mailer.deliver_email(email,
           template_name: "test_email",
+          template_source: nil,
           user_uuid: user_uuid,
           source_module: "emails",
           skip_queue: true

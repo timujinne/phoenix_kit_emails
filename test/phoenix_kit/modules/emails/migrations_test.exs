@@ -557,8 +557,10 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"archived_at\" timestamp with time zone",
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
                "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"s3_key\" text",
+               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"template_source\" character varying(16)",
+               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"template_uuid\" uuid",
                "ALTER TABLE public.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"awaiting_smtp\" integer DEFAULT 0 NOT NULL",
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:5'",
+               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:6'",
                "CREATE EXTENSION IF NOT EXISTS citext"
              ]
     end
@@ -674,7 +676,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
     test "the adoption half is emitted at every version" do
       # Adoption is not versioned: it is "the tables core already made", and a
       # pinned version must still repair a missing one.
-      for version <- [1, 2, 3, 4, 5] do
+      for version <- [1, 2, 3, 4, 5, 6] do
         statements = Migrations.up_statements("public", version)
 
         assert Enum.any?(statements, &String.contains?(&1, "phoenix_kit_email_logs")),
@@ -693,8 +695,8 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       phoenix_kit_email_verify_runners
     )
 
-    test "the chain is at version 5 and owns exactly the six tables of the verification engine and the SMTP stage" do
-      assert Migrations.current_version() == 5
+    test "the chain is at version 6 and owns exactly the six tables of the verification engine and the SMTP stage" do
+      assert Migrations.current_version() == 6
       assert Migrations.owned_tables() == @owned_tables
     end
 

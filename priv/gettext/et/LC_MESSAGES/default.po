@@ -4166,6 +4166,41 @@ msgstr "Vähemalt %{min}."
 msgid "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s."
 msgstr "Seanss võib kesta kuni %{limit} s, seega ei saa seansi lõpetamise aeg olla lühem kui %{floor} s."
 
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Database template"
+msgstr "Andmebaasi mall"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "File override"
+msgstr "Failipõhine ülekirjutus"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Default template"
+msgstr "Vaikemall"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Open template"
+msgstr "Ava mall"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a template stored in the database."
+msgstr "Kiri on koostatud andmebaasis hoitavast mallist."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a file override supplied by the host."
+msgstr "Kiri on koostatud hosti pakutud failipõhisest ülekirjutusest."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a default: one shipped by core or a module, or supplied by the host in code."
+msgstr "Kiri on koostatud vaikemallist: selle pakub tuum või moodul või host koodis."
+
 #, elixir-autogen, elixir-format
 msgid "Process Amazon SES events"
 msgstr "Amazon SES-i sündmuste töötlemine"

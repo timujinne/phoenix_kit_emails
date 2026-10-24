@@ -11,6 +11,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SourceBadges do
   use Phoenix.Component
   use Gettext, backend: PhoenixKit.Modules.Emails.Gettext
 
+  alias PhoenixKit.Modules.Emails.Paths
   alias PhoenixKit.Modules.Emails.TemplateSources
 
   attr(:template, :any, required: true)
@@ -42,6 +43,56 @@ defmodule PhoenixKit.Modules.Emails.Web.SourceBadges do
     <% end %>
     """
   end
+
+  attr(:log, :any, required: true)
+  attr(:template_exists?, :boolean, default: false)
+
+  @doc """
+  Says which layer built a logged message (#48): the database row (with a link
+  to it while it still exists), a host file override, or a module default.
+  Nothing is drawn for a log without a `template_source`.
+  """
+  def log_source(assigns) do
+    ~H"""
+    <span :if={@log.template_source} class="inline-flex items-center gap-2">
+      <span
+        tabindex="0"
+        aria-label={log_message(@log.template_source)}
+        title={log_message(@log.template_source)}
+        class={["badge badge-soft badge-sm h-auto", log_badge_class(@log.template_source)]}
+      >
+        {log_label(@log.template_source)}
+      </span>
+      <.link
+        :if={@log.template_source == "db" and @log.template_uuid && @template_exists?}
+        navigate={Paths.template_edit(@log.template_uuid)}
+        class="text-xs text-blue-600 hover:underline"
+      >
+        {gettext("Open template")}
+      </.link>
+    </span>
+    """
+  end
+
+  defp log_badge_class("db"), do: "badge-primary"
+  defp log_badge_class("file"), do: "badge-warning"
+  defp log_badge_class(_module), do: "badge-info"
+
+  defp log_label("db"), do: gettext("Database template")
+  defp log_label("file"), do: gettext("File override")
+  defp log_label(_module), do: gettext("Default template")
+
+  defp log_message("db"),
+    do: gettext("This message was built from a template stored in the database.")
+
+  defp log_message("file"),
+    do: gettext("This message was built from a file override supplied by the host.")
+
+  defp log_message(_module),
+    do:
+      gettext(
+        "This message was built from a default: one shipped by core or a module, or supplied by the host in code."
+      )
 
   defp layers(template, %{overrides: _, defaults: _} = sources),
     do: TemplateSources.layers(template, sources)

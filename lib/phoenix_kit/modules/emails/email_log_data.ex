@@ -17,6 +17,8 @@ defmodule PhoenixKit.Modules.Emails.EmailLogData do
   - `attachments_count` - Number of attachments
   - `size_bytes` - Estimated email size in bytes
   - `template_name` - Template identifier if applicable
+  - `template_uuid` - Database template row the message was built from, if any
+  - `template_source` - `"db"`, `"file"` or `"module"`; `nil` without a template
   - `campaign_id` - Campaign identifier if applicable
   - `user_uuid` - Associated user UUID
   - `provider` - Email delivery provider name
@@ -37,6 +39,8 @@ defmodule PhoenixKit.Modules.Emails.EmailLogData do
     :attachments_count,
     :size_bytes,
     :template_name,
+    :template_uuid,
+    :template_source,
     :locale,
     :campaign_id,
     :user_uuid,
@@ -57,6 +61,8 @@ defmodule PhoenixKit.Modules.Emails.EmailLogData do
           attachments_count: integer() | nil,
           size_bytes: integer() | nil,
           template_name: String.t() | nil,
+          template_uuid: String.t() | nil,
+          template_source: String.t() | nil,
           locale: String.t() | nil,
           campaign_id: String.t() | nil,
           user_uuid: String.t() | nil,

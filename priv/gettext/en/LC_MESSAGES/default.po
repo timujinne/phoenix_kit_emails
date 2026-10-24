@@ -4113,6 +4113,41 @@ msgstr ""
 msgid "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s."
 msgstr ""
 
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Database template"
+msgstr "Database template"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "File override"
+msgstr "File override"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Default template"
+msgstr "Default template"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "Open template"
+msgstr "Open template"
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a template stored in the database."
+msgstr "This message was built from a template stored in the database."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a file override supplied by the host."
+msgstr "This message was built from a file override supplied by the host."
+
+#: lib/phoenix_kit/modules/emails/web/source_badges.ex
+#, elixir-autogen, elixir-format
+msgid "This message was built from a default: one shipped by core or a module, or supplied by the host in code."
+msgstr "This message was built from a default: one shipped by core or a module, or supplied by the host in code."
+
 #, elixir-autogen, elixir-format
 msgid "Process Amazon SES events"
 msgstr "Process Amazon SES events"
