@@ -17,8 +17,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   the assigns. The section takes `:phoenix_kit_current_scope` when a host passes it;
   otherwise the first connected render has `SmtpVerification.Relay` read it from the
   page process. Until it is known (or when it cannot be read) the token buttons stay
-  off, and every action that needs a person's rights reads their rights again first
-  (`PhoenixKit.API.Access.fresh_scope/1`), as Settings -> API does.
+  off. Settings changes re-read the active user and require `emails` in both the
+  page scope and the fresh scope; token actions additionally use
+  `PhoenixKit.API.Access.fresh_scope/1` for the API permission. While SMTP is off,
+  a one-shot scope lookup lets the admin enable it without a runner subscription.
 
   ## Live updates
 
@@ -51,6 +53,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   alias PhoenixKit.Modules.Emails.Verification.RunnerSetup
   alias PhoenixKit.Modules.Emails.Verification.SmtpSettings
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay
+  alias PhoenixKit.Users.Auth
   alias PhoenixKit.Users.Auth.Scope
   alias PhoenixKit.Utils.Date, as: UtilsDate
 
@@ -69,7 +72,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     socket =
       if socket.assigns[:loaded?],
         do: refresh_scope(socket, assigns),
-        else: socket |> load() |> sync_relay()
+        else: socket |> load() |> sync_relay() |> fetch_scope()
 
     {:ok, socket}
   end
@@ -129,6 +132,15 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
       socket
     end
   end
+
+  # Off has no runner relay, but switching it on still needs the page's person.
+  # A one-shot lookup has no subscription, timer or runner reads.
+  defp fetch_scope(%{assigns: %{scope_state: :pending, relay: nil}} = socket) do
+    if connected?(socket), do: Relay.fetch_scope(self(), __MODULE__, socket.assigns.id)
+    socket
+  end
+
+  defp fetch_scope(socket), do: socket
 
   # Everything that comes from the database. `view` is what the template shows; it is
   # computed again on every tick from the same data, so the clock moves without a read.
@@ -220,6 +232,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     |> assign(:mode, status.mode)
     |> assign(:api_unavailable?, not status.api_available)
     |> assign(:view, build_view(status, now, socket.assigns.idle_poll_s))
+    |> assign(:can_email?, can_email?(scope))
     |> assign(:can_api?, can_api?(scope))
     |> assign(:number_inputs, number_inputs(socket.assigns.form, socket.assigns.errors))
     |> assign(:error_messages, error_messages(socket.assigns.errors))
@@ -227,6 +240,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     |> assign(:lease_floor_s, Config.smtp_lease_floor_s())
     |> assign(:session_limit_s, Config.session_hard_limit_s())
   end
+
+  defp can_email?(%Scope{} = scope), do: Scope.can?(scope, "emails")
+  defp can_email?(_scope), do: false
 
   defp can_api?(%Scope{} = scope), do: Scope.can?(scope, "api")
   defp can_api?(_scope), do: false
@@ -463,18 +479,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   @impl true
   def handle_event("set_mode", %{"mode" => "local"}, %{assigns: %{mode: mode}} = socket)
       when mode != "local" do
-    {:noreply, assign(socket, :confirm_local?, true)}
+    with_email_access(socket, &assign(&1, :confirm_local?, true))
   end
 
   def handle_event("set_mode", %{"mode" => mode}, socket) do
-    {:noreply, socket |> assign(:confirm_local?, false) |> apply_mode(mode)}
+    with_email_access(socket, &(&1 |> assign(:confirm_local?, false) |> apply_mode(mode)))
   end
 
   def handle_event("cancel_switch_local", _params, socket),
     do: {:noreply, assign(socket, :confirm_local?, false)}
 
   def handle_event("confirm_switch_local", _params, %{assigns: %{confirm_local?: true}} = socket) do
-    {:noreply, socket |> assign(:confirm_local?, false) |> apply_mode("local")}
+    with_email_access(socket, &(&1 |> assign(:confirm_local?, false) |> apply_mode("local")))
   end
 
   def handle_event("confirm_switch_local", _params, socket), do: {:noreply, refuse(socket)}
@@ -487,33 +503,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     do: {:noreply, assign(socket, :advanced_open?, not socket.assigns.advanced_open?)}
 
   def handle_event("save", %{"smtp" => params}, socket) when is_map(params) do
-    case SmtpSettings.save(params, actor_opts(socket)) do
-      {:ok, current} ->
-        {:noreply,
-         socket
-         |> assign(:form, form_params(current))
-         |> assign(:errors, %{})
-         |> reload()
-         |> put_flash(:info, gettext("Settings saved"))}
-
-      {:error, errors} ->
-        {:noreply,
-         socket
-         |> assign(:form, merge_form(socket.assigns.form, params))
-         |> assign(:errors, errors)
-         |> assign(
-           :advanced_open?,
-           socket.assigns.advanced_open? or
-             Enum.any?(errors, fn {field, _} -> advanced?(field) end)
-         )
-         |> assign_view()
-         |> put_flash(:error, gettext("Some fields are not valid"))}
-    end
+    with_email_access(socket, &save_settings(&1, params))
   end
 
   def handle_event("clear_pause", _params, socket) do
-    {:ok, _count} = Verification.clear_runner_pause()
-    {:noreply, socket |> reload() |> put_flash(:info, gettext("The runner is no longer paused"))}
+    with_email_access(socket, fn socket ->
+      {:ok, _count} = Verification.clear_runner_pause()
+      socket |> reload() |> put_flash(:info, gettext("The runner is no longer paused"))
+    end)
   end
 
   def handle_event("issue_token", _params, %{assigns: %{new_token: nil}} = socket) do
@@ -568,6 +565,29 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
   def handle_event("confirm_enable_api", _params, socket), do: {:noreply, refuse(socket)}
 
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  defp save_settings(socket, params) do
+    case SmtpSettings.save(params, actor_opts(socket)) do
+      {:ok, current} ->
+        socket
+        |> assign(:form, form_params(current))
+        |> assign(:errors, %{})
+        |> reload()
+        |> put_flash(:info, gettext("Settings saved"))
+
+      {:error, errors} ->
+        socket
+        |> assign(:form, merge_form(socket.assigns.form, params))
+        |> assign(:errors, errors)
+        |> assign(
+          :advanced_open?,
+          socket.assigns.advanced_open? or
+            Enum.any?(errors, fn {field, _} -> advanced?(field) end)
+        )
+        |> assign_view()
+        |> put_flash(:error, gettext("Some fields are not valid"))
+    end
+  end
 
   defp apply_mode(socket, mode) do
     case SmtpSettings.save_mode(mode, actor_opts(socket)) do
@@ -664,6 +684,27 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification do
     do: gettext("Token revoked; %{left} more belong to other admins and still work", left: left)
 
   defp refuse(socket), do: put_flash(socket, :error, gettext("That action is not available."))
+
+  # Settings need the module permission, including on cores without the machine API.
+  # Check both the page's selected role and the person's current, active roles.
+  # Rebuild the permission set through its public API: core 2.63's inferred return
+  # type exposes MapSet's backing data rather than preserving its opaque contract.
+  defp with_email_access(socket, fun) do
+    scope = socket.assigns.phoenix_kit_current_scope
+
+    with true <- can_email?(scope),
+         uuid when is_binary(uuid) <- Scope.user_uuid(scope),
+         user when not is_nil(user) <- Auth.get_user(uuid),
+         user when not is_nil(user) <- Auth.ensure_active_user(user),
+         fresh = Scope.for_user(user, narrow: false),
+         permissions = fresh.cached_permissions |> Enum.to_list() |> MapSet.new(),
+         fresh = %{fresh | cached_permissions: permissions},
+         true <- Scope.can?(fresh, "emails") do
+      {:noreply, fun.(socket)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, gettext("You are not allowed to do that."))}
+    end
+  end
 
   # The person's rights are read again for this event (core's own rule for pages that
   # change keys and settings); without a known person, or without `api`, nothing happens.

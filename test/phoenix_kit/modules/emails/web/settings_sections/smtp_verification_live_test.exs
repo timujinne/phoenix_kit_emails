@@ -13,6 +13,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
   import Phoenix.LiveViewTest
   import PhoenixKitEmails.Test.ApiHarness
 
+  alias PhoenixKit.Modules.Emails.Verification.Config
   alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay
@@ -111,6 +112,22 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationLiveTes
     # The tripwire for `Relay.scope_of/2`: it reads the state of the LiveView process, whose
     # shape is LiveView's own. A LiveView that changes it fails here, not silently in prod.
     assert %Scope{} = Relay.scope_of(view.pid)
+  end
+
+  test "an off section learns the person before changing mode" do
+    put_setting("email_verify_smtp_mode", "off")
+    {admin, _role} = user_with(["emails"])
+
+    {:ok, view, _html} =
+      live_isolated(build_conn(), SectionHost, session: %{"scope" => scope_of(admin)})
+
+    assert eventually(fn ->
+             has_element?(view, "#smtp-verification-mode input[value=runner]:not([disabled])")
+           end)
+
+    view |> form("#smtp-verification-mode") |> render_change(%{"mode" => "runner"})
+    assert Config.smtp_mode_setting() == "runner"
+    assert has_element?(view, "#smtp-verification-runner")
   end
 
   defp eventually(fun, tries \\ 50) do

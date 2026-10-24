@@ -278,8 +278,7 @@ defmodule PhoenixKit.Modules.Emails.SQSPollingManager do
   (`Emails.Web.WebhookController`), which has nothing to do with SQS
   polling. Clearing it here would silently switch off webhook ingestion
   from a button labelled "stop polling". It keeps its own control in the
-  Email Tracking page (`Web.EmailTracking`, not the settings section of
-  the same name) for an operator who really does mean
+  Email Tracking settings section (`Web.SettingsSections.EmailTracking`) for an operator who really does mean
   "no SES events at all". See `EventTracker`'s moduledoc, which spells
   out why an eligibility flag otherwise must not move with an operator
   toggle.

@@ -51,8 +51,8 @@ defmodule PhoenixKit.Modules.Emails.EventTracker do
   which does not poll anything and would go silent for no stated reason;
   and clearing it would erase the difference between an install that
   never tracked SES and one that paused. The flag keeps its own toggle
-  on the Email Tracking page (`Web.EmailTracking`, not the settings
-  section of the same name) for an operator who does mean
+  in the Email Tracking settings section
+  (`Web.SettingsSections.EmailTracking`) for an operator who does mean
   "no SES events at all".
 
   The narrow shape of the exception is what keeps `state/1` honest: an

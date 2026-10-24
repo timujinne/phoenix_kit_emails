@@ -31,8 +31,9 @@ defmodule PhoenixKitEmails.Test.ApiHarness do
   user registered, who holds every permission).
   """
   def setup_api do
-    await_pubsub_gone()
-    start_supervised!(PhoenixKit.PubSub.Manager)
+    # Own the PubSub supervisor directly: core's Manager links it indirectly and
+    # can exit before its named supervisor finishes, racing the next test.
+    start_supervised!({Phoenix.PubSub, name: :phoenix_kit_internal_pubsub})
     start_supervised!({PhoenixKit.Cache.Registry, []})
     start_supervised!({PhoenixKit.Cache, name: :api_keys, ttl: :timer.seconds(60)})
     start_supervised!(PhoenixKit.API.Keys.Cache)
@@ -53,18 +54,6 @@ defmodule PhoenixKitEmails.Test.ApiHarness do
     # The first user ever registered becomes the Owner, who holds every permission;
     # the users the tests make must be ordinary ones.
     register_user()
-  end
-
-  # Core's PubSub manager does not trap exits: when the test's supervisor stops it, the
-  # PubSub supervisor under it goes down on its own, a moment later. Starting the next
-  # test's manager before that moment fails with "already started".
-  defp await_pubsub_gone(tries \\ 200) do
-    if tries > 0 and Process.whereis(:phoenix_kit_internal_pubsub) do
-      Process.sleep(5)
-      await_pubsub_gone(tries - 1)
-    else
-      :ok
-    end
   end
 
   def put_setting(key, value) do

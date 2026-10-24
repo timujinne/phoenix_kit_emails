@@ -24,7 +24,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.QueueSweepWorkerTest do
 
   setup do
     start_supervised!({Oban, repo: Repo, testing: :manual, queues: false, plugins: false})
-    start_supervised!(PhoenixKit.PubSub.Manager)
+    start_supervised!({Phoenix.PubSub, name: :phoenix_kit_internal_pubsub})
     configure_runner_mode()
     %{domain: unique_domain()}
   end

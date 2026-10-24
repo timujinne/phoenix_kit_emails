@@ -39,6 +39,12 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay 
     GenServer.start(__MODULE__, {view, component, id, fetch_scope?, tick_ms})
   end
 
+  @doc "Reads the page's scope once, without subscribing to runner updates or ticking."
+  @spec fetch_scope(pid(), module(), String.t()) :: GenServer.on_start()
+  def fetch_scope(view, component, id) do
+    GenServer.start(__MODULE__, {:scope, view, component, id})
+  end
+
   @doc "Stops a relay started with `start/5`; nothing happens when it is gone already."
   @spec stop(pid()) :: :ok
   def stop(relay) when is_pid(relay) do
@@ -87,19 +93,25 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay 
   end
 
   @impl true
+  def init({:scope, view, component, id}) do
+    Process.monitor(view)
+    send(self(), :scope)
+    {:ok, %{view: view, component: component, id: id, scope_only?: true}}
+  end
+
   def init({view, component, id, fetch_scope?, tick_ms}) do
     Process.monitor(view)
     _ = Verification.subscribe_runner()
     if fetch_scope?, do: send(self(), :scope)
     Process.send_after(self(), :tick, tick_ms)
 
-    {:ok, %{view: view, component: component, id: id, tick_ms: tick_ms}}
+    {:ok, %{view: view, component: component, id: id, tick_ms: tick_ms, scope_only?: false}}
   end
 
   @impl true
   def handle_info(:scope, state) do
     notify(state, {:scope, scope_of(state.view)})
-    {:noreply, state}
+    if state.scope_only?, do: {:stop, :normal, state}, else: {:noreply, state}
   end
 
   def handle_info({:email_verify_runner, _event}, state) do

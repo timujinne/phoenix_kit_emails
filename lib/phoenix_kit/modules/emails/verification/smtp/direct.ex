@@ -385,8 +385,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
       send_timeout_close: true
     ]
 
-    with {:ok, target} <- target(host, scope),
-         {:ok, sock} <- :gen_tcp.connect(target, port, options, wait_ms) do
+    deadline = now_ms() + wait_ms
+
+    with {:ok, target} <- target(host, scope, wait_ms),
+         left when left > 0 <- deadline - now_ms(),
+         {:ok, sock} <- :gen_tcp.connect(target, port, options, left) do
       {:ok, sock}
     else
       _refused_or_failed -> :error
@@ -398,11 +401,11 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
   # resolved here and the connection goes to the address that was checked, not to the
   # name again (a second lookup could answer differently). The test config, which only
   # lets the loopback interface through (`guard!/1`), skips the check.
-  defp target(host, :public) do
+  defp target(host, :public, wait_ms) do
     if Application.get_env(:phoenix_kit_emails, :verification_smtp_loopback_only, false) do
       {:ok, String.to_charlist(host)}
     else
-      with {:ok, addresses} <- :inet.getaddrs(String.to_charlist(host), :inet),
+      with {:ok, addresses} <- :inet.getaddrs(String.to_charlist(host), :inet, wait_ms),
            ip when not is_nil(ip) <- Enum.find(addresses, &public_address?/1) do
         {:ok, ip}
       else
@@ -411,7 +414,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.Smtp.Direct do
     end
   end
 
-  defp target(host, :any), do: {:ok, String.to_charlist(host)}
+  defp target(host, :any, _wait_ms), do: {:ok, String.to_charlist(host)}
 
   @doc false
   # Whether an IPv4 address is one a mail host of the public internet can have: not

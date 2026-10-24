@@ -50,7 +50,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.LocalRunnerTest do
 
   setup do
     start_supervised!({Oban, repo: Repo, testing: :manual, queues: false, plugins: false})
-    start_supervised!(PhoenixKit.PubSub.Manager)
+    start_supervised!({Phoenix.PubSub, name: :phoenix_kit_internal_pubsub})
 
     put("email_verify_smtp_mode", "local")
     put("from_email", "mail@acme-mail.test")

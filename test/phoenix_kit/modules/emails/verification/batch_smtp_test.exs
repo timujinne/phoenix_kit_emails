@@ -29,7 +29,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchSmtpTest do
 
   setup do
     start_supervised!({Oban, repo: Repo, testing: :manual, queues: false, plugins: false})
-    start_supervised!(PhoenixKit.PubSub.Manager)
+    start_supervised!({Phoenix.PubSub, name: :phoenix_kit_internal_pubsub})
     configure_runner_mode()
     %{runner: runner(), domain: unique_domain()}
   end

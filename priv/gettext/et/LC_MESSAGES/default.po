@@ -4165,3 +4165,23 @@ msgstr "Vähemalt %{min}."
 #, elixir-autogen, elixir-format
 msgid "A session can run up to %{limit} s, so the time to finish a session cannot be below %{floor} s."
 msgstr "Seanss võib kesta kuni %{limit} s, seega ei saa seansi lõpetamise aeg olla lühem kui %{floor} s."
+
+#, elixir-autogen, elixir-format
+msgid "Process Amazon SES events"
+msgstr "Amazon SES-i sündmuste töötlemine"
+
+#, elixir-autogen, elixir-format
+msgid "Process delivery, bounce, complaint, open and click events from Amazon SES, through SQS or the SNS webhook. Turning this off stops both. Enabling SES in Delivery event tracking turns this on again."
+msgstr "Töötle Amazon SES-i kohaletoimetamise, tagastuse, kaebuse, avamise ja klõpsamise sündmusi SQS-i või SNS-i veebihaagi kaudu. Väljalülitamine peatab mõlemad. SES-i lubamine kohaletoimetamise sündmuste jälgimises lülitab selle uuesti sisse."
+
+#, elixir-autogen, elixir-format
+msgid "SES event processing enabled"
+msgstr "SES-i sündmuste töötlemine on lubatud"
+
+#, elixir-autogen, elixir-format
+msgid "SES event processing disabled"
+msgstr "SES-i sündmuste töötlemine on keelatud"
+
+#, elixir-autogen, elixir-format
+msgid "Failed to update SES event processing"
+msgstr "SES-i sündmuste töötlemise muutmine ebaõnnestus"

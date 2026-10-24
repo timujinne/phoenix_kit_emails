@@ -14,10 +14,12 @@ defmodule PhoenixKit.Modules.Emails.Web.EmailTracking do
 
   ## Route
 
-  This LiveView is mounted at `{prefix}/admin/settings/email-tracking` and requires
-  appropriate admin permissions.
-
-  Note: `{prefix}` is your configured PhoenixKit URL prefix (default: `/phoenix_kit`).
+  This LiveView has no route of its own: it is not in `admin_tabs/0` and
+  `settings_tabs/0` is empty, so PhoenixKit does not mount it anywhere. Email
+  tracking is configured from the "Email Tracking" section of core's Email
+  Sending page (`Paths.settings/0`), which is
+  `Web.SettingsSections.EmailTracking`. Do not declare a route for this module
+  in your parent app's `router.ex`.
 
   ## Usage
 

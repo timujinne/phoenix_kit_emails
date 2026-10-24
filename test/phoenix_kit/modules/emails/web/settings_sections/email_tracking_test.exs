@@ -19,7 +19,10 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
 
   alias PhoenixKit.Modules.Emails
   alias PhoenixKit.Modules.Emails.Queue
+  alias PhoenixKit.Modules.Emails.SQSPollingJob
+  alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
+  alias PhoenixKit.Settings
 
   describe "the section renders" do
     test "with no email settings at all" do
@@ -184,6 +187,34 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTrackingTest do
       %{id: "email-tracking"},
       endpoint: PhoenixKitEmails.Test.StubEndpoint
     )
+  end
+
+  test "SES processing can be disabled and enabled from the reachable section" do
+    {:ok, _} = Emails.set_ses_events(true)
+
+    {:ok, _} =
+      Settings.update_boolean_setting_with_module(
+        "sqs_polling_enabled",
+        false,
+        "email_system"
+      )
+
+    socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}, flash: %{}}}
+    {:ok, socket} = EmailTracking.update(%{id: "email-tracking"}, socket)
+
+    html = render_section()
+    assert html =~ ~s(phx-click="toggle_email_ses_events")
+    assert html =~ ~s(name="email_tracking[ses_events]")
+
+    {:noreply, socket} = EmailTracking.handle_event("toggle_email_ses_events", %{}, socket)
+    refute Emails.ses_events_enabled?()
+    refute socket.assigns.email_ses_events
+    refute SQSPollingJob.should_poll?()
+
+    {:noreply, socket} = EmailTracking.handle_event("toggle_email_ses_events", %{}, socket)
+    assert Emails.ses_events_enabled?()
+    assert socket.assigns.email_ses_events
+    refute SQSPollingManager.enabled?()
   end
 
   describe "the S3 handlers accept the payload LiveView actually sends" do

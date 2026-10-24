@@ -12,7 +12,7 @@ defmodule PhoenixKit.Modules.Emails.QueueTest do
   defp email do
     Email.new()
     |> Email.to([{"Ann", "ann@example.com"}, {"", "bob@example.com"}])
-    |> Email.from({"Andi", "noreply@example.com"})
+    |> Email.from({"Acme", "noreply@example.com"})
     |> Email.cc({"Cara", "cara@example.com"})
     |> Email.bcc({"", "audit@example.com"})
     |> Email.reply_to({"Support", "support@example.com"})
@@ -28,7 +28,7 @@ defmodule PhoenixKit.Modules.Emails.QueueTest do
       round_tripped = email() |> Queue.serialize() |> Queue.deserialize()
 
       assert round_tripped.to == [{"Ann", "ann@example.com"}, {"", "bob@example.com"}]
-      assert round_tripped.from == {"Andi", "noreply@example.com"}
+      assert round_tripped.from == {"Acme", "noreply@example.com"}
       assert round_tripped.cc == [{"Cara", "cara@example.com"}]
       assert round_tripped.bcc == [{"", "audit@example.com"}]
       assert round_tripped.reply_to == {"Support", "support@example.com"}

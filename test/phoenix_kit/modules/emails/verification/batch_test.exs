@@ -23,7 +23,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.BatchTest do
 
   setup do
     start_supervised!({Oban, repo: Repo, testing: :manual, queues: false, plugins: false})
-    start_supervised!(PhoenixKit.PubSub.Manager)
+    start_supervised!({Phoenix.PubSub, name: :phoenix_kit_internal_pubsub})
 
     original = Application.get_env(:phoenix_kit_emails, :verification_resolver)
     Application.put_env(:phoenix_kit_emails, :verification_resolver, FakeResolver)

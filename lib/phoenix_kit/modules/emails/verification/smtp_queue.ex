@@ -319,7 +319,8 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
   defp claimant_id(%Runner{uuid: uuid}), do: uuid
 
   # Domains with something due, nobody holding a session of them, past their pause
-  # and their spacing; oldest waiter first. More than asked for, as some are skipped.
+  # and their spacing; oldest due work first. A deferred lookup's retry time keeps
+  # it behind untouched work even after the delay expires. Some candidates are skipped.
   defp candidate_domains(max_sessions, now) do
     cutoff = DateTime.add(now, -Config.domain_interval_s(), :second)
     leased = from(l in Item, where: l.state == "leased", select: l.domain)
@@ -332,7 +333,7 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
       where: is_nil(d.last_smtp_at) or d.last_smtp_at <= ^cutoff,
       where: q.domain not in subquery(leased),
       group_by: q.domain,
-      order_by: [asc: min(q.inserted_at), asc: q.domain],
+      order_by: [asc: min(fragment("COALESCE(?, ?)", q.not_before, q.inserted_at)), asc: q.domain],
       limit: ^(max_sessions * 3),
       select: q.domain
     )
@@ -343,8 +344,21 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueue do
     case mx_hosts(domain, dns_until) do
       {:ok, hosts} -> lease_rows(domain, hosts, claimant_id, now)
       {:dead, _reason} -> settle_dead_domain(domain, now)
-      :transient -> :skip
+      :transient -> defer_domain(domain, now)
     end
+  end
+
+  # A failed lookup must leave the head of the candidate window for a while;
+  # otherwise the same oldest domains can prevent every later domain being claimed.
+  # This is DNS scheduling, not an SMTP attempt, so retry counters stay untouched.
+  defp defer_domain(domain, now) do
+    from(q in Item,
+      where: q.domain == ^domain and q.state == "queued",
+      where: is_nil(q.not_before) or q.not_before <= ^now
+    )
+    |> repo().update_all(set: [not_before: DateTime.add(now, 60), updated_at: now])
+
+    :skip
   end
 
   # From the cache, then DNS (the MX was cached when the address was queued, so DNS

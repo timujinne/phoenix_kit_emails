@@ -4,8 +4,8 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   (`/admin/settings/email-sending`).
 
   Covers what to store for each outgoing email (body, headers, sampling
-  rate), how long to keep it (retention, compression, S3 archival), and the
-  send queue's two switches — plus the system-status card, which reports what
+  rate), SES event processing, how long to keep it (retention, compression,
+  S3 archival), and the send queue's two switches — plus the system-status card, which reports what
   the module is actually doing rather than what it is configured to do.
   Contributed via `c:PhoenixKit.Module.email_settings_sections/0`.
   """
@@ -15,7 +15,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
 
   alias PhoenixKit.Integrations.Providers
   alias PhoenixKit.Modules.Emails
+  alias PhoenixKit.Modules.Emails.EventTrackerReconciler
   alias PhoenixKit.Modules.Emails.Queue
+  alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Modules.Emails.Status
   alias PhoenixKit.Modules.Emails.Utils
 
@@ -39,6 +41,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
 
         socket
         |> assign(:email_enabled, email_config.enabled)
+        |> assign(:email_ses_events, email_config.ses_events)
         |> assign(:email_save_body, email_config.save_body)
         |> assign(:email_save_headers, Emails.save_headers_enabled?())
         |> assign(:email_retention_days, email_config.retention_days)
@@ -59,6 +62,30 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking do
   defp refresh_status(socket), do: assign(socket, :status, Status.summary())
 
   @impl true
+  def handle_event("toggle_email_ses_events", _params, socket) do
+    enabled = not Emails.ses_events_enabled?()
+
+    case Emails.set_ses_events(enabled) do
+      {:ok, _setting} ->
+        EventTrackerReconciler.reconcile_tracker(SQSPollingManager)
+
+        {:noreply,
+         socket
+         |> assign(:email_ses_events, enabled)
+         |> refresh_status()
+         |> put_flash(
+           :info,
+           if(enabled,
+             do: gettext("SES event processing enabled"),
+             else: gettext("SES event processing disabled")
+           )
+         )}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Failed to update SES event processing"))}
+    end
+  end
+
   def handle_event("toggle_email_save_body", _params, socket) do
     new_save_body = !socket.assigns.email_save_body
 

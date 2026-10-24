@@ -165,6 +165,20 @@
 
   <div class="divider"></div>
 
+  <.checkbox
+    name="email_tracking[ses_events]"
+    checked={@email_ses_events}
+    phx-click="toggle_email_ses_events"
+    phx-target={@myself}
+    label={gettext("Process Amazon SES events")}
+  >
+    <:description>
+      {gettext(
+        "Process delivery, bounce, complaint, open and click events from Amazon SES, through SQS or the SNS webhook. Turning this off stops both. Enabling SES in Delivery event tracking turns this on again."
+      )}
+    </:description>
+  </.checkbox>
+
   <%!-- Save Email Bodies --%>
   <.checkbox
     name="email_tracking[save_body]"

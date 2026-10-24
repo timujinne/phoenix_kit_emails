@@ -21,6 +21,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
   alias PhoenixKit.Modules.Emails.SQSPollingManager
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.AmazonSesSqs, as: SesSection
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking, as: Panel
+  alias PhoenixKit.Modules.Emails.Web.SettingsSections.EmailTracking
   alias PhoenixKitEmails.Test.Repo
 
   setup do
@@ -90,6 +91,28 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTrackingTe
     render_component(Panel, %{id: "panel", expanded: expanded},
       endpoint: PhoenixKitEmails.Test.StubEndpoint
     )
+  end
+
+  test "the SES processing switch reconciles the chain without changing the polling preference" do
+    create_ses_profile()
+    {:ok, job} = SQSPollingManager.enable_polling()
+    {:ok, socket} = EmailTracking.update(%{id: "email-tracking"}, bare_socket())
+
+    {:noreply, socket} = EmailTracking.handle_event("toggle_email_ses_events", %{}, socket)
+    refute Emails.ses_events_enabled?()
+    assert SQSPollingManager.enabled?()
+    assert Repo.get!(Oban.Job, job.id).state == "cancelled"
+
+    {:noreply, _socket} = EmailTracking.handle_event("toggle_email_ses_events", %{}, socket)
+    assert Emails.ses_events_enabled?()
+    assert SQSPollingManager.enabled?()
+
+    assert Repo.exists?(
+             from(j in Oban.Job,
+               where:
+                 j.worker == ^inspect(SQSPollingJob) and j.state in ["available", "scheduled"]
+             )
+           )
   end
 
   describe "update/2 — the registry-driven rows" do

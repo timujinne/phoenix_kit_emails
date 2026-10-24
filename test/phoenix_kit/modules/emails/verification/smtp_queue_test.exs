@@ -362,6 +362,47 @@ defmodule PhoenixKit.Modules.Emails.Verification.SmtpQueueTest do
       assert item("a@" <> domain).state == "queued"
     end
 
+    test "DNS failures at the front do not starve later domains", %{runner: runner} do
+      now = DateTime.utc_now()
+
+      blocked =
+        for n <- 1..3 do
+          domain = unique_domain("unavailable")
+          queue(domain, ~w(a))
+
+          Repo.update_all(from(d in DomainCache, where: d.domain == ^domain),
+            set: [mx_checked_at: DateTime.add(now, -30 * 86_400)]
+          )
+
+          Repo.update_all(from(i in Item, where: i.domain == ^domain),
+            set: [inserted_at: DateTime.add(now, -3600 + n)]
+          )
+
+          FakeResolver.put(domain, mx: {:error, :timeout})
+          domain
+        end
+
+      ready = unique_domain("ready")
+      queue(ready, ~w(a))
+
+      assert {:ok, []} = SmtpQueue.claim(runner, 1, now)
+      # Even after their retry delay expires, failed domains must stay behind
+      # work never attempted. A delay alone would still starve a long backlog.
+      assert {:ok, [%{domain: ^ready}]} = SmtpQueue.claim(runner, 1, DateTime.add(now, 61))
+
+      for domain <- blocked do
+        row = item("a@" <> domain)
+        assert row.state == "queued"
+        assert row.attempts == 0
+        assert DateTime.compare(row.not_before, now) == :gt
+      end
+
+      # The delay defers DNS; it does not abandon the address.
+      [recovered | _] = blocked
+      FakeResolver.put(recovered, mx: {:ok, [%{host: "mx." <> recovered, pref: 1}]})
+      assert {:ok, [%{domain: ^recovered}]} = SmtpQueue.claim(runner, 1, DateTime.add(now, 61))
+    end
+
     test "a dead domain with more rows than one chunk is settled a chunk at a time", %{
       runner: runner
     } do

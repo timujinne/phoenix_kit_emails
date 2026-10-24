@@ -16,6 +16,7 @@
           value="off"
           class="radio radio-sm mt-0.5 shrink-0"
           checked={@mode == "off" and not @confirm_local?}
+          disabled={not @can_email?}
         />
         <span class="min-w-0 flex-1">{gettext("Off — the domain only (the result is \"Domain OK, no SMTP\")")}</span>
       </label>
@@ -27,6 +28,7 @@
           value="local"
           class="radio radio-sm mt-0.5 shrink-0"
           checked={@mode == "local" or @confirm_local?}
+          disabled={not @can_email?}
         />
         <span class="min-w-0 flex-1">{gettext("This server — connections go from the site's IP address")}</span>
       </label>
@@ -44,7 +46,7 @@
           value="runner"
           class="radio radio-sm mt-0.5 shrink-0"
           checked={@mode == "runner" and not @confirm_local?}
-          disabled={@api_unavailable?}
+          disabled={@api_unavailable? or not @can_email?}
         />
         <span class="min-w-0 flex-1">{gettext("Runner on your computer")}</span>
       </label>

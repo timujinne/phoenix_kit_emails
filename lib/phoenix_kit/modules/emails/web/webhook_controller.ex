@@ -45,12 +45,12 @@ defmodule PhoenixKit.Modules.Emails.Web.WebhookController do
 
   ## Usage
 
-  Add to your router:
+  PhoenixKit registers the public POST endpoint at `{prefix}/webhooks/ses`
+  through this module's `route_module/0` callback (`Web.Routes`). Do not add a
+  second route in the host router: the generated route uses a dedicated pipeline
+  so AWS SNS notifications do not require a browser session or CSRF token.
 
-      # Public webhook endpoint (no authentication)
-      post "{prefix}/webhooks/email", PhoenixKitWeb.Controllers.EmailWebhookController, :handle
-
-      # Note: {prefix} is your configured PhoenixKit URL prefix (default: /phoenix_kit)
+  `{prefix}` is the configured PhoenixKit URL prefix (default: `/phoenix_kit`).
 
   ## AWS SNS Setup
 

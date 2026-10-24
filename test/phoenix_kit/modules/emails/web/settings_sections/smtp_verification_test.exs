@@ -28,6 +28,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
   alias PhoenixKit.Modules.Emails.Verification.Runners
   alias PhoenixKit.Modules.Emails.Verification.RunnerSetup
   alias PhoenixKit.Modules.Emails.Verification.SmtpQueue
+  alias PhoenixKit.Modules.Emails.Verification.SmtpSettings
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification
   alias PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification.Relay
   alias PhoenixKit.Settings
@@ -68,6 +69,11 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       )
 
     socket
+  end
+
+  defp settings_socket do
+    {user, _role} = user_with(["emails"])
+    socket(%{phoenix_kit_current_scope: scope_of(user)})
   end
 
   defp event(socket, name, params \\ %{}) do
@@ -230,13 +236,18 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert socket.assigns.status.runner.name == "WORKSTATION"
     end
 
-    test "going to local starts the relay of a connected page too" do
+    test "going to local starts the relay of a connected page too", %{scope: scope} do
       connected = %Phoenix.LiveView.Socket{
         assigns: %{__changed__: %{}, flash: %{}},
         transport_pid: self()
       }
 
-      {:ok, socket} = SmtpVerification.update(%{id: "smtp-verification"}, connected)
+      {:ok, socket} =
+        SmtpVerification.update(
+          %{id: "smtp-verification", phoenix_kit_current_scope: scope},
+          connected
+        )
+
       socket = socket |> event("set_mode", %{"mode" => "local"}) |> event("confirm_switch_local")
       relay = socket.assigns.relay
       assert is_pid(relay) and Process.alive?(relay)
@@ -247,13 +258,20 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert_receive {:DOWN, ^ref, :process, ^relay, _}, 1_000
     end
 
-    test "going to runner starts the relay of a connected page and going away stops it" do
+    test "going to runner starts the relay of a connected page and going away stops it", %{
+      scope: scope
+    } do
       connected = %Phoenix.LiveView.Socket{
         assigns: %{__changed__: %{}, flash: %{}},
         transport_pid: self()
       }
 
-      {:ok, socket} = SmtpVerification.update(%{id: "smtp-verification"}, connected)
+      {:ok, socket} =
+        SmtpVerification.update(
+          %{id: "smtp-verification", phoenix_kit_current_scope: scope},
+          connected
+        )
+
       assert socket.assigns.relay == nil
 
       socket = event(socket, "set_mode", %{"mode" => "runner"})
@@ -377,7 +395,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       assert html =~ "Paused: 5 sessions in a row failed"
       assert html =~ "Resume"
 
-      socket = socket() |> event("clear_pause")
+      socket = settings_socket() |> event("clear_pause")
       assert socket.assigns.status.paused == nil
     end
 
@@ -781,9 +799,73 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
   ## --- Events ---
 
+  describe "fresh settings authorization" do
+    test "email permission is enough without API permission" do
+      user = user_without_api()
+      socket = socket(%{phoenix_kit_current_scope: scope_of(user)})
+      socket = event(socket, "set_mode", %{"mode" => "local"})
+      socket = event(socket, "confirm_switch_local")
+      assert Config.smtp_mode_setting() == "local"
+      assert socket.assigns.mode == "local"
+    end
+
+    test "settings changes preserve the page's selected permission ceiling", %{scope: scope} do
+      # Other roles grant API access, but the role selected for this page does not.
+      scope = %{scope | cached_permissions: MapSet.new(["emails"])}
+      socket = socket(%{phoenix_kit_current_scope: scope})
+      socket = event(socket, "set_mode", %{"mode" => "runner"})
+      assert Config.smtp_mode_setting() == "runner"
+      refute socket.assigns.can_api?
+
+      socket = event(socket, "issue_token")
+      assert live_keys() == []
+      assert flash(socket, :error) == "You are not allowed to do that."
+    end
+
+    test "revoked email permission refuses mode, form and resume", %{scope: scope, role: role} do
+      put_mode("runner")
+      socket = socket(%{phoenix_kit_current_scope: scope})
+      :ok = Permissions.revoke_permission(role.uuid, "emails")
+
+      for {name, params} <- [
+            {"set_mode", %{"mode" => "off"}},
+            {"save", %{"smtp" => %{"mail_from" => "changed@acme-mail.test"}}},
+            {"clear_pause", %{}}
+          ] do
+        refused = event(socket, name, params)
+        assert flash(refused, :error) == "You are not allowed to do that."
+      end
+
+      assert Config.smtp_mode_setting() == "runner"
+      assert SmtpSettings.current().mail_from == ""
+    end
+
+    test "deactivated user cannot confirm a local switch", %{scope: scope, admin: admin} do
+      socket = socket(%{phoenix_kit_current_scope: scope})
+      socket = event(socket, "set_mode", %{"mode" => "local"})
+      admin |> Ecto.Changeset.change(is_active: false) |> Repo.update!()
+
+      refused = event(socket, "confirm_switch_local")
+      assert flash(refused, :error) == "You are not allowed to do that."
+      assert Config.smtp_mode_setting() == "off"
+    end
+
+    test "an unknown person cannot write settings or resume" do
+      for {name, params} <- [
+            {"set_mode", %{"mode" => "runner"}},
+            {"save", %{"smtp" => %{"helo" => "changed.test"}}},
+            {"clear_pause", %{}}
+          ] do
+        assert flash(event(socket(), name, params), :error) == "You are not allowed to do that."
+      end
+
+      assert Config.smtp_mode_setting() == "off"
+    end
+  end
+
   describe "set_mode" do
     test "saves the mode" do
-      socket = socket() |> event("set_mode", %{"mode" => "runner"})
+      socket = settings_socket() |> event("set_mode", %{"mode" => "runner"})
 
       assert Config.smtp_mode_setting() == "runner"
       assert socket.assigns.mode == "runner"
@@ -801,7 +883,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       {:ok, _} = Verification.verify("info@#{domain}", smtp: :enqueue)
       assert SmtpQueue.counts().queued == 1
 
-      socket = socket() |> event("set_mode", %{"mode" => "off"})
+      socket = settings_socket() |> event("set_mode", %{"mode" => "off"})
 
       assert SmtpQueue.counts().queued == 0
 
@@ -813,7 +895,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "an unknown mode changes nothing" do
       put_mode("local")
-      socket = socket() |> event("set_mode", %{"mode" => "bogus"})
+      socket = settings_socket() |> event("set_mode", %{"mode" => "bogus"})
 
       assert Config.smtp_mode_setting() == "local"
       assert flash(socket, :error) == "Failed to save the mode"
@@ -823,7 +905,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       Application.put_env(:phoenix_kit_emails, :verification_machine_api, false)
       on_exit(fn -> Application.delete_env(:phoenix_kit_emails, :verification_machine_api) end)
 
-      socket = socket() |> event("set_mode", %{"mode" => "runner"})
+      socket = settings_socket() |> event("set_mode", %{"mode" => "runner"})
 
       assert Config.smtp_mode_setting() == "off"
       assert flash(socket, :error) =~ "needs the machine API of PhoenixKit 2.63"
@@ -832,7 +914,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
   describe "switching to this server" do
     test "asks first and saves nothing until it is confirmed" do
-      socket = socket() |> event("set_mode", %{"mode" => "local"})
+      socket = settings_socket() |> event("set_mode", %{"mode" => "local"})
 
       assert socket.assigns.confirm_local?
       assert Config.smtp_mode_setting() == "off"
@@ -858,7 +940,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "cancelling keeps the previous mode, also on the radio buttons" do
       put_mode("runner")
-      socket = socket() |> event("set_mode", %{"mode" => "local"})
+      socket = settings_socket() |> event("set_mode", %{"mode" => "local"})
 
       html = render_section(%{confirm_local?: true})
       assert Regex.match?(~r/<input[^>]*value="local"[^>]*checked/s, html)
@@ -875,7 +957,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "a confirmation nobody asked for does nothing" do
-      socket = socket() |> event("confirm_switch_local")
+      socket = settings_socket() |> event("confirm_switch_local")
 
       assert Config.smtp_mode_setting() == "off"
       assert flash(socket, :error) == "That action is not available."
@@ -883,7 +965,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "choosing another mode while the question is open drops it" do
       socket =
-        socket()
+        settings_socket()
         |> event("set_mode", %{"mode" => "local"})
         |> event("set_mode", %{"mode" => "runner"})
 
@@ -898,7 +980,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     test "off and runner need no confirmation" do
       put_mode("local")
 
-      socket = socket() |> event("set_mode", %{"mode" => "off"})
+      socket = settings_socket() |> event("set_mode", %{"mode" => "off"})
       refute socket.assigns.confirm_local?
       assert Config.smtp_mode_setting() == "off"
 
@@ -909,7 +991,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "choosing local again while it is on asks nothing" do
       put_mode("local")
-      socket = socket() |> event("set_mode", %{"mode" => "local"})
+      socket = settings_socket() |> event("set_mode", %{"mode" => "local"})
 
       refute socket.assigns.confirm_local?
       assert Config.smtp_mode_setting() == "local"
@@ -924,7 +1006,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
         "rcpt_per_session" => "20"
       }
 
-      socket = socket() |> event("save", %{"smtp" => params})
+      socket = settings_socket() |> event("save", %{"smtp" => params})
 
       assert Config.smtp_mail_from() == {"verify@acme-mail.test", :override}
       assert Config.smtp_helo() == "mx.acme-mail.test"
@@ -938,7 +1020,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       put_mode("runner")
 
       socket =
-        socket()
+        settings_socket()
         |> event("save", %{
           "smtp" => %{
             "mail_from" => "nope",
@@ -965,7 +1047,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
       put_mode("local")
 
       socket =
-        socket()
+        settings_socket()
         |> event("save", %{"smtp" => %{"rcpt_per_session" => %{"a" => 1}, "mail_from" => "x"}})
 
       assert socket.assigns.form["rcpt_per_session"] == "10"
@@ -975,14 +1057,14 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "an error in the sender alone leaves the advanced block closed" do
-      socket = socket() |> event("save", %{"smtp" => %{"mail_from" => "nope"}})
+      socket = settings_socket() |> event("save", %{"smtp" => %{"mail_from" => "nope"}})
 
       refute socket.assigns.advanced_open?
     end
 
     test "an invalid save keeps only the fields of the form" do
       socket =
-        socket()
+        settings_socket()
         |> event("save", %{
           "smtp" => %{"mail_from" => "nope", "evil" => String.duplicate("x", 1000)}
         })
@@ -993,9 +1075,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "saving the form as it was shown stores nothing: the defaults are not frozen" do
       put_mode("local")
-      form = socket().assigns.form
+      form = settings_socket().assigns.form
 
-      socket = event(socket(), "save", %{"smtp" => form})
+      socket = event(settings_socket(), "save", %{"smtp" => form})
 
       assert flash(socket, :info) == "Settings saved"
       assert Settings.get_setting("email_verify_rcpt_per_session") == nil
@@ -1005,9 +1087,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "only the changed field is written" do
       put_mode("local")
-      form = Map.put(socket().assigns.form, "rcpt_per_session", "20")
+      form = Map.put(settings_socket().assigns.form, "rcpt_per_session", "20")
 
-      event(socket(), "save", %{"smtp" => form})
+      event(settings_socket(), "save", %{"smtp" => form})
 
       assert Settings.get_setting("email_verify_rcpt_per_session") == "20"
       assert Settings.get_setting("email_verify_grey_retry_minutes") == nil
@@ -1033,7 +1115,9 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
 
     test "the mode is not part of the form" do
       put_mode("local")
-      _socket = socket() |> event("save", %{"smtp" => %{"mail_from" => "verify@acme-mail.test"}})
+
+      _socket =
+        settings_socket() |> event("save", %{"smtp" => %{"mail_from" => "verify@acme-mail.test"}})
 
       assert Config.smtp_mode_setting() == "local"
     end
@@ -1102,7 +1186,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "a lease below the floor is an error on its own field, in the Advanced block" do
-      socket = event(socket(), "save", %{"smtp" => %{"smtp_lease_s" => "120"}})
+      socket = event(settings_socket(), "save", %{"smtp" => %{"smtp_lease_s" => "120"}})
 
       assert socket.assigns.advanced_open?
       assert socket.assigns.errors == %{"smtp_lease_s" => {:min, 300}}
@@ -1114,7 +1198,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
     end
 
     test "an error in the numbers opens it and a later save does not shut it" do
-      socket = event(socket(), "save", %{"smtp" => %{"smtp_lease_s" => "0"}})
+      socket = event(settings_socket(), "save", %{"smtp" => %{"smtp_lease_s" => "0"}})
       assert socket.assigns.advanced_open?
 
       socket = event(socket, "save", %{"smtp" => %{"mail_from" => "nope"}})
@@ -1333,7 +1417,7 @@ defmodule PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerificationTest do
         set: [paused_until: DateTime.add(DateTime.utc_now(), 3600), pause_reason: "x"]
       )
 
-      socket = socket()
+      socket = settings_socket()
       assert socket.assigns.view.paused
 
       socket = event(socket, "clear_pause")
