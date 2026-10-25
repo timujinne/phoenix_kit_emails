@@ -1,2 +1,0 @@
-# Phrases of an SMTP reply that mean "our server is blocked". Used by the SMTP stage,
-# which does not exist yet. Shipped empty.

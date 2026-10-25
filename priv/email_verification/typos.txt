@@ -1,3 +1,0 @@
-# Address patterns for the typo flag (flag only, never a verdict). Shipped empty;
-# a host adds its own via the external lists directory. One entry per line:
-# `@domain.tld` (the domain), `local@` (the local part), `local@domain.tld` (the address).

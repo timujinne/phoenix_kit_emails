@@ -1,2 +1,0 @@
-# Words for the curse flag (flag only, never a verdict): matched as whole words of the
-# address, a multi-word entry ("two words") as consecutive words. Shipped empty.
