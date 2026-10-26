@@ -25,6 +25,7 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
   alias PhoenixKit.Modules.Emails.Web.SourceBadges
   alias PhoenixKit.Modules.Emails.Web.TemplateEditor
   alias PhoenixKit.Templates.Overrides
+  alias PhoenixKit.Users.Auth.UserNotifier
   alias PhoenixKitEmails.Test.Repo
 
   defmodule FakeCatalog do
@@ -341,6 +342,13 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
       Application.put_env(:phoenix_kit, PhoenixKit.Mailer, adapter: Swoosh.Adapters.Test)
       ApplicationIntegration.register()
 
+      {:ok, _} =
+        PhoenixKit.Settings.update_setting_with_module(
+          "from_email",
+          "mail@example.com",
+          "email_system"
+        )
+
       on_exit(fn ->
         if previous,
           do: Application.put_env(:phoenix_kit, PhoenixKit.Mailer, previous),
@@ -359,24 +367,20 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
     end
 
     # The editor's "send test" message, as `handle_event("send_test_email")` posts it.
-    defp editor_send(name, template) do
+    defp editor_send(name, template, overrides \\ %{}) do
       use_test_mailer()
-      # The editor sends from the site's address; the log refuses `noreply@localhost`.
-      {:ok, _} =
-        PhoenixKit.Settings.update_setting_with_module(
-          "from_email",
-          "mail@example.com",
-          "email_system"
-        )
-
       recipient = "editor-#{System.unique_integer([:positive])}@example.com"
 
-      data = %{
-        name: name,
-        subject: %{"en" => "Subject"},
-        html_body: %{"en" => "<p>Hi</p>"},
-        text_body: %{"en" => "Hi"}
-      }
+      data =
+        Map.merge(
+          %{
+            name: name,
+            subject: %{"en" => "Subject"},
+            html_body: %{"en" => "<p>Hi</p>"},
+            text_body: %{"en" => "Hi"}
+          },
+          overrides
+        )
 
       socket = %Phoenix.LiveView.Socket{
         assigns: %{__changed__: %{}, flash: %{}, template: template},
@@ -407,6 +411,32 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
       assert log.template_source == nil
       assert log.template_uuid == nil
     end
+
+    test "core's auth builder and mailer preserve the database row as evidence" do
+      use_test_mailer()
+      template = row("welcome")
+      built = UserNotifier.build_welcome(%{email: "auth@example.com"})
+
+      assert built.private.phoenix_kit_db_template.uuid == template.uuid
+      assert {:ok, _email} = UserNotifier.deliver_built(built)
+
+      log = Repo.one!(from(l in Log, where: l.to == "auth@example.com"))
+      assert log.template_name == "user_notification"
+      assert {log.template_source, log.template_uuid} == {"db", template.uuid}
+    end
+
+    test "core's default auth mail never borrows a row matching its logging label" do
+      use_test_mailer()
+      row("user_notification")
+      built = UserNotifier.build_welcome(%{email: "auth@example.com"})
+
+      assert built.private.phoenix_kit_db_template == nil
+      assert {:ok, _email} = UserNotifier.deliver_built(built)
+
+      log = Repo.one!(from(l in Log, where: l.to == "auth@example.com"))
+      assert log.template_name == "user_notification"
+      assert {log.template_source, log.template_uuid} == {nil, nil}
+    end
   end
 
   describe "the template editor's test send" do
@@ -416,6 +446,20 @@ defmodule PhoenixKit.Modules.Emails.LogTemplateSourceTest do
 
       assert log.template_source == "db"
       assert log.template_uuid == template.uuid
+    end
+
+    for field <- [:subject, :html_body, :text_body] do
+      test "unsaved changes to #{field} are not attributed to the stored row" do
+        template = row(unique("editor_mail"))
+
+        log =
+          editor_send(template.name, template, %{
+            unquote(field) => %{"en" => "Unsaved content"}
+          })
+
+        assert {log.template_source, log.template_uuid} == {nil, nil}
+        assert Templates.get_template(template.uuid) == template
+      end
     end
 
     test "an unsaved template named like an active row has no layer" do

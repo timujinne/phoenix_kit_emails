@@ -1,7 +1,7 @@
 defmodule PhoenixKitEmails.MixProject do
   use Mix.Project
 
-  @version "0.5.5"
+  @version "0.6.0"
   @source_url "https://github.com/BeamLabEU/phoenix_kit_emails"
 
   def project do

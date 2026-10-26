@@ -1,5 +1,74 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- A builds-alone test: the chain builds every email table the way core's chain does,
+  without core's. It runs once the package resolves the next core release.
+
+## 0.6.0 - 2026-10-24
+
+### Upgrade notes
+
+- **Run `mix phoenix_kit.update`**: migrations V4 and V5 add the address
+  verification tables (`phoenix_kit_email_verifications`,
+  `phoenix_kit_email_verify_domains`, `phoenix_kit_email_verify_batches`,
+  `phoenix_kit_email_verify_batch_items`, `phoenix_kit_email_verify_smtp_queue`,
+  `phoenix_kit_email_verify_runners`), and V6 adds two nullable columns,
+  `template_uuid` and `template_source`, to `phoenix_kit_email_logs`.
+- **Declare the Oban queue `email_verification`** (e.g. `email_verification:
+  5`). Core 2.28.0 and later writes it into the host's Oban config on
+  install/update; an app set up earlier adds it by hand. Without it,
+  verification batches are stored and never run;
+  `Verification.queue_configured?/0` tells whether it is there.
+- The `phoenix_kit` requirement is unchanged (`>= 2.21.3 and < 3.0.0`). The
+  SMTP runner mode needs core's machine API (core 2.63.0 and later); on an
+  older core it is unavailable and reads as `off`.
+
+### Added
+
+- **Address verification** (PR #58). `PhoenixKit.Modules.Emails.Verification`
+  checks whether addresses are deliverable without sending anything:
+  normalisation, syntax, word lists (disposable, TLD, free, role), DNS MX with
+  a per-domain cache, and one stored verdict per address (`verify/2`,
+  `results_for/1`, `statuses_for/1`, `summary/1`). `start_batch/4` verifies a
+  list in the background on the `email_verification` queue, with progress on
+  PubSub.
+- **Optional mailbox (SMTP) check**, off by default
+  (`email_verify_smtp_mode`), set up under a new "Mailbox verification (SMTP)"
+  section on the Email Sending settings page. In mode `runner` the server never
+  connects to port 25: a PowerShell runner on the operator's machine
+  (downloadable from `/admin/emails/verification/pk-smtp-runner.ps1`, see
+  `docs/smtp-runner.md`) authenticates with a machine-API key (scope
+  `emails.smtp_runner:run`), claims the queued addresses and reports the
+  replies. In mode `local` the site's own server runs the same queue after a
+  confirmation. `DATA` is never sent. In mode `local` the server connects only
+  to a public IPv4 address it has resolved itself, so an MX record naming
+  `localhost` or a private address cannot make it dial its own network.
+- **The email log records which template layer built a message** (PR #60):
+  `template_source` (`"db"`, `"file"` or `"module"`; `nil` when no template
+  built it) and, for a database row, `template_uuid`. The email details page
+  shows it as a badge, linking to the template while the row exists. Core's
+  authentication mails are attributed to the row they used, and a test send
+  from the editor counts as `"db"` only while the form matches the saved
+  template.
+- **"Process Amazon SES events"** switch in the Delivery event tracking
+  settings section: a reachable way to stop all SES processing, not just SQS
+  polling. Re-enabling it leaves the polling switch as it was.
+- Translations for all new strings in en, et and ru.
+
+### Changed
+
+- Dependencies refreshed to `phoenix_kit` 2.64.1, including `plug_crypto`
+  2.2.1 (security patch for CVE-2026-105963).
+
+### Fixed
+
+- The webhook controller's moduledoc named a route and controller that do not
+  exist; it now documents the `/webhooks/ses` route `Web.Routes` registers.
+  The `Web.EmailTracking` moduledoc no longer claims a mount path.
+
 ## 0.5.5 - 2026-10-13
 
 ### Added
