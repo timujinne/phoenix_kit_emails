@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- A builds-alone test: the chain builds every email table the way core's chain does,
+  without core's. It runs once the package resolves the next core release.
+
 ## 0.6.0 - 2026-10-24
 
 ### Upgrade notes
