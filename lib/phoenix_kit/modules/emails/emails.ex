@@ -1109,6 +1109,13 @@ defmodule PhoenixKit.Modules.Emails do
   @impl PhoenixKit.Module
   def migration_module, do: PhoenixKit.Modules.Emails.Migrations
 
+  @doc """
+  The manifest of this module's tables, for `mix phoenix_kit.repair` and
+  `mix phoenix_kit.doctor`; see `PhoenixKit.Modules.Emails.ExpectedSchema`.
+  """
+  # No `@impl`, so this compiles against a core that lacks the callback.
+  def expected_schema, do: PhoenixKit.Modules.Emails.ExpectedSchema
+
   @impl PhoenixKit.Module
   def css_sources, do: [:phoenix_kit_emails]
 

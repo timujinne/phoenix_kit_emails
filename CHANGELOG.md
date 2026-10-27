@@ -4,6 +4,7 @@
 
 ### Added
 
+- **The module supplies the manifest of its 12 tables** (`expected_schema/0`, `PhoenixKit.Modules.Emails.ExpectedSchema`), so `mix phoenix_kit.repair` and `mix phoenix_kit.doctor` check and repair them again, now from the module's own chain instead of core's manifest. Generated from `PhoenixKit.Modules.Emails.Migrations` by core's `dev_docs/squash/generate_module_manifest.exs`, never edited by hand. Core uses it from the first release after 2.64.1; before that nothing reads it. Repair is additive (it creates what is missing and reports the rest) and checks the tables only while the database is at the chain's current version. No migration.
 - A builds-alone test: the chain builds every email table the way core's chain does,
   without core's. It runs once the package resolves the next core release.
 
