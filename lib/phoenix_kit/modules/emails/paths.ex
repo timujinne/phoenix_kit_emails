@@ -10,5 +10,4 @@ defmodule PhoenixKit.Modules.Emails.Paths do
   def queue, do: Routes.path("#{@base}/queue")
   def blocklist, do: Routes.path("#{@base}/blocklist")
   def settings, do: Routes.path("/admin/settings/email-sending")
-  def runner_script, do: Routes.path("#{@base}/verification/pk-smtp-runner.ps1")
 end

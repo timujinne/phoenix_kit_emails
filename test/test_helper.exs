@@ -46,22 +46,7 @@ repo_available =
       false
   end
 
-# `:external` tests talk to the real network (live DNS). Opt in with
-# `mix test --include external`.
-exclude = if repo_available, do: [:external], else: [:external, :integration]
-
-# `:pwsh` tests run the SMTP runner script under PowerShell 7 with Pester (against fake
-# servers on 127.0.0.1). Skipped, with the reason, where the tools are not installed;
-# `mix test --exclude pwsh` skips them on purpose.
-exclude =
-  case PhoenixKitEmails.Test.Pwsh.unavailable_reason() do
-    nil ->
-      exclude
-
-    reason ->
-      IO.puts("\n⚠  Pester suite of the SMTP runner skipped (tag :pwsh): #{reason}.")
-      [:pwsh | exclude]
-  end
+exclude = if repo_available, do: [], else: [:integration]
 
 # The builds-alone test needs `PhoenixKit.TestSupport.ModuleChainCheck`, which
 # ships in the first core release after 2.64.1; against an older core it is

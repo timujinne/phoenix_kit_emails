@@ -7,7 +7,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Routes do
   def generate(url_prefix) do
     webhook_controller = PhoenixKit.Modules.Emails.Web.WebhookController
     export_controller = PhoenixKit.Modules.Emails.Web.ExportController
-    runner_script_controller = PhoenixKit.Modules.Emails.Web.RunnerScriptController
 
     quote do
       # AWS SNS delivers webhook notifications as a cold, session-less POST
@@ -30,18 +29,6 @@ defmodule PhoenixKit.Modules.Emails.Web.Routes do
       scope unquote(url_prefix) do
         pipe_through([:browser, :phoenix_kit_admin_only])
         get("/emails/export/:format", unquote(export_controller), :export)
-      end
-
-      # The SMTP runner script: a download behind the admin pipeline; the controller
-      # adds the "emails" permission.
-      scope unquote(url_prefix) do
-        pipe_through([:browser, :phoenix_kit_admin_only])
-
-        get(
-          "/admin/emails/verification/pk-smtp-runner.ps1",
-          unquote(runner_script_controller),
-          :runner_script
-        )
       end
     end
   end

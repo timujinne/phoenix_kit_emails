@@ -21,6 +21,49 @@ Email tracking, analytics, and AWS SES integration for [PhoenixKit](https://gith
 - **Admin dashboard** — LiveView pages for logs, metrics, queue, blocklist, and settings
 - **Auto-discovery** — implements `PhoenixKit.Module` behaviour; PhoenixKit finds it at startup with zero config
 
+## Upgrading after address verification was removed
+
+Address verification is no longer part of this package. The `Verification`
+API and workers, SMTP settings section, runner download route and machine-API
+tools (`emails.claim_smtp_jobs` and `emails.report_smtp_results`) are removed.
+Newsletters uses a host-configured verification engine instead.
+
+If you used this feature, prepare the host **while the old version is still
+running**, before updating this dependency:
+
+1. Stop starting verification batches and stop external SMTP runners. In
+   Settings → Email Sending → Mailbox verification (SMTP), switch the SMTP mode
+   off; this settles queued SMTP checks. Remove any verification worker from
+   `Oban.Plugins.Cron`, especially
+   `PhoenixKit.Modules.Emails.Verification.QueueSweepWorker`. A cron entry for
+   a removed worker prevents Oban from starting after the upgrade.
+2. Keep the `email_verification` queue configured while in-flight batches finish.
+   Wait for executing jobs to finish and for remaining batch work to settle.
+   Scheduled sweep/runner jobs can remain after that. Pause the verification
+   queue on every node, wait for executing jobs to finish, then cancel the
+   remaining `available`, `scheduled` and `retryable` jobs for these workers
+   through the host's Oban instance:
+   `PhoenixKit.Modules.Emails.Verification.BatchStartWorker`,
+   `PhoenixKit.Modules.Emails.Verification.VerifyEmailWorker`,
+   `PhoenixKit.Modules.Emails.Verification.QueueSweepWorker` and
+   `PhoenixKit.Modules.Emails.Verification.LocalRunnerWorker`.
+3. Remove `email_verification` from the host's Oban queues, then update the
+   dependency. Leaving jobs behind makes them fail as unknown workers if the
+   queue still runs, or leaves them unprocessed if the queue is removed.
+4. Revoke runner API keys with scope `emails.smtp_runner:run`. If the machine
+   API was enabled only for the runner, disable it under Settings → API. Remove
+   host calls to `PhoenixKit.Modules.Emails.Verification` and its submodules;
+   they have no replacement API in this package.
+
+Hosts that never used verification can update directly; remove any configured
+verification cron entries or queue as well.
+
+Existing verification tables and their rows are preserved, including batch,
+domain-cache, SMTP-queue and runner records. Migrations V4 and V5 retain their
+version numbers but create nothing; fresh installs get no verification tables,
+and repair no longer manages them. Old `email_verify_*` settings and
+`:phoenix_kit_emails` `:verification_*` configuration keys are no longer read.
+
 ## ⚠️ Email templates are files now (core 3.0)
 
 Message templates no longer live in the database. They are files a host owns in
@@ -299,29 +342,6 @@ lib/
 | `phoenix_kit_email_logs` | Email log records (UUIDv7 PK) |
 | `phoenix_kit_email_events` | Delivery/bounce/complaint/open/click events |
 | `phoenix_kit_email_templates` | Retired: no longer created; hosts upgraded from core 2.x keep it (read only by the export) |
-
-## Address verification
-
-`PhoenixKit.Modules.Emails.Verification` checks e-mail addresses (syntax, word
-lists, DNS MX) and stores one verdict per address; `Verification.start_batch/4`
-verifies a whole list in the background, with progress on a PubSub topic. Batches
-run on the Oban queue `email_verification`, which the host's Oban config must
-declare (core 2.28.0 and later adds it on install/update; with an older core, or
-an app that was set up before, add it by hand):
-
-```elixir
-config :my_app, Oban, queues: [email_verification: 5, ...]
-```
-
-`Verification.queue_configured?/0` tells whether it is there. The mailbox (SMTP)
-check is off by default (`email_verify_smtp_mode` is `off`). With the mode `runner`
-the server never opens a connection to port 25 itself: it queues the addresses and
-a runner on the user's own machine, authenticated by an API key of core's machine
-API (core 2.63.0 and later), takes the work and reports what the mail hosts said.
-With the mode `local` the site's own server does the checking, from its own IP
-address (a built-in runner on the same queue, with the same pauses and throttling);
-leave it off when other sites share that address.
-See [docs/smtp-runner.md](https://github.com/BeamLabEU/phoenix_kit_emails/blob/main/docs/smtp-runner.md) for the runner script.
 
 ## Development
 

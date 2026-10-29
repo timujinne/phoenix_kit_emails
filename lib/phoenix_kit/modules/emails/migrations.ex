@@ -6,14 +6,12 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   `current_version/0` + `migrated_version_runtime/1` + idempotent `up/1` +
   version-aware `down/1`. `PhoenixKit.Modules.Legal.Migrations` is the
   reference implementation this chain is shaped after — same situation, and
-  V1 here is the same kind of step: an ADOPTION, not a create (V4 is the
-  first real create).
+  V1 here is the same kind of step: an ADOPTION, not a create.
 
   ## Ownership history — read before touching
 
-  Every ADOPTED table (V1 to V3; V4 adds tables of its own, below) was
-  created by core, back when email tracking still lived inside core, and
-  today ships in core's squashed
+  Every table this chain names was created by core, back when email
+  tracking still lived inside core, and today ships in core's squashed
   V135 baseline (plus later deltas — see "Where the DDL comes from"). When
   the module was extracted into this package the tables stayed in core's
   chain, exactly as `phoenix_kit_consent_logs` did for
@@ -113,60 +111,16 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   for the same names only: code older than V3 has no raw form and renders
   `{{{name}}}` as `{` + value + `}`.
 
-  ## What V4 is
+  ## What V4 and V5 are
 
-  The first tables this package CREATES rather than adopts: the storage of the
-  e-mail verification engine (`PhoenixKit.Modules.Emails.Verification`): the latest
-  verdict per address and the verification batches.
-
-    * `phoenix_kit_email_verifications` - the latest verdict per address
-      (`email` is `citext`, unique). Besides the verdict it keeps the flags
-      `free`, `role`, `disposable`, `fake`, `curse` and `typo` as plain boolean
-      columns, so a later UI can filter on them.
-    * `phoenix_kit_email_verify_domains` - per-domain cache and state; every
-      cached fact carries its own timestamp, hence its own TTL.
-    * `phoenix_kit_email_verify_batches` and
-      `phoenix_kit_email_verify_batch_items` - a batch and its members.
-
-  All four are created here although this release only reads and writes the
-  first two: the batch tables belong to the same design, and creating them now
-  means the batch runner needs no chain version of its own.
-
-  These tables exist on no install yet, so there is nothing to adopt and
-  nothing to reconcile: plain `CREATE TABLE IF NOT EXISTS` with the primary key
-  and the one foreign key inline, `CREATE INDEX IF NOT EXISTS` through the same
-  soft-failure wrapper as every other index here, and `CREATE EXTENSION IF NOT
-  EXISTS citext` (core's baseline already installs it). The `uuid` defaults call
-  the prefix-local `uuid_generate_v7()` that core installs into every schema it
-  migrates; V4, like the adopted tables' defaults, relies
-  on core having run first and does not create that function (unlike
-  `phoenix_kit_newsletters`, which can be the first module to touch a schema).
-  They are NOT in core's `ExpectedSchema` manifest and must not be added to
-  it - they are module-owned, so `mix phoenix_kit.repair` neither knows nor
-  touches them. Nothing in an existing table changes.
-
-  `down/1` leaves them standing, like everything else here.
-
-  ## What V5 is
-
-  The storage of the SMTP stage (see `docs/smtp-runner.md` for the runner that works
-  with it), again only objects of this package:
-
-    * `phoenix_kit_email_verify_smtp_queue` - one row per address that waits for an
-      SMTP session. A unique partial index on `email` for the live states
-      (`queued`, `leased`) means two batches asking for the same address share one
-      row. Beside `attempts` (the total) the row counts its retries apart:
-      `grey_attempts`, `transport_attempts`, `lease_expiries`.
-    * `phoenix_kit_email_verify_runners` - one row per API key that has connected as a
-      runner. Besides the columns that identify and describe the runner it keeps `fail_streak` and
-      `fail_domains`, the state of the runner autopause (consecutive failed sessions
-      and the domains they hit).
-    * `phoenix_kit_email_verify_batches.awaiting_smtp` - an added column on a V4 table:
-      how many items of the batch wait for their SMTP result.
-
-  `batch_items.state` gains the value `awaiting_smtp`; it is a plain string column,
-  so no DDL is involved. Nothing is dropped and no existing row changes. `down/1`
-  leaves all of it standing.
+  Empty. The address verification feature was removed from this module, and
+  with it the creation of its tables; the tables are no longer read or written
+  by this module. The two numbers are kept so that the `pke_schema:<N>` marker
+  of a database that went through them keeps its meaning, and a pinned
+  `version: 4` or `version: 5` still stamps its own marker. A fresh install
+  does not get those tables, and no statement of this chain creates, alters,
+  indexes or drops one - on a database that has them they stay as they are,
+  rows included.
 
   ## What V6 is
 
@@ -535,10 +489,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     # archival job safe to re-run.
     {2, "phoenix_kit_email_logs", "\"archived_at\" timestamp with time zone"},
     {2, "phoenix_kit_email_logs", "\"s3_key\" text"},
-    # V5. How many items of a batch wait for their SMTP result (batch item state
-    # `awaiting_smtp`). A counter and not a query: it is broadcast with every
-    # progress message of a batch of up to a hundred thousand addresses.
-    {5, "phoenix_kit_email_verify_batches", "\"awaiting_smtp\" integer DEFAULT 0 NOT NULL"},
     # V6. Which layer built the message (#48): the database row (`template_uuid`
     # is its uuid) or, without one, `"file"` / `"module"`. Both nullable, no
     # default and no foreign key: every older row has no known layer, a deleted
@@ -560,188 +510,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     {2,
      "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_archived_at_idx " <>
        "ON #{@schema_token}.phoenix_kit_email_logs USING btree (archived_at) " <>
-       "WHERE archived_at IS NOT NULL"},
-    # V4 - the verification tables (see `@owned_tables`). Every statement keeps
-    # the ` ON <schema>.<table> ` shape `index_table/1` parses.
-    {4,
-     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verifications_email_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verifications USING btree (email)"},
-    {4,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verifications_status_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verifications USING btree (status)"},
-    {4,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verifications_domain_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verifications USING btree (domain)"},
-    {4,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batches_source_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_batches USING btree (source_type, source_ref)"},
-    {4,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batches_state_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_batches USING btree (state)"},
-    {4,
-     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_batch_items_member_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, email)"},
-    {4,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batch_items_state_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, state)"},
-    # V5 - the SMTP queue and the runners. One address waits in the queue once
-    # (`queued` or `leased`); a finished or cancelled row leaves the index, so the
-    # address can be queued again later.
-    {5,
-     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_live_email_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_smtp_queue USING btree (email) " <>
-       "WHERE state IN ('queued', 'leased')"},
-    {5,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_state_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_smtp_queue USING btree (state, not_before)"},
-    {5,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_domain_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_smtp_queue USING btree (domain, state)"},
-    {5,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_lease_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_smtp_queue USING btree (lease_token) " <>
-       "WHERE lease_token IS NOT NULL"},
-    {5,
-     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_runners_key_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_runners USING btree (api_key_uuid)"},
-    # Every settled address looks up the batch items that wait for it by `email`
-    # alone (`Batches.settle_awaiting/2`, `lock_awaiting/1`). The member index leads
-    # with `batch_uuid`, so without this one each report row scanned every item of
-    # every batch. Partial: only parked items are ever asked for.
-    {5,
-     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batch_items_awaiting_idx " <>
-       "ON #{@schema_token}.phoenix_kit_email_verify_batch_items USING btree (email) " <>
-       "WHERE state = 'awaiting_smtp'"}
-  ]
-
-  # V4 - tables this chain creates itself, in dependency order (a batch before
-  # its items). `{version, table, create_sql}`; see the moduledoc's "What V4 is".
-  # Plain DDL, no `public.` anywhere: the schema is the `__SCHEMA__` token, and
-  # the uuid default is the prefix-local `uuid_generate_v7()` core installs into
-  # every schema it migrates.
-  @owned_tables [
-    {4, "phoenix_kit_email_verifications",
-     """
-     CREATE TABLE IF NOT EXISTS #{@schema_token}.phoenix_kit_email_verifications (
-       "uuid" uuid DEFAULT #{@schema_token}.uuid_generate_v7() NOT NULL,
-       "email" citext NOT NULL,
-       "domain" character varying(255),
-       "status" character varying(16) NOT NULL,
-       "reason" character varying(64),
-       "level" character varying(16),
-       "catch_all" boolean,
-       "free" boolean DEFAULT false NOT NULL,
-       "role" boolean DEFAULT false NOT NULL,
-       "disposable" boolean DEFAULT false NOT NULL,
-       "fake" boolean DEFAULT false NOT NULL,
-       "curse" boolean DEFAULT false NOT NULL,
-       "typo" boolean DEFAULT false NOT NULL,
-       "mx" character varying(255),
-       "log" jsonb DEFAULT '[]'::jsonb NOT NULL,
-       "attempts" integer DEFAULT 1 NOT NULL,
-       "checked_at" timestamp with time zone,
-       "inserted_at" timestamp with time zone DEFAULT now() NOT NULL,
-       "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-       PRIMARY KEY ("uuid")
-     )
-     """},
-    {4, "phoenix_kit_email_verify_domains",
-     """
-     CREATE TABLE IF NOT EXISTS #{@schema_token}.phoenix_kit_email_verify_domains (
-       "domain" character varying(253) NOT NULL,
-       "mx" jsonb,
-       "has_mx" boolean,
-       "mx_checked_at" timestamp with time zone,
-       "catch_all" boolean,
-       "catch_all_checked_at" timestamp with time zone,
-       "grey_message" text,
-       "grey_at" timestamp with time zone,
-       "last_smtp_at" timestamp with time zone,
-       "blocks" jsonb DEFAULT '{}'::jsonb NOT NULL,
-       "paused_until" timestamp with time zone,
-       PRIMARY KEY ("domain")
-     )
-     """},
-    {4, "phoenix_kit_email_verify_batches",
-     """
-     CREATE TABLE IF NOT EXISTS #{@schema_token}.phoenix_kit_email_verify_batches (
-       "uuid" uuid DEFAULT #{@schema_token}.uuid_generate_v7() NOT NULL,
-       "source_type" character varying(32) NOT NULL,
-       "source_ref" character varying(255),
-       "title" character varying(255),
-       "state" character varying(16) DEFAULT 'queued' NOT NULL,
-       "total" integer DEFAULT 0 NOT NULL,
-       "processed" integer DEFAULT 0 NOT NULL,
-       "counts" jsonb DEFAULT '{}'::jsonb NOT NULL,
-       "created_by_uuid" uuid,
-       "started_at" timestamp with time zone,
-       "finished_at" timestamp with time zone,
-       "inserted_at" timestamp with time zone DEFAULT now() NOT NULL,
-       "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-       PRIMARY KEY ("uuid")
-     )
-     """},
-    {4, "phoenix_kit_email_verify_batch_items",
-     """
-     CREATE TABLE IF NOT EXISTS #{@schema_token}.phoenix_kit_email_verify_batch_items (
-       "uuid" uuid DEFAULT #{@schema_token}.uuid_generate_v7() NOT NULL,
-       "batch_uuid" uuid NOT NULL,
-       "email" citext NOT NULL,
-       "state" character varying(16) DEFAULT 'pending' NOT NULL,
-       "next_attempt_at" timestamp with time zone,
-       "inserted_at" timestamp with time zone DEFAULT now() NOT NULL,
-       "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-       PRIMARY KEY ("uuid"),
-       CONSTRAINT fk_email_verify_batch_items_batch FOREIGN KEY ("batch_uuid")
-         REFERENCES #{@schema_token}.phoenix_kit_email_verify_batches ("uuid") ON DELETE CASCADE
-     )
-     """},
-    {5, "phoenix_kit_email_verify_smtp_queue",
-     """
-     CREATE TABLE IF NOT EXISTS #{@schema_token}.phoenix_kit_email_verify_smtp_queue (
-       "uuid" uuid DEFAULT #{@schema_token}.uuid_generate_v7() NOT NULL,
-       "email" citext NOT NULL,
-       "checked_as" character varying(320) NOT NULL,
-       "domain" character varying(253) NOT NULL,
-       "state" character varying(16) DEFAULT 'queued' NOT NULL,
-       "attempts" integer DEFAULT 0 NOT NULL,
-       "grey_attempts" integer DEFAULT 0 NOT NULL,
-       "transport_attempts" integer DEFAULT 0 NOT NULL,
-       "lease_expiries" integer DEFAULT 0 NOT NULL,
-       "not_before" timestamp with time zone,
-       "lease_token" character varying(64),
-       "leased_by" character varying(64),
-       "lease_expires_at" timestamp with time zone,
-       "last_reason" character varying(64),
-       "inserted_at" timestamp with time zone DEFAULT now() NOT NULL,
-       "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-       PRIMARY KEY ("uuid")
-     )
-     """},
-    {5, "phoenix_kit_email_verify_runners",
-     """
-     CREATE TABLE IF NOT EXISTS #{@schema_token}.phoenix_kit_email_verify_runners (
-       "uuid" uuid DEFAULT #{@schema_token}.uuid_generate_v7() NOT NULL,
-       "api_key_uuid" uuid NOT NULL,
-       "name" character varying(255),
-       "version" character varying(32),
-       "os" character varying(255),
-       "public_ip" character varying(45),
-       "helo_auto" character varying(255),
-       "port25" character varying(16) DEFAULT 'unknown' NOT NULL,
-       "port25_checked_at" timestamp with time zone,
-       "last_seen_at" timestamp with time zone,
-       "jobs_done" integer DEFAULT 0 NOT NULL,
-       "last_error" text,
-       "paused_until" timestamp with time zone,
-       "pause_reason" character varying(255),
-       "fail_streak" integer DEFAULT 0 NOT NULL,
-       "fail_domains" jsonb DEFAULT '[]'::jsonb NOT NULL,
-       "inserted_at" timestamp with time zone DEFAULT now() NOT NULL,
-       "updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-       PRIMARY KEY ("uuid")
-     )
-     """}
+       "WHERE archived_at IS NOT NULL"}
   ]
 
   # V3's data step — see the moduledoc's "What V3 is". Postgres ARE syntax.
@@ -777,13 +546,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   """
   @spec adopted_tables() :: [String.t()]
   def adopted_tables, do: @adopted_tables
-
-  @doc """
-  The tables this chain creates itself (V4 onwards). Module-owned: not in
-  core's `ExpectedSchema` manifest, and not part of `adopted_tables/0`.
-  """
-  @spec owned_tables() :: [String.t()]
-  def owned_tables, do: Enum.map(@owned_tables, fn {_version, table, _sql} -> table end)
 
   @doc false
   # The manifest-derived object data, exposed so the conformance test can
@@ -891,7 +653,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     statements =
       [lock_timeout_statement()] ++
         table_statements() ++
-        owned_table_statements(version) ++
         column_statements(version) ++
         index_statements(version) ++
         constraint_statements() ++
@@ -1004,16 +765,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
       definition <> " NOT NULL"
     else
       definition
-    end
-  end
-
-  # V4. `citext` first (the verification tables type their address columns with
-  # it); then the tables, in dependency order. Skipped entirely below V4, so a
-  # host pinning an earlier version gets none of it.
-  defp owned_table_statements(version) do
-    case for({introduced_in, _table, sql} <- @owned_tables, introduced_in <= version, do: sql) do
-      [] -> []
-      tables -> ["CREATE EXTENSION IF NOT EXISTS citext" | Enum.map(tables, &String.trim/1)]
     end
   end
 

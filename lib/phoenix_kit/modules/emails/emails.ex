@@ -1031,42 +1031,12 @@ defmodule PhoenixKit.Modules.Emails do
         title: gettext("Delivery Event Tracking"),
         permission: "emails",
         component: PhoenixKit.Modules.Emails.Web.SettingsSections.DeliveryEventTracking
-      },
-      %{
-        id: :emails_verification_smtp,
-        title: gettext("Mailbox verification (SMTP)"),
-        permission: "emails",
-        component: PhoenixKit.Modules.Emails.Web.SettingsSections.SmtpVerification
       }
     ]
   end
 
   @impl PhoenixKit.Module
   def children, do: [PhoenixKit.Modules.Emails.Supervisor]
-
-  # The address-verification workers (`Verification.BatchStartWorker`,
-  # `Verification.VerifyEmailWorker`). The limit is how many addresses one node
-  # checks at once. Core (2.28.0 and later) writes it into a host's Oban config
-  # on install/update; with an older core the host adds the queue by hand
-  # (see `Verification.queue_configured?/0`). The callback does not exist before
-  # 2.28.0, hence the conditional `@impl`.
-  if {:oban_queues, 0} in PhoenixKit.Module.behaviour_info(:callbacks),
-    do: @impl(PhoenixKit.Module)
-
-  def oban_queues, do: [email_verification: [limit: 5, kind: :batch]]
-
-  # The two tools of the SMTP runner (`Verification.RunnerApi`) for core's machine API.
-  # Declared only where the core has the API (`PhoenixKit.API.Tool` from 2.63.0) and the
-  # key store a runner authenticates with; on an older core the callback does not exist,
-  # hence the conditional `@impl`, and the SMTP mode `runner` reads as `off`.
-  if Code.ensure_loaded?(PhoenixKit.API.Tool) do
-    if {:api_tools, 0} in PhoenixKit.Module.behaviour_info(:callbacks),
-      do: @impl(PhoenixKit.Module)
-
-    alias PhoenixKit.Modules.Emails.Verification
-
-    def api_tools, do: Verification.runner_tools()
-  end
 
   @impl PhoenixKit.Module
   def migration_module, do: PhoenixKit.Modules.Emails.Migrations
