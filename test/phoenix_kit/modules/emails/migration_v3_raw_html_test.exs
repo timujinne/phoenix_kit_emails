@@ -13,15 +13,22 @@ defmodule PhoenixKit.Modules.Emails.MigrationV3RawHtmlTest do
   use PhoenixKitEmails.DataCase, async: false
 
   alias PhoenixKit.Modules.Emails.Migrations
-  alias PhoenixKit.Modules.Emails.Template
+  alias PhoenixKitEmails.Test.LegacyTemplates
   alias PhoenixKitEmails.Test.Repo
+
+  setup do
+    LegacyTemplates.create_table!()
+    :ok
+  end
 
   defp up_rewrite, do: Enum.filter(Migrations.up_statements("public", 3), &rewrite?/1)
   defp down_rewrite, do: Enum.filter(Migrations.down_statements("public", 2), &rewrite?/1)
 
-  defp rewrite?(statement), do: String.starts_with?(statement, "UPDATE ")
+  defp rewrite?(statement), do: statement =~ ~r/\bUPDATE .*phoenix_kit_email_templates/s
 
-  defp run(statements), do: Enum.each(statements, &Repo.query!/1)
+  defp run(statements) do
+    Enum.each(statements, &Repo.query!/1)
+  end
 
   defp insert(name, html_body, opts \\ []) do
     text_body = Keyword.get(opts, :text_body, %{"en" => "{{line_items_html}}"})
@@ -48,6 +55,12 @@ defmodule PhoenixKit.Modules.Emails.MigrationV3RawHtmlTest do
       )
 
     %{subject: subject, html_body: html_body, text_body: text_body}
+  end
+
+  test "on a database without the table the step does nothing and does not fail" do
+    Repo.query!("DROP TABLE phoenix_kit_email_templates")
+    assert :ok = run(up_rewrite())
+    assert :ok = run(down_rewrite())
   end
 
   test "V3 carries exactly one rewrite statement, and V2 none" do
@@ -152,9 +165,6 @@ defmodule PhoenixKit.Modules.Emails.MigrationV3RawHtmlTest do
     assert row(uuid).html_body == %{
              "en" => "{{{line_items_html}}}|" <> unicode
            }
-
-    assert Template.placeholder_names(ascii) == ["line_items_html"]
-    assert Template.placeholder_names(unicode) == []
   end
 
   test "the names are frozen in the migration, not read from Template.raw_html_variables/0" do

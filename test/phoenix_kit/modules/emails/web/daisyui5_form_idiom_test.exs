@@ -15,9 +15,7 @@ defmodule PhoenixKit.Modules.Emails.Web.DaisyUI5FormIdiomTest do
     "lib/phoenix_kit/modules/emails/web/blocklist.html.heex",
     "lib/phoenix_kit/modules/emails/web/email_tracking.html.heex",
     "lib/phoenix_kit/modules/emails/web/emails.html.heex",
-    "lib/phoenix_kit/modules/emails/web/metrics.html.heex",
-    "lib/phoenix_kit/modules/emails/web/template_editor.html.heex",
-    "lib/phoenix_kit/modules/emails/web/templates.html.heex"
+    "lib/phoenix_kit/modules/emails/web/metrics.html.heex"
   ]
 
   # Classes daisyUI 5 removed. Comments in the templates mention them on
@@ -35,39 +33,12 @@ defmodule PhoenixKit.Modules.Emails.Web.DaisyUI5FormIdiomTest do
            "dead daisyUI 4 classes still in class attributes: #{inspect(leftovers)}"
   end
 
-  test "the six converted pages use real fieldset/legend" do
+  test "the converted pages use real fieldset/legend" do
     for path <- @converted do
       content = File.read!(path)
       refute content =~ ~s|div class="fieldset|, "#{path} still has a div.fieldset"
       assert content =~ "<fieldset", "#{path} is missing a <fieldset>"
       assert content =~ "fieldset-legend", "#{path} is missing fieldset-legend"
-    end
-  end
-
-  test "template editor preview toggle uses join, not btn-group" do
-    content = File.read!("lib/phoenix_kit/modules/emails/web/template_editor.html.heex")
-    refute content =~ "btn-group"
-    assert content =~ ~s|class="join"|
-    assert content =~ "join-item"
-  end
-
-  test "template editor field errors are bound to their control" do
-    content = File.read!("lib/phoenix_kit/modules/emails/web/template_editor.html.heex")
-
-    for id <- [
-          "template-name-error",
-          "template-display-name-error",
-          "template-slug-error",
-          "template-category-error",
-          "template-status-error",
-          "template-description-error",
-          "template-subject-error",
-          "template-html-body-error",
-          "template-text-body-error",
-          "test-recipient-error"
-        ] do
-      assert content =~ ~s|id="#{id}"|, "missing error id #{id}"
-      assert content =~ ~s|"#{id}"|, "nothing references #{id}"
     end
   end
 end

@@ -17,7 +17,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
 
   alias Mix.Tasks.PhoenixKitEmails.Templates.Export
   alias PhoenixKit.Modules.Emails.TemplateExport
-  alias PhoenixKit.Modules.Emails.Templates
+  alias PhoenixKitEmails.Test.LegacyTemplates
   alias PhoenixKitEmails.TestSupport.PhoenixKitTemplatesVersion, as: Version
 
   setup do
@@ -56,14 +56,20 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
   # {{line_items_html}} — the case the export has to rewrite. The seed itself
   # says {{{line_items_html}}} now.
   defp edit_invoice_html(replacement_suffix) do
-    {:ok, _} = Templates.seed_system_templates()
-    template = Templates.get_template_by_name("billing_invoice")
+    LegacyTemplates.seed!()
+    template = LegacyTemplates.get!("billing_invoice")
 
     html =
       String.replace(template.html_body["en"], "{{{line_items_html}}}", "{{line_items_html}}") <>
         replacement_suffix
 
-    {:ok, _} = Templates.update_template(template, %{html_body: %{"en" => html}})
+    LegacyTemplates.update!(template, %{html_body: %{"en" => html}})
+  end
+
+  test "a database without the legacy table stops with a clear message" do
+    error = assert_raise Mix.Error, fn -> Export.run(["--dry-run"]) end
+    assert error.message =~ "no phoenix_kit_email_templates table"
+    assert error.message =~ "nothing to export"
   end
 
   @tag :tmp_dir
@@ -199,10 +205,10 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
     # A seeded invoice whose edit is a changed greeting, so the row counts as
     # edited and its document and body forms are both on offer.
     defp edit_invoice_title do
-      {:ok, _} = Templates.seed_system_templates()
-      template = Templates.get_template_by_name("billing_invoice")
+      LegacyTemplates.seed!()
+      template = LegacyTemplates.get!("billing_invoice")
       html = String.replace(template.html_body["en"], "Bill To", "Invoiced to")
-      {:ok, _} = Templates.update_template(template, %{html_body: %{"en" => html}})
+      LegacyTemplates.update!(template, %{html_body: %{"en" => html}})
     end
 
     @tag :tmp_dir
@@ -269,8 +275,8 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
 
     @tag :tmp_dir
     test "a dry run speaks of what it would do, a real run of what it did", %{tmp_dir: dir} do
-      {:ok, _} = Templates.seed_system_templates()
-      template = Templates.get_template_by_name("register")
+      LegacyTemplates.seed!()
+      template = LegacyTemplates.get!("register")
 
       html =
         String.replace(
@@ -279,7 +285,7 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.ExportTest do
           ~s(<div class="footer"><p>Acme, Tallinn</p></div>)
         )
 
-      {:ok, _} = Templates.update_template(template, %{html_body: %{"en" => html}})
+      LegacyTemplates.update!(template, %{html_body: %{"en" => html}})
 
       Export.run(["--html", "body", "--out", dir, "--dry-run"])
       dry = shell_messages() |> Enum.join("\n")

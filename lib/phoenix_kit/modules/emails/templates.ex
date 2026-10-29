@@ -1,38 +1,26 @@
 defmodule PhoenixKit.Modules.Emails.Templates do
   @moduledoc """
-  Context module for managing email templates.
+  The send facade for templated email, plus the content this package used to
+  seed into the (retired) `phoenix_kit_email_templates` table.
 
-  This module provides the business logic and database operations for email templates,
-  including CRUD operations, template rendering, variable substitution, and usage tracking.
+  Email templates are files now: a host's overrides (`phoenix_kit_templates`)
+  over the defaults core and each module ship (`PhoenixKit.Email.Catalog`).
+  The database layer is gone in core 3.0, so there is no row CRUD, no seeding
+  and no editor here any more.
 
-  ## Main Functions
+  What remains:
 
-  - `list_templates/1` - List templates with filtering and pagination
-  - `get_template/1` - Get template by ID
-  - `get_template_by_name/1` - Get template by name
-  - `create_template/1` - Create a new template
-  - `update_template/2` - Update existing template
-  - `delete_template/1` - Delete template
-  - `render_template/2` - Render template with variables
-
-  ## Examples
-
-      # List all active templates
-      Templates.list_templates(%{status: "active"})
-
-      # Get template by name
-      template = Templates.get_template_by_name("magic_link")
-
-      # Render template with variables
-      Templates.render_template(template, %{"user_name" => "John", "url" => "https://example.com"})
-
+  - `send_email/4` — the call other modules make (billing's emails go through it).
+  - `default_system_templates/0` — the system templates exactly as this package
+    used to seed them. It is the yardstick `mix phoenix_kit_emails.templates.export`
+    compares stored rows against, to tell an untouched seed from a row an
+    operator edited. Legacy: it goes with the export.
+  - `list_templates/0` — a read-only dump of the legacy table for that export,
+    tolerant of the table being absent (a fresh 3.0 install never creates it).
   """
 
   import Ecto.Query, warn: false
   alias PhoenixKit.Modules.Emails.Template
-  alias PhoenixKit.Utils.Date, as: UtilsDate
-
-  require Logger
 
   # Get the configured repository
   defp repo do
@@ -46,452 +34,27 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   end
 
   @doc """
-  Lists templates with optional filtering and pagination.
-
-  ## Parameters
-
-  - `opts` - Keyword list with filtering options:
-    - `:category` - Filter by category ("system", "marketing", "transactional")
-    - `:status` - Filter by status ("active", "draft", "archived")
-    - `:search` - Search in name, display_name, or description
-    - `:is_system` - Filter by system templates (true/false)
-    - `:limit` - Limit number of results
-    - `:offset` - Offset for pagination
-    - `:order_by` - Order by field (:name, :usage_count, :last_used_at, :inserted_at)
-    - `:order_direction` - Order direction (:asc, :desc)
-
-  ## Examples
-
-      # List all templates
-      Templates.list_templates()
-
-      # List active marketing templates
-      Templates.list_templates(%{category: "marketing", status: "active"})
-
-      # Search templates
-      Templates.list_templates(%{search: "welcome"})
-
-      # Paginated results
-      Templates.list_templates(%{limit: 10, offset: 20})
-
+  Whether the legacy `phoenix_kit_email_templates` table exists. Hosts that
+  upgraded from core 2.x still have it; a fresh core 3.0 install never creates it.
   """
-  def list_templates(opts \\ %{}) do
-    Template
-    |> apply_filters(opts)
-    |> apply_ordering(opts)
-    |> apply_pagination(opts)
-    |> repo().all()
+  @spec legacy_table_exists?() :: boolean()
+  def legacy_table_exists? do
+    %{rows: [[present?]]} =
+      repo().query!("SELECT to_regclass('phoenix_kit_email_templates') IS NOT NULL", [])
+
+    present?
   end
 
   @doc """
-  Returns the count of templates matching the given filters.
+  Every row of the legacy table, oldest first; `[]` when the table is absent.
+  Read-only: for `mix phoenix_kit_emails.templates.export`.
   """
-  def count_templates(opts \\ %{}) do
-    Template
-    |> apply_filters(opts)
-    |> select([t], count(t.uuid))
-    |> repo().one()
-  end
-
-  @doc """
-  Gets a template by ID.
-
-  Returns `nil` if the template does not exist.
-
-  ## Examples
-
-      iex> Templates.get_template(1)
-      %Template{}
-
-      iex> Templates.get_template(999)
-      nil
-
-  """
-  def get_template(id) when is_binary(id) do
-    alias PhoenixKit.Utils.UUID, as: UUIDUtils
-
-    if UUIDUtils.valid?(id) do
-      repo().get(Template, id)
+  @spec list_templates() :: [Template.t()]
+  def list_templates do
+    if legacy_table_exists?() do
+      repo().all(from(t in Template, order_by: [asc: t.inserted_at, asc: t.name]))
     else
-      nil
-    end
-  end
-
-  def get_template(_), do: nil
-
-  @doc """
-  Gets a template by ID, raising an exception if not found.
-
-  ## Examples
-
-      iex> Templates.get_template!(1)
-      %Template{}
-
-      iex> Templates.get_template!(999)
-      ** (Ecto.NoResultsError)
-
-  """
-  def get_template!(id) do
-    case get_template(id) do
-      nil -> raise Ecto.NoResultsError, queryable: Template
-      template -> template
-    end
-  end
-
-  @doc """
-  Gets a template by name.
-
-  Returns `nil` if the template does not exist.
-
-  ## Examples
-
-      iex> Templates.get_template_by_name("magic_link")
-      %Template{}
-
-      iex> Templates.get_template_by_name("nonexistent")
-      nil
-
-  """
-  def get_template_by_name(name) when is_binary(name) do
-    Template
-    |> where([t], t.name == ^name)
-    |> repo().one()
-  end
-
-  def get_template_by_name(_), do: nil
-
-  @doc """
-  Gets an active template by name.
-
-  Only returns templates with status "active".
-
-  ## Examples
-
-      iex> Templates.get_active_template_by_name("magic_link")
-      %Template{}
-
-  """
-  def get_active_template_by_name(name) when is_binary(name) do
-    Template
-    |> where([t], t.name == ^name and t.status == "active")
-    |> repo().one()
-  end
-
-  def get_active_template_by_name(_), do: nil
-
-  @doc """
-  Creates a new email template.
-
-  Always creates a non-system (`is_system: false`) row — `attrs` is treated as
-  untrusted (it flows here directly from the admin UI), and
-  `Template.changeset/2` never casts `:is_system` from it for exactly that
-  reason. To create a protected system row, see `seed_system_templates/0`.
-
-  The author is recorded from `opts[:created_by_user_uuid]`, never from
-  `attrs`: a form post can carry any key, and `Template.changeset/3` does not
-  cast the audit columns. A `created_by_user_uuid` key in `attrs` is ignored.
-
-  ## Examples
-
-      iex> Templates.create_template(%{name: "welcome", subject: "Welcome!", ...})
-      {:ok, %Template{}}
-
-      iex> Templates.create_template(attrs, created_by_user_uuid: user_uuid)
-      {:ok, %Template{created_by_user_uuid: user_uuid}}
-
-      iex> Templates.create_template(%{invalid: "data"})
-      {:error, %Ecto.Changeset{}}
-
-  """
-  def create_template(attrs \\ %{}, opts \\ []) do
-    create_from(%Template{}, attrs, opts)
-  end
-
-  # `base` is what the new row starts from: a blank struct, or a clone's copy
-  # of its source's metadata. Whatever `base` carries is stored data, not
-  # something a client submitted, so `Template.changeset/3` does not check it.
-  defp create_from(%Template{} = base, attrs, opts) do
-    base
-    |> Template.changeset(attrs)
-    |> Template.put_created_by(Keyword.get(opts, :created_by_user_uuid))
-    |> insert_template()
-  end
-
-  # Only call with attrs this module itself controls (currently just
-  # `default_system_templates/0` via `seed_system_templates/0`) — `is_system:
-  # true` here is a literal passed by this function, never read out of
-  # `attrs`, so it can't be forged through create_template/1's untrusted path.
-  defp create_system_template(attrs) do
-    %Template{}
-    |> Template.changeset(attrs, true)
-    |> insert_template()
-  end
-
-  defp insert_template(changeset) do
-    changeset
-    |> repo().insert()
-    |> case do
-      {:ok, template} ->
-        Logger.info("Created email template: #{template.name}")
-        {:ok, template}
-
-      {:error, changeset} ->
-        Logger.error("Failed to create email template: #{inspect(changeset.errors)}")
-        {:error, changeset}
-    end
-  end
-
-  @doc """
-  Updates an existing email template.
-
-  The editor is recorded from `opts[:updated_by_user_uuid]`, never from `attrs`
-  (see `create_template/2`); an `updated_by_user_uuid` key in `attrs` is
-  ignored. With no editor given, the one already on the row is kept.
-
-  A submitted `metadata` is merged into the stored one (see
-  `Template.changeset/3`), so a key cannot be removed through this function.
-  Changing `source_module` is allowed to any of `Template.valid_source_modules/0`.
-
-  ## Examples
-
-      iex> Templates.update_template(template, %{subject: "New Subject"})
-      {:ok, %Template{}}
-
-      iex> Templates.update_template(template, attrs, updated_by_user_uuid: user_uuid)
-      {:ok, %Template{updated_by_user_uuid: user_uuid}}
-
-      iex> Templates.update_template(template, %{invalid: "data"})
-      {:error, %Ecto.Changeset{}}
-
-  """
-  def update_template(%Template{} = template, attrs, opts \\ []) do
-    editor = Keyword.get(opts, :updated_by_user_uuid)
-
-    template
-    |> Template.changeset(attrs)
-    |> Template.version_changeset(
-      Map.merge(%{version: template.version + 1}, editor_attrs(editor))
-    )
-    |> repo().update()
-    |> case do
-      {:ok, updated_template} ->
-        Logger.info(
-          "Updated email template: #{updated_template.name} (v#{updated_template.version})"
-        )
-
-        {:ok, updated_template}
-
-      {:error, changeset} ->
-        Logger.error("Failed to update email template: #{inspect(changeset.errors)}")
-        {:error, changeset}
-    end
-  end
-
-  @doc """
-  Deletes an email template.
-
-  System templates (is_system: true) cannot be deleted.
-
-  ## Examples
-
-      iex> Templates.delete_template(template)
-      {:ok, %Template{}}
-
-      iex> Templates.delete_template(system_template)
-      {:error, :system_template_protected}
-
-  """
-  def delete_template(%Template{is_system: true} = _template) do
-    {:error, :system_template_protected}
-  end
-
-  def delete_template(%Template{} = template) do
-    case repo().delete(template) do
-      {:ok, deleted_template} ->
-        Logger.info("Deleted email template: #{deleted_template.name}")
-        {:ok, deleted_template}
-
-      {:error, changeset} ->
-        Logger.error("Failed to delete email template: #{inspect(changeset.errors)}")
-        {:error, changeset}
-    end
-  end
-
-  @doc """
-  Archives an email template by setting its status to "archived".
-
-  ## Examples
-
-      iex> Templates.archive_template(template)
-      {:ok, %Template{status: "archived"}}
-
-  """
-  def archive_template(%Template{} = template, user_uuid \\ nil) do
-    user_uuid = resolve_user_uuid(user_uuid)
-
-    update_template(template, %{status: "archived"}, updated_by_user_uuid: user_uuid)
-  end
-
-  @doc """
-  Activates an email template by setting its status to "active".
-
-  ## Examples
-
-      iex> Templates.activate_template(template)
-      {:ok, %Template{status: "active"}}
-
-  """
-  def activate_template(%Template{} = template, user_uuid \\ nil) do
-    user_uuid = resolve_user_uuid(user_uuid)
-
-    update_template(template, %{status: "active"}, updated_by_user_uuid: user_uuid)
-  end
-
-  @doc """
-  Clones an existing template with a new name.
-
-  The copy keeps the source's metadata as it is — including a `source_module`
-  this version would not accept from a form, since it is stored data — and adds
-  `"cloned_from"`. The author is recorded from `opts[:created_by_user_uuid]`
-  (see `create_template/2`).
-
-  ## Examples
-
-      iex> Templates.clone_template(template, "new_welcome_email")
-      {:ok, %Template{name: "new_welcome_email"}}
-
-      iex> Templates.clone_template(template, "new_welcome_email", %{}, created_by_user_uuid: user_uuid)
-      {:ok, %Template{created_by_user_uuid: user_uuid}}
-
-  """
-  def clone_template(%Template{} = template, new_name, attrs \\ %{}, opts \\ []) do
-    base_attrs = %{
-      name: new_name,
-      slug: String.replace(new_name, "_", "-"),
-      display_name:
-        if attrs[:display_name] do
-          %{"en" => attrs[:display_name]}
-        else
-          source =
-            if map_size(template.display_name || %{}) > 0,
-              do: template.display_name,
-              else: %{"en" => template.name}
-
-          Map.new(source, fn {locale, name} ->
-            {locale, "#{name} (Copy)"}
-          end)
-        end,
-      description: template.description,
-      subject: template.subject,
-      html_body: template.html_body,
-      text_body: template.text_body,
-      category: template.category,
-      status: "draft",
-      variables: template.variables
-    }
-
-    # create_template/1 never sets is_system regardless of what attrs
-    # contains (see Template.changeset/2) — a clone is always non-system.
-    # :display_name is dropped from the merge: base_attrs already wrapped the
-    # caller's plain string into an i18n map, and merging the raw string back
-    # over it fails the :map cast (which broke every clone from the UI).
-    final_attrs = Map.merge(base_attrs, Map.delete(attrs, :display_name))
-
-    metadata = Map.merge(template.metadata || %{}, %{"cloned_from" => template.uuid})
-    create_from(%Template{metadata: metadata}, final_attrs, opts)
-  end
-
-  @doc """
-  Renders a template with the provided variables for a specific locale.
-
-  Returns a map with `:subject`, `:html_body`, and `:text_body` keys containing
-  the rendered content with variables substituted in the requested language.
-
-  This function performs validation to ensure all template variables are properly substituted:
-  - Checks for missing required variables
-  - Warns if any unreplaced `{{variable}}` placeholders remain
-  - Logs information about unused variables
-
-  ## Parameters
-  - `template` — the EmailTemplate struct
-  - `variables` — map of variable names to values; atom and string keys are
-    equivalent
-  - `locale` — the target locale code (default: `"en"`)
-
-  `{{name}}` is HTML-escaped in the HTML body and `{{{name}}}` is inserted raw;
-  see `PhoenixKit.Modules.Emails.Template.substitute_variables/3` for the rules.
-
-  Raises `ArgumentError` naming the variable when a placeholder uses a value
-  that is not a string, number, atom or `String.Chars` struct (a map or a list,
-  say). Unlike the warnings below, this is not softened: a value that cannot
-  become text has no safe rendering.
-
-  ## Examples
-
-      iex> Templates.render_template(template, %{"user_name" => "John"}, "uk")
-      %{
-        subject: "Ласкаво просимо, John!",
-        html_body: "<h1>Ласкаво просимо, John!</h1>",
-        text_body: "Ласкаво просимо, John!"
-      }
-
-  ## Validation
-
-  If required variables are missing or templates contain unreplaced variables,
-  warnings will be logged but the function will still return the rendered content.
-  This allows for graceful degradation in production.
-
-  """
-  def render_template(%Template{} = template, variables \\ %{}, locale \\ "en") do
-    # Extract required variables from all language versions of the template
-    required_vars = Template.extract_variables(template)
-    provided_vars = variables |> Map.keys() |> Enum.map(&to_string/1)
-
-    # Check for missing variables
-    missing_vars = required_vars -- provided_vars
-
-    if missing_vars != [] do
-      Logger.warning(
-        "Template '#{template.name}' is missing required variables: #{Enum.join(missing_vars, ", ")}"
-      )
-    end
-
-    # Check for unused variables (provided but not used in template)
-    unused_vars = provided_vars -- required_vars
-
-    if unused_vars != [] do
-      Logger.info(
-        "Template '#{template.name}' has unused variables: #{Enum.join(unused_vars, ", ")}"
-      )
-    end
-
-    # Perform locale-aware variable substitution
-    rendered = Template.substitute_variables(template, variables, locale)
-
-    # Check for unreplaced variables in rendered output
-    validate_rendered_content(template, provided_vars, locale)
-
-    rendered
-  end
-
-  # Warns about the fields that keep an unbound placeholder. Read from the
-  # template's own content with the substitution's parser, not by looking for
-  # "{{" in the output: a value may legitimately contain braces, and so may
-  # CSS in the html_body.
-  defp validate_rendered_content(template, provided_vars, locale) do
-    field_names =
-      for field <- [:subject, :html_body, :text_body],
-          template
-          |> Map.get(field)
-          |> Template.get_translation(locale)
-          |> Template.placeholder_names()
-          |> Enum.any?(&(&1 not in provided_vars)),
-          do: field
-
-    if field_names != [] do
-      Logger.warning(
-        "Template '#{template.name}' contains unreplaced variables in: #{Enum.join(field_names, ", ")}"
-      )
+      []
     end
   end
 
@@ -530,110 +93,9 @@ defmodule PhoenixKit.Modules.Emails.Templates do
   end
 
   @doc """
-  Increments the usage count for a template and updates last_used_at.
-
-  This should be called whenever a template is used to send an email.
-
-  The count is raised by the database (`usage_count = usage_count + 1`), not
-  written back from `template`, so it does not matter how stale that struct is
-  or how many sends count at once. Only the two usage columns change: using a
-  template is not an edit, so `updated_at` stays as it was.
-
-  Returns the row as stored, or `{:error, :not_found}` when it no longer exists.
-
-  ## Examples
-
-      iex> Templates.track_usage(template)
-      {:ok, %Template{usage_count: 1}}
-
-  """
-  @spec track_usage(Template.t()) :: {:ok, Template.t()} | {:error, :not_found}
-  def track_usage(%Template{uuid: uuid}) do
-    query = from(t in Template, where: t.uuid == ^uuid, select: t)
-
-    case repo().update_all(query,
-           inc: [usage_count: 1],
-           set: [last_used_at: UtilsDate.utc_now()]
-         ) do
-      {1, [%Template{} = used]} -> {:ok, used}
-      {0, _} -> {:error, :not_found}
-    end
-  end
-
-  @doc """
-  Gets template statistics for dashboard display.
-
-  Returns a map with various statistics about templates.
-
-  ## Examples
-
-      iex> Templates.get_template_stats()
-      %{
-        total_templates: 10,
-        active_templates: 8,
-        draft_templates: 1,
-        archived_templates: 1,
-        system_templates: 4,
-        most_used: %Template{},
-        categories: %{"system" => 4, "transactional" => 6}
-      }
-
-  """
-  def get_template_stats do
-    base_query = from(t in Template)
-
-    total_templates = repo().aggregate(base_query, :count, :uuid)
-
-    active_templates =
-      base_query
-      |> where([t], t.status == "active")
-      |> repo().aggregate(:count)
-
-    draft_templates =
-      base_query
-      |> where([t], t.status == "draft")
-      |> repo().aggregate(:count)
-
-    archived_templates =
-      base_query
-      |> where([t], t.status == "archived")
-      |> repo().aggregate(:count)
-
-    system_templates =
-      base_query
-      |> where([t], t.is_system == true)
-      |> repo().aggregate(:count)
-
-    most_used =
-      base_query
-      |> where([t], t.usage_count > 0)
-      |> order_by([t], desc: t.usage_count)
-      |> limit(1)
-      |> repo().one()
-
-    categories =
-      base_query
-      |> group_by([t], t.category)
-      |> select([t], {t.category, count(t.uuid)})
-      |> repo().all()
-      |> Enum.into(%{})
-
-    %{
-      total_templates: total_templates,
-      active_templates: active_templates,
-      draft_templates: draft_templates,
-      archived_templates: archived_templates,
-      system_templates: system_templates,
-      most_used: most_used,
-      categories: categories
-    }
-  end
-
-  @doc """
   The system templates exactly as this package ships them.
 
-  Separated from `seed_system_templates/0` so the shipped content can be READ
-  without being written: `mix phoenix_kit_emails.templates.export` compares
+  Kept so the shipped content can be READ: `mix phoenix_kit_emails.templates.export` compares
   each stored row against it to tell an untouched seed from a row an operator
   edited, and only the edited ones are worth carrying out to files.
   """
@@ -853,43 +315,6 @@ defmodule PhoenixKit.Modules.Emails.Templates do
     ])
   end
 
-  @doc """
-  Seeds the database with system email templates.
-
-  This function creates the default system templates for authentication
-  and core functionality.
-
-  ## Examples
-
-      iex> Templates.seed_system_templates()
-      {:ok, [%Template{}, ...]}
-
-  """
-  def seed_system_templates do
-    results =
-      Enum.map(default_system_templates(), fn template_attrs ->
-        case get_template_by_name(template_attrs.name) do
-          nil ->
-            create_system_template(template_attrs)
-
-          existing_template ->
-            {:ok, existing_template}
-        end
-      end)
-
-    if Enum.all?(results, fn {status, _} -> status == :ok end) do
-      templates = Enum.map(results, fn {:ok, template} -> template end)
-      Logger.info("Successfully seeded #{length(templates)} system email templates")
-      {:ok, templates}
-    else
-      errors = Enum.filter(results, fn {status, _} -> status == :error end)
-      Logger.error("Failed to seed some system templates: #{inspect(errors)}")
-      {:error, :seed_failed}
-    end
-  end
-
-  # Private helper functions
-
   # Wraps string fields in language maps for multilingual schema compatibility
   defp wrap_i18n_fields(templates) do
     Enum.map(templates, fn t ->
@@ -904,70 +329,6 @@ defmodule PhoenixKit.Modules.Emails.Templates do
 
   defp wrap_i18n(v) when is_binary(v), do: %{"en" => v}
   defp wrap_i18n(v), do: v
-
-  defp apply_filters(query, opts) do
-    Enum.reduce(opts, query, fn
-      {:category, category}, q when is_binary(category) ->
-        where(q, [t], t.category == ^category)
-
-      {:status, status}, q when is_binary(status) ->
-        where(q, [t], t.status == ^status)
-
-      {:is_system, is_system}, q when is_boolean(is_system) ->
-        where(q, [t], t.is_system == ^is_system)
-
-      {:search, search}, q when is_binary(search) and search != "" ->
-        search_term = "%#{search}%"
-
-        where(
-          q,
-          [t],
-          ilike(t.name, ^search_term) or
-            ilike(fragment("?::text", t.display_name), ^search_term) or
-            ilike(fragment("?->>'en'", t.description), ^search_term)
-        )
-
-      _, q ->
-        q
-    end)
-  end
-
-  defp apply_ordering(query, opts) do
-    case {opts[:order_by], opts[:order_direction]} do
-      {field, direction}
-      when field in [:name, :usage_count, :last_used_at, :inserted_at] and
-             direction in [:asc, :desc] ->
-        # Stable PK tiebreaker so equal primary-sort values page deterministically.
-        order_by(query, [t], [{^direction, field(t, ^field)}, desc: t.uuid])
-
-      {field, _} when field in [:name, :usage_count, :last_used_at, :inserted_at] ->
-        order_by(query, [t], asc: field(t, ^field), desc: t.uuid)
-
-      _ ->
-        order_by(query, [t], desc: :inserted_at, desc: t.uuid)
-    end
-  end
-
-  defp apply_pagination(query, opts) do
-    query =
-      case opts[:limit] do
-        limit when is_integer(limit) and limit > 0 ->
-          limit(query, ^limit)
-
-        _ ->
-          query
-      end
-
-    case opts[:offset] do
-      offset when is_integer(offset) and offset >= 0 ->
-        offset(query, ^offset)
-
-      _ ->
-        query
-    end
-  end
-
-  # Template content functions (extracted from existing mailer)
 
   @doc """
   Returns the HTML template for magic link emails.
@@ -2120,13 +1481,4 @@ defmodule PhoenixKit.Modules.Emails.Templates do
     Thank you for your business. If you have any questions, please contact us.
     """
   end
-
-  # The editor to record on an update. Nothing given means nothing changes: the
-  # one already on the row stays, rather than being overwritten with nil.
-  defp editor_attrs(nil), do: %{}
-  defp editor_attrs(user_uuid), do: %{updated_by_user_uuid: user_uuid}
-
-  # Resolves user UUID from user_uuid string (passthrough) or nil
-  defp resolve_user_uuid(user_uuid) when is_binary(user_uuid), do: user_uuid
-  defp resolve_user_uuid(_), do: nil
 end

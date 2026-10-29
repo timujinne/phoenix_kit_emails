@@ -10,7 +10,7 @@ Email tracking, analytics, and AWS SES integration for [PhoenixKit](https://gith
 - **Email logging** — comprehensive logging of all outgoing emails with optional body/header storage
 - **AWS SES integration** — SQS-based event polling for delivery, bounce, complaint, open, and click events
 - **Analytics & metrics** — system stats, engagement rates, campaign performance, and provider comparison
-- **Email templates** — create and manage reusable email templates with a LiveView editor
+- **Email templates** — file-based now (`phoenix_kit_templates`); this package keeps only the one-time export of legacy database rows
 - **Rate limiting** — configurable protection against abuse and spam via [Hammer](https://github.com/ExHammer/hammer)
 - **Blocklist** — manage blocked email addresses
 - **Queue management** — view and manage outgoing email queue
@@ -18,28 +18,28 @@ Email tracking, analytics, and AWS SES integration for [PhoenixKit](https://gith
 - **Webhook processing** — process incoming delivery/bounce/complaint webhooks
 - **CSV export** — export email logs via controller endpoint
 - **Email open/click tracking** — pixel tracking and link rewriting for engagement metrics
-- **Admin dashboard** — LiveView pages for logs, metrics, templates, queue, blocklist, and settings
+- **Admin dashboard** — LiveView pages for logs, metrics, queue, blocklist, and settings
 - **Auto-discovery** — implements `PhoenixKit.Module` behaviour; PhoenixKit finds it at startup with zero config
 
-## ⚠️ Email templates are moving to files
+## ⚠️ Email templates are files now (core 3.0)
 
-Message templates are moving out of `phoenix_kit_email_templates` and into
-files a host owns in its own repository — version-controlled and reviewable,
-rather than edited through an admin UI and invisible to code review. Core reads
-them through `phoenix_kit_templates`.
+Message templates no longer live in the database. They are files a host owns in
+its own repository — version-controlled and reviewable — that core reads through
+`phoenix_kit_templates`, over the defaults core and each module ship. The
+template editor, the database layer and the `phoenix_kit_email_templates` table
+are retired: a fresh install never creates the table.
 
-**Nothing has changed yet.** The database layer still wins at send time and
-every customized template works exactly as it does today. But a later release
-drops the table, and **edits that have not been exported will be lost then**.
-
-If you have customized any email template:
+**Before upgrading from core 2.x, export your edits.** Core 3.0 no longer reads
+the table, so an edit that is only in the database stops taking effect:
 
 ```bash
 mix phoenix_kit_emails.templates.export   # --dry-run to preview first
 ```
 
-Review the diff and commit the files. Nothing is deleted and no row is touched,
-so an export that turns out wrong costs nothing but the files.
+Review the diff and commit the files. Nothing is deleted and no row is touched
+(this package never drops the table), so an export that turns out wrong costs
+nothing but the files. On a database without the table the task stops and says
+so.
 
 The task exports **only what you actually edited**. A template still identical
 to what this package ships is skipped, because core supplies those itself now,
@@ -184,28 +184,6 @@ logs = Emails.list_logs(%{status: "sent", page: 1})
 log = Emails.get_log!(log_uuid)
 ```
 
-### Template editor
-
-A language with no text is not stored: the editor shows an untranslated language
-as an empty field (the preview still shows the fallback a reader would get), and
-an empty language is dropped on save. A template needs text in at least one
-language, not in every enabled one.
-
-`metadata` submitted to `Templates.update_template/3` is merged into the stored
-metadata, so keys such as `cloned_from` survive an edit — and a key can no longer
-be removed through that function. A submitted `source_module` must be one of
-`Template.valid_source_modules/0`; a clone keeps its source's metadata as stored.
-
-`created_by_user_uuid` and `updated_by_user_uuid` are no longer read from the
-attrs, under any key type. Pass `created_by_user_uuid:` as an option to
-`Templates.create_template/2` and `Templates.clone_template/4`, and
-`updated_by_user_uuid:` to `Templates.update_template/3`. The admin pages do
-this with the signed-in user.
-
-When the enabled languages carry a region (`en-US`) and a template is stored under
-the base code (`en`), the first `en-*` tab shows the `en` text; saving stores it
-under that tab's own code.
-
 ### Analytics
 
 ```elixir
@@ -298,8 +276,8 @@ lib/
     sqs_processor.ex                     # SQS message processing
     supervisor.ex                        # OTP Supervisor
     table_columns.ex                     # Admin table column definitions
-    template.ex                          # Email template schema
-    templates.ex                         # Template management context
+    template.ex                          # Legacy template row (read-only, for the export)
+    templates.ex                         # send_email/4 facade + legacy defaults/rows for the export
     utils.ex                             # Shared utilities
     web/
       blocklist.ex                       # Blocklist admin LiveView
@@ -311,8 +289,6 @@ lib/
       queue.ex                           # Queue management LiveView
       routes.ex                          # Route definitions
       settings.ex                        # Settings admin LiveView
-      template_editor.ex                 # Template editor LiveView
-      templates.ex                       # Templates admin LiveView
       webhook_controller.ex              # Webhook endpoint controller
 ```
 
@@ -322,7 +298,7 @@ lib/
 |-------|-------------|
 | `phoenix_kit_email_logs` | Email log records (UUIDv7 PK) |
 | `phoenix_kit_email_events` | Delivery/bounce/complaint/open/click events |
-| `phoenix_kit_email_templates` | Reusable email templates |
+| `phoenix_kit_email_templates` | Retired: no longer created; hosts upgraded from core 2.x keep it (read only by the export) |
 
 ## Address verification
 

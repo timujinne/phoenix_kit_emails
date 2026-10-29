@@ -27,55 +27,37 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
     phoenix_kit_email_logs
     phoenix_kit_email_events
     phoenix_kit_email_blocklist
-    phoenix_kit_email_templates
     phoenix_kit_email_metrics
     phoenix_kit_email_orphaned_events
   )
-
-  # What the manifest declares for those tables, per class. Pinned exactly
-  # rather than as a lower bound: a filter that quietly stops matching (a
-  # renamed id format, a class that starts arriving differently) would leave a
-  # conformance test that passes because it compares almost nothing. If core
-  # legitimately adds an object, this fails, someone looks, and the number
-  # moves deliberately.
-  @manifest_object_counts %{table: 6, column: 96, constraint: 7, index: 52}
-
-  # Statements this chain deliberately does NOT copy byte-for-byte from the
-  # manifest, keyed by manifest object id, with the reason. Every departure
-  # must be listed here; the tests below fail both on an unlisted departure
-  # and on a listed one that no longer applies, so this map cannot rot in
-  # either direction. See the module's "Where this chain deliberately differs
-  # from the manifest".
-  @declared_departures %{
-    "table:phoenix_kit_email_logs" => "full column list, not the bare repair-form CREATE TABLE",
-    "table:phoenix_kit_email_events" => "full column list",
-    "table:phoenix_kit_email_blocklist" => "full column list",
-    "table:phoenix_kit_email_templates" => "full column list",
-    "table:phoenix_kit_email_metrics" => "full column list",
-    "table:phoenix_kit_email_orphaned_events" => "full column list",
-    "constraint:phoenix_kit_email_logs.phoenix_kit_email_logs_pkey" =>
-      "probed by contype, not conname",
-    "constraint:phoenix_kit_email_events.phoenix_kit_email_events_pkey" =>
-      "probed by contype, not conname",
-    "constraint:phoenix_kit_email_blocklist.phoenix_kit_email_blocklist_pkey" =>
-      "probed by contype, not conname",
-    "constraint:phoenix_kit_email_templates.phoenix_kit_email_templates_pkey" =>
-      "probed by contype, not conname",
-    "constraint:phoenix_kit_email_metrics.phoenix_kit_email_metrics_pkey" =>
-      "probed by contype, not conname",
-    "constraint:phoenix_kit_email_orphaned_events.phoenix_kit_email_orphaned_events_pkey" =>
-      "probed by contype, not conname",
-    "constraint:phoenix_kit_email_events.fk_email_events_email_log_uuid" => "added NOT VALID",
-    "index:phoenix_kit_email_logs_subject_trgm_index" => "unqualified gin_trgm_ops",
-    "index:phoenix_kit_email_logs_campaign_id_trgm_index" => "unqualified gin_trgm_ops",
-    "index:phoenix_kit_email_logs_to_trgm_index" => "unqualified gin_trgm_ops"
-  }
 
   describe "chain protocol" do
     test "current_version/0 is a positive integer and the marker table is the logs table" do
       assert is_integer(Migrations.current_version())
       assert Migrations.current_version() > 0
       assert Migrations.version_table() == "phoenix_kit_email_logs"
+    end
+
+    test "the retired email-templates table is neither created nor indexed by any version" do
+      for version <- 1..Migrations.current_version(), prefix <- ["public", "tenant_a"] do
+        statements = Migrations.up_statements(prefix, version)
+
+        refute Enum.any?(
+                 statements,
+                 &(&1 =~ ~r/CREATE (UNIQUE )?(TABLE|INDEX).*email_templates/s)
+               )
+
+        refute Enum.any?(statements, &(&1 =~ ~r/ALTER TABLE.*email_templates/s))
+
+        # The one statement that still names it is V3's data step, and it only
+        # acts where the table exists.
+        for statement <- Enum.filter(statements, &(&1 =~ "email_templates")) do
+          assert statement =~ "to_regclass('#{prefix}.phoenix_kit_email_templates') IS NOT NULL"
+        end
+      end
+
+      refute "phoenix_kit_email_templates" in Migrations.adopted_tables()
+      refute "phoenix_kit_email_templates" in Migrations.owned_tables()
     end
 
     test "up stamps the version marker" do
@@ -435,144 +417,12 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
                )
       end
 
-      assert Enum.any?(
+      # No adopted object carries the marker any more: the only one was the
+      # email-templates table's, and that table is not created here.
+      refute Enum.any?(
                Migrations.up_statements("public"),
-               &(&1 =~ ~r/CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_templates_uuid_idx /)
+               &(&1 =~ "phoenix_kit_email_templates_uuid_idx")
              )
-
-      assert Enum.any?(
-               Migrations.up_statements("tenant_a"),
-               &(&1 =~
-                   ~r/CREATE UNIQUE INDEX IF NOT EXISTS tenant_a_phoenix_kit_email_templates_uuid_idx /)
-             )
-    end
-  end
-
-  describe "conformance with core's ExpectedSchema manifest" do
-    # V1 adopts core-created objects, so the adopted statements must match
-    # what core itself would emit — byte for byte, for any prefix. This is
-    # what stops the drift class that gave phoenix_kit_legal three
-    # disagreeing DDL copies of one table.
-    #
-    # Deliberately SKIPS objects the manifest no longer declares: the whole
-    # point of this chain is that a future core release stops shipping
-    # them, and that release must not be blocked by its own success. What
-    # is asserted is "for every adopted object core still knows about, we
-    # agree with core".
-
-    setup do
-      unless Code.ensure_loaded?(ExpectedSchema) do
-        raise "core's ExpectedSchema is unavailable — this test needs it"
-      end
-
-      :ok
-    end
-
-    test "the manifest still declares exactly the objects this chain was built from" do
-      counts =
-        ExpectedSchema.objects("public")
-        |> Enum.filter(&adopted_object?/1)
-        |> Enum.frequencies_by(& &1.class)
-
-      assert counts == @manifest_object_counts
-    end
-
-    for prefix <- ["public", "tenant_a"] do
-      test "adopted statements match core's manifest under prefix #{prefix}" do
-        prefix = unquote(prefix)
-        ours = MapSet.new(Migrations.up_statements(prefix))
-
-        core_objects =
-          ExpectedSchema.objects(prefix)
-          |> Enum.filter(&(is_binary(&1.create) and adopted_object?(&1)))
-
-        assert Enum.frequencies_by(core_objects, & &1.class) == @manifest_object_counts
-
-        # Containment, not equality: index DDL is now WRAPPED in a soft-failure
-        # guard (see `index_statements/0`), so core's statement appears inside
-        # ours character for character rather than as the whole string. That is
-        # a stronger check than it looks — a rewritten index would not be found.
-        mismatched =
-          core_objects
-          |> Enum.reject(fn object ->
-            MapSet.member?(ours, object.create) or
-              Enum.any?(ours, &String.contains?(&1, object.create))
-          end)
-          |> Enum.map(& &1.id)
-
-        undeclared = mismatched -- Map.keys(@declared_departures)
-
-        assert undeclared == [],
-               "these core objects are neither emitted byte-identically nor declared as " <>
-                 "departures: #{inspect(undeclared)}"
-
-        # ...and the other direction: a departure that no longer departs is a
-        # stale exemption weakening the test, so it has to be removed.
-        stale = Map.keys(@declared_departures) -- mismatched
-
-        assert stale == [],
-               "these departures are no longer departures and should be deleted " <>
-                 "from @declared_departures: #{inspect(stale)}"
-      end
-    end
-
-    test "every declared departure still emits SOMETHING for its object" do
-      # A departure is "we write this differently", never "we skip this".
-      statements = Migrations.up_statements()
-
-      for {id, reason} <- @declared_departures do
-        object_name = id |> String.split(":") |> List.last() |> String.split(".") |> List.last()
-
-        assert Enum.any?(statements, &String.contains?(&1, object_name)),
-               "#{id} is declared as a departure (#{reason}) but nothing is emitted for it"
-      end
-    end
-
-    test "the only statements we emit beyond core's manifest are our own" do
-      core =
-        ExpectedSchema.objects("public")
-        |> Enum.filter(&is_binary(&1.create))
-        |> MapSet.new(& &1.create)
-
-      departure_shapes = ["CREATE TABLE IF NOT EXISTS", "DO $$", "gin_trgm_ops"]
-
-      extra =
-        Enum.reject(
-          Migrations.up_statements(),
-          fn statement ->
-            MapSet.member?(core, statement) or
-              String.starts_with?(statement, "SET lock_timeout") or
-              statement == "RESET lock_timeout" or
-              raw_html_rewrite?(statement) or
-              Enum.any?(core, &String.contains?(statement, &1)) or
-              Enum.any?(departure_shapes, &String.contains?(statement, &1))
-          end
-        )
-
-      # Every entry here is a column core's manifest does not know about, which
-      # core's audit reports at :info and never as a failure. Adding one is a
-      # decision, which is what this assertion is for — it fails until the new
-      # column is written down.
-      assert Enum.sort(extra) == [
-               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"archived_at\" timestamp with time zone",
-               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
-               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"s3_key\" text",
-               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"template_source\" character varying(16)",
-               "ALTER TABLE public.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"template_uuid\" uuid",
-               "ALTER TABLE public.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"awaiting_smtp\" integer DEFAULT 0 NOT NULL",
-               "COMMENT ON TABLE public.phoenix_kit_email_logs IS 'pke_schema:6'",
-               "CREATE EXTENSION IF NOT EXISTS citext"
-             ]
-    end
-
-    defp adopted_object?(object) do
-      Enum.any?(@adopted_tables, fn table ->
-        String.starts_with?(object.id, "table:" <> table) or
-          String.starts_with?(object.id, "column:" <> table <> ".") or
-          String.starts_with?(object.id, "constraint:" <> table <> ".") or
-          (object.class == :index and
-             match?(%{table: ^table}, elem(List.last(object.revisions), 1)))
-      end)
     end
   end
 
@@ -581,7 +431,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
   # placeholder that is not already triple-braced, which
   # `migration_v3_raw_html_test.exs` proves against real rows.
   defp raw_html_rewrite?(statement),
-    do: String.starts_with?(statement, "UPDATE public.phoenix_kit_email_templates SET html_body")
+    do: statement =~ "UPDATE public.phoenix_kit_email_templates SET html_body"
 
   defp create_table_statement(table) do
     Enum.find(
@@ -637,7 +487,7 @@ defmodule PhoenixKit.Modules.Emails.MigrationsTest do
       create =
         Enum.find_index(
           statements,
-          &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_templates")
+          &(&1 =~ "CREATE TABLE IF NOT EXISTS public.phoenix_kit_email_logs")
         )
 
       assert rewrite && create && rewrite > create

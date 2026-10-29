@@ -77,9 +77,19 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   Same deviation status as `integration_uuid`: unknown to core's manifest,
   reported at `:info`, never a failure.
 
+  ## The email-templates table is not here (core 3.0)
+
+  `phoenix_kit_email_templates` is **no longer adopted or created**: email
+  templates are files now (`phoenix_kit_templates`), and the database layer is
+  retired. A fresh install never gets the table; a host upgraded from core 2.x
+  keeps the one it has, untouched (this chain never drops it), until the owner
+  decides to — `mix phoenix_kit_emails.templates.export` reads it first. Every
+  statement here that used to name it is gone, except V3's data step below,
+  which now runs only where the table exists.
+
   ## What V3 is
 
-  A data step, no shape change: in every stored `html_body` locale value,
+  A data step, no shape change (only where the table exists, see above): in every stored `html_body` locale value,
   `{{name}}` becomes `{{{name}}}` for `line_items_html` and
   `line_items_table_html` — billing's ready-made table. The two names are
   frozen into the migration; they match
@@ -128,7 +138,7 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   soft-failure wrapper as every other index here, and `CREATE EXTENSION IF NOT
   EXISTS citext` (core's baseline already installs it). The `uuid` defaults call
   the prefix-local `uuid_generate_v7()` that core installs into every schema it
-  migrates; V4, like the adopted `phoenix_kit_email_templates` default, relies
+  migrates; V4, like the adopted tables' defaults, relies
   on core having run first and does not create that function (unlike
   `phoenix_kit_newsletters`, which can be the first module to touch a schema).
   They are NOT in core's `ExpectedSchema` manifest and must not be added to
@@ -175,20 +185,13 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   ## Which tables, and which one is NOT here
 
   Adopted: `phoenix_kit_email_logs`, `phoenix_kit_email_events`,
-  `phoenix_kit_email_blocklist`, `phoenix_kit_email_templates`,
+  `phoenix_kit_email_blocklist`,
   `phoenix_kit_email_metrics`, `phoenix_kit_email_orphaned_events`.
 
-  "Nothing outside this package READS them" is true; "nothing outside this
-  package DEPENDS on them" is not, and the difference matters for the release
-  that follows. Core's V135 creates
-  `fk_newsletters_broadcasts_template` — `phoenix_kit_newsletters_broadcasts.template_uuid`
-  referencing `phoenix_kit_email_templates(uuid)` — so a core release that
-  stops creating `phoenix_kit_email_templates` breaks a FRESH install outright
-  (core's chain runs before every module chain, so the FK would point at a
-  table that does not exist yet), and breaks it permanently on an install that
-  does not have this package at all. That FK has to move or go in the same
-  release; see the "Transitional state" section of
-  `dev_docs/reports/2026-08-12-emails-table-adoption.md`.
+  "Nothing outside this package READS them" is true. (The one outside
+  dependency there was, `phoenix_kit_newsletters_broadcasts.template_uuid` →
+  `phoenix_kit_email_templates`, belongs to newsletters' chain, which
+  re-targets it.)
 
   **`phoenix_kit_email_send_profiles` is deliberately NOT adopted.** The
   send-profile system lives in CORE (`PhoenixKit.Email.SendProfile` /
@@ -350,11 +353,10 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # name rather than only schema-qualifying the table (V56's
   # `prefix_index_name/2`): bare on `public`, `"<prefix>_"` everywhere else.
   # Core's manifest carries that as this marker and resolves it alongside
-  # `@schema_token`; exactly one adopted object here has one
-  # (`phoenix_kit_email_templates_uuid_idx`), and getting it wrong would
-  # create a SECOND index under a different name on every non-public
-  # install — so the marker is carried through verbatim rather than
-  # flattened to the public-schema spelling.
+  # `@schema_token`. No object here uses it since the email-templates table
+  # left the chain (its `..._templates_uuid_idx` was the only one); the
+  # substitution stays so a future adopted object that has one is carried
+  # through verbatim rather than flattened to the public-schema spelling.
   @name_marker_exempt "__PK_NAME_EXEMPT__"
 
   ## --- Adopted core-created objects (see "Where the DDL comes from") ---
@@ -363,7 +365,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     "phoenix_kit_email_events",
     "phoenix_kit_email_logs",
     "phoenix_kit_email_blocklist",
-    "phoenix_kit_email_templates",
     "phoenix_kit_email_metrics",
     "phoenix_kit_email_orphaned_events"
   ]
@@ -422,30 +423,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     {"phoenix_kit_email_logs", 26, "\"complained_at\" timestamp with time zone", false},
     {"phoenix_kit_email_logs", 27, "\"opened_at\" timestamp with time zone", false},
     {"phoenix_kit_email_logs", 29, "\"body_compressed\" boolean DEFAULT false NOT NULL", true},
-    {"phoenix_kit_email_templates", 10,
-     "\"category\" character varying(255) DEFAULT 'transactional'::character varying NOT NULL",
-     true},
-    {"phoenix_kit_email_templates", 20, "\"created_by_user_uuid\" uuid", false},
-    {"phoenix_kit_email_templates", 6, "\"description\" jsonb", false},
-    {"phoenix_kit_email_templates", 5, "\"display_name\" jsonb", true},
-    {"phoenix_kit_email_templates", 8, "\"html_body\" jsonb", true},
-    {"phoenix_kit_email_templates", 22, "\"inserted_at\" timestamp with time zone", true},
-    {"phoenix_kit_email_templates", 17, "\"is_system\" boolean DEFAULT false NOT NULL", true},
-    {"phoenix_kit_email_templates", 15, "\"last_used_at\" timestamp with time zone", false},
-    {"phoenix_kit_email_templates", 13, "\"metadata\" jsonb DEFAULT '{}'::jsonb", false},
-    {"phoenix_kit_email_templates", 3, "\"name\" character varying(255)", true},
-    {"phoenix_kit_email_templates", 4, "\"slug\" character varying(255)", true},
-    {"phoenix_kit_email_templates", 11,
-     "\"status\" character varying(255) DEFAULT 'draft'::character varying NOT NULL", true},
-    {"phoenix_kit_email_templates", 7, "\"subject\" jsonb", true},
-    {"phoenix_kit_email_templates", 9, "\"text_body\" jsonb", true},
-    {"phoenix_kit_email_templates", 23, "\"updated_at\" timestamp with time zone", true},
-    {"phoenix_kit_email_templates", 21, "\"updated_by_user_uuid\" uuid", false},
-    {"phoenix_kit_email_templates", 14, "\"usage_count\" integer DEFAULT 0 NOT NULL", true},
-    {"phoenix_kit_email_templates", 2,
-     "\"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL", true},
-    {"phoenix_kit_email_templates", 12, "\"variables\" jsonb DEFAULT '{}'::jsonb", false},
-    {"phoenix_kit_email_templates", 16, "\"version\" integer DEFAULT 1 NOT NULL", true},
     {"phoenix_kit_email_logs", 33, "\"delayed_at\" timestamp with time zone", false},
     {"phoenix_kit_email_logs", 32, "\"failed_at\" timestamp with time zone", false},
     {"phoenix_kit_email_logs", 30, "\"queued_at\" timestamp with time zone", false},
@@ -489,7 +466,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     {"phoenix_kit_email_events", "phoenix_kit_email_events_pkey", "PRIMARY KEY (uuid)"},
     {"phoenix_kit_email_logs", "phoenix_kit_email_logs_pkey", "PRIMARY KEY (uuid)"},
     {"phoenix_kit_email_blocklist", "phoenix_kit_email_blocklist_pkey", "PRIMARY KEY (uuid)"},
-    {"phoenix_kit_email_templates", "phoenix_kit_email_templates_pkey", "PRIMARY KEY (uuid)"},
     {"phoenix_kit_email_metrics", "phoenix_kit_email_metrics_pkey", "PRIMARY KEY (uuid)"},
     {"phoenix_kit_email_orphaned_events", "phoenix_kit_email_orphaned_events_pkey",
      "PRIMARY KEY (uuid)"},
@@ -512,16 +488,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_expires_at_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (expires_at)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_reason_inserted_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (reason, inserted_at)",
     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_aws_message_id_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_category_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (category)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_category_status_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (category, status)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_inserted_at_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (inserted_at)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_is_system_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (is_system)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_last_used_at_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (last_used_at)",
-    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_templates_name_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (name)",
-    "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_templates_slug_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (slug)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_status_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (status)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_status_is_system_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (status, is_system)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_usage_count_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (usage_count)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_message_ids_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id, aws_message_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_aws_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_metrics_date_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_date)",
@@ -537,9 +503,6 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (user_uuid)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_events_email_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (user_uuid)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_created_by_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (created_by_user_uuid)",
-    "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_updated_by_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (updated_by_user_uuid)",
-    "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_email_templates_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (uuid)",
     "CREATE INDEX IF NOT EXISTS phoenix_kit_email_orphaned_events_matched_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched_email_log_uuid)",
     "CREATE INDEX IF NOT EXISTS idx_email_logs_locale ON __SCHEMA__.phoenix_kit_email_logs USING btree (locale)",
     "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_log_uuid_event_type_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type) WHERE ((event_type)::text <> ALL ((ARRAY['open'::character varying, 'click'::character varying])::text[]))",
@@ -1358,6 +1321,9 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
   # re-run updates nothing (and an empty map is never aggregated into NULL).
   defp rewrite_html_body_statement(pattern, replacement) do
     """
+    DO $pkv3$
+    BEGIN
+      IF to_regclass('#{@schema_token}.phoenix_kit_email_templates') IS NOT NULL THEN
     UPDATE #{@schema_token}.phoenix_kit_email_templates SET html_body = (
       SELECT jsonb_object_agg(
         e.key,
@@ -1372,7 +1338,10 @@ defmodule PhoenixKit.Modules.Emails.Migrations do
       AND EXISTS (
         SELECT 1 FROM jsonb_each(html_body) AS e
         WHERE jsonb_typeof(e.value) = 'string' AND (e.value #>> '{}') ~ '#{pattern}'
-      )\
+      );
+      END IF;
+    END
+    $pkv3$\
     """
   end
 

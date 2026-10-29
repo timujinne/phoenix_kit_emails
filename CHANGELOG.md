@@ -1,10 +1,27 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 - 2026-10-27
+
+### Removed
+
+- **The database template layer is retired (core 3.0).** Email templates are files now (`phoenix_kit_templates` overrides over the defaults core and modules ship). Gone: the Templates list and Template editor admin pages and their tabs, the template CRUD/clone/archive/render/usage/stats API and `seed_system_templates/0` in `Templates`, the Provider callbacks `get_active_template_by_name/1`, `render_template/2,3`, `track_usage/1` and `get_source_module/1`, the database layer in `TemplateSources` (and its shadow badges), the "Open template" link on the log details page, and the Templates button on the email list. The test email always sends the built-in body now. The log's `source_module` filter reads `message_tags` only.
+- **`phoenix_kit_email_templates` is no longer created.** The chain does not adopt the table or any of its indexes and constraints (V1); V3's html-body rewrite runs only where the table exists. A host upgraded from core 2.x keeps its table untouched; this package never drops it.
+
+### Upgrade note
+
+Run `mix phoenix_kit_emails.templates.export` **before** upgrading to core 3.0 if you edited any template in the admin UI: core 3.0 no longer reads the table, so unexported edits stop taking effect. The task now stops with a clear message when the table does not exist.
+
+### Kept (legacy, read-only)
+
+- `Templates.send_email/4` (billing's emails go through it), `Templates.default_system_templates/0` and `list_templates/0`, the `Template` schema, `TemplateExport` (including the new `TemplateExport.active_template/1`, which returns the active legacy row by name, or `nil` when the table is absent) and the export mix task: they exist only to carry old rows out into files.
+
+### Changed
+
+- **Core pin is `>= 3.0.0 and < 4.0.0`.** This module no longer serves email templates from the database, and core 2.x still calls the provider callbacks that were removed, so it needs core 3.0 (open through core 3.x).
 
 ### Added
 
-- **The module supplies the manifest of its 12 tables** (`expected_schema/0`, `PhoenixKit.Modules.Emails.ExpectedSchema`), so `mix phoenix_kit.repair` and `mix phoenix_kit.doctor` check and repair them again, now from the module's own chain instead of core's manifest. Generated from `PhoenixKit.Modules.Emails.Migrations` by core's `dev_docs/squash/generate_module_manifest.exs`, never edited by hand. Core uses it from the first release after 2.64.1; before that nothing reads it. Repair is additive (it creates what is missing and reports the rest) and checks the tables only while the database is at the chain's current version. No migration.
+- **The module supplies the manifest of its 11 tables** (`expected_schema/0`, `PhoenixKit.Modules.Emails.ExpectedSchema`), so `mix phoenix_kit.repair` and `mix phoenix_kit.doctor` check and repair them again, now from the module's own chain instead of core's manifest. Generated from `PhoenixKit.Modules.Emails.Migrations` by core's `dev_docs/squash/generate_module_manifest.exs`, never edited by hand. Core uses it from the first release after 2.64.1; before that nothing reads it. Repair is additive (it creates what is missing and reports the rest) and checks the tables only while the database is at the chain's current version. No migration.
 - A builds-alone test: the chain builds every email table the way core's chain does,
   without core's. It runs once the package resolves the next core release.
 

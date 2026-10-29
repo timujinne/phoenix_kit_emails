@@ -51,11 +51,8 @@ defmodule PhoenixKitEmailsTest do
 
     assert function_exported?(provider, :intercept_before_send, 2)
     assert function_exported?(provider, :handle_after_send, 2)
-    assert function_exported?(provider, :get_active_template_by_name, 1)
-    assert function_exported?(provider, :render_template, 2)
-    assert function_exported?(provider, :render_template, 3)
-    assert function_exported?(provider, :track_usage, 1)
-    assert function_exported?(provider, :get_source_module, 1)
+    # The database-template callbacks are gone from core 3.0's behaviour.
+    refute function_exported?(provider, :get_active_template_by_name, 1)
     assert function_exported?(provider, :get_aws_region, 0)
     assert function_exported?(provider, :get_aws_access_key, 0)
     assert function_exported?(provider, :get_aws_secret_key, 0)

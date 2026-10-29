@@ -12,10 +12,11 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
 
       mix phoenix_kit_emails.templates.export
 
-  Run it, review the diff, commit the files. Nothing is deleted and no database
-  row is touched — the database layer still wins at send time until the table
-  is dropped in a later release, so an export that turns out wrong costs
-  nothing but the files.
+  Run it **before upgrading to core 3.0**, review the diff, commit the files.
+  Nothing is deleted and no database row is touched: the table stays as it was,
+  but core 3.0 no longer reads it (the database layer is retired), so the files
+  are the only copy of an edit that takes effect. An export that turns out
+  wrong costs nothing but the files — run it again with `--force`.
 
   ## What gets exported
 
@@ -109,11 +110,31 @@ defmodule Mix.Tasks.PhoenixKitEmails.Templates.Export do
   # is a poor way to learn the task was run from the wrong directory. A dead
   # pool exits rather than raising, so both are caught.
   defp load_templates do
-    Templates.list_templates()
+    if legacy_table_exists?(), do: Templates.list_templates(), else: no_legacy_table!()
+  end
+
+  defp legacy_table_exists? do
+    Templates.legacy_table_exists?()
   rescue
     error -> database_unreachable!(Exception.message(error))
   catch
     :exit, reason -> database_unreachable!(inspect(reason))
+  end
+
+  # A fresh core 3.0 install never creates the table, and a host that dropped
+  # it has nothing left to carry out. Stopping here, with the reason, beats
+  # printing "Nothing to export" and letting the operator believe a check ran.
+  @spec no_legacy_table!() :: no_return()
+  defp no_legacy_table! do
+    Mix.raise("""
+    There is no phoenix_kit_email_templates table in this database, so there
+    is nothing to export.
+
+    Email templates are files now (see phoenix_kit_templates). Core 3.0 and a
+    fresh install never create the table; a host upgraded from core 2.x has it
+    until it is dropped. If you dropped it before exporting, restore it from a
+    backup and run this task again.
+    """)
   end
 
   @spec database_unreachable!(String.t()) :: no_return()

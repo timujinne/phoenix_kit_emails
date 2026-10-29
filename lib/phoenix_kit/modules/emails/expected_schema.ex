@@ -22,7 +22,7 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
   @schema_token "__SCHEMA__"
   @name_marker_exempt "__PK_NAME_EXEMPT__"
   @name_marker_always "__PK_NAME_ALWAYS__"
-  @chain_hash "bd9fe12fc5a127fb6dda718e47e07f16e36c83a048419dff3ec651e7a63e1d13"
+  @chain_hash "59038c6021534da96ccadb4528b765d8e3a3c286ca1462b5d19e7cd1b5754aee"
 
   def objects(prefix) do
     prefix = normalize_prefix!(prefix)
@@ -104,9 +104,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_blocklist ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_events",
@@ -115,9 +115,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_events ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_logs",
@@ -126,9 +126,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_logs ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_metrics",
@@ -137,9 +137,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_metrics ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_orphaned_events",
@@ -148,20 +148,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_orphaned_events ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "table:phoenix_kit_email_templates",
-        owner: :phoenix_kit_emails,
-        check: {:catalog, %{name: "phoenix_kit_email_templates", kind: :table}},
-        create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_templates ()",
-        since: 1,
-        class: :table,
-        revisions: [{1, %{}}],
-        presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_verifications",
@@ -170,9 +159,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_verifications ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_verify_batch_items",
@@ -181,9 +170,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_verify_batch_items ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_verify_batches",
@@ -192,9 +181,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_verify_batches ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_verify_domains",
@@ -203,9 +192,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_verify_domains ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_verify_runners",
@@ -214,9 +203,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_verify_runners ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "table:phoenix_kit_email_verify_smtp_queue",
@@ -225,9 +214,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
         create: "CREATE TABLE IF NOT EXISTS __SCHEMA__.phoenix_kit_email_verify_smtp_queue ()",
         since: 1,
         class: :table,
-        revisions: [{1, %{}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{}}]
       },
       %{
         id: "column:phoenix_kit_email_blocklist.email",
@@ -238,9 +227,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_blocklist ADD COLUMN IF NOT EXISTS \"email\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_blocklist.expires_at",
@@ -251,11 +240,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_blocklist ADD COLUMN IF NOT EXISTS \"expires_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 3, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_blocklist.inserted_at",
@@ -267,11 +256,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_blocklist ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 4, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_blocklist.reason",
@@ -282,9 +271,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_blocklist ADD COLUMN IF NOT EXISTS \"reason\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_blocklist.updated_at",
@@ -295,11 +284,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_blocklist ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 5, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_blocklist.user_uuid",
@@ -310,9 +299,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_blocklist ADD COLUMN IF NOT EXISTS \"user_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 7, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 7, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_blocklist.uuid",
@@ -322,11 +311,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_blocklist ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 6, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_events.bounce_type",
@@ -337,9 +326,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"bounce_type\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 8, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 8, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_events.complaint_type",
@@ -351,9 +340,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"complaint_type\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 9, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 9, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_events.delay_type",
@@ -364,11 +353,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"delay_type\" character varying(255)",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "character varying(255)", pos: 13, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_events.email_log_uuid",
@@ -380,9 +369,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"email_log_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 17, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 17, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_events.event_data",
@@ -393,9 +382,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"event_data\" jsonb DEFAULT '{}'::jsonb",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 2, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 2, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_events.event_type",
@@ -406,9 +395,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"event_type\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_events.failure_reason",
@@ -420,11 +409,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"failure_reason\" character varying(255)",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "character varying(255)", pos: 15, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_events.geo_location",
@@ -435,9 +424,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"geo_location\" jsonb DEFAULT '{}'::jsonb",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 6, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 6, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_events.inserted_at",
@@ -448,11 +437,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 10, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_events.ip_address",
@@ -463,9 +452,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"ip_address\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 4, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 4, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_events.link_url",
@@ -476,9 +465,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"link_url\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 7, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 7, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_events.occurred_at",
@@ -489,11 +478,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"occurred_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 3, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_events.reject_reason",
@@ -504,11 +493,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"reject_reason\" character varying(255)",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "character varying(255)", pos: 12, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_events.subscription_type",
@@ -520,11 +509,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"subscription_type\" character varying(255)",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "character varying(255)", pos: 14, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_events.updated_at",
@@ -535,11 +524,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 11, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_events.user_agent",
@@ -550,9 +539,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"user_agent\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 5, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 5, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_events.uuid",
@@ -562,11 +551,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 16, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.archived_at",
@@ -577,11 +566,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"archived_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 36, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.attachments_count",
@@ -593,9 +582,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"attachments_count\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 10, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 10, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.aws_message_id",
@@ -606,11 +595,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"aws_message_id\" character varying(255)",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "character varying(255)", pos: 22, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.body_compressed",
@@ -621,9 +610,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"body_compressed\" boolean DEFAULT false NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 27, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "false", type: "boolean", pos: 27, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.body_full",
@@ -633,9 +622,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"body_full\" text",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "text", pos: 7, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "text", pos: 7, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.body_preview",
@@ -646,9 +635,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"body_preview\" text",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "text", pos: 6, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "text", pos: 6, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.bounced_at",
@@ -659,11 +648,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"bounced_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 23, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.campaign_id",
@@ -674,9 +663,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"campaign_id\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 9, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 9, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.clicked_at",
@@ -687,11 +676,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"clicked_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 26, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.complained_at",
@@ -702,11 +691,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"complained_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 24, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.configuration_set",
@@ -718,11 +707,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"configuration_set\" character varying(255)",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "character varying(255)", pos: 17, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.delayed_at",
@@ -733,11 +722,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"delayed_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 31, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.delivered_at",
@@ -748,11 +737,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"delivered_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 16, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.error_message",
@@ -763,9 +752,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"error_message\" text",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "text", pos: 13, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "text", pos: 13, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.failed_at",
@@ -775,11 +764,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"failed_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 30, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.from",
@@ -789,9 +778,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"from\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.headers",
@@ -801,9 +790,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"headers\" jsonb DEFAULT '{}'::jsonb",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 5, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 5, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.inserted_at",
@@ -814,11 +803,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 20, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.integration_uuid",
@@ -830,9 +819,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"integration_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 35, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 35, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.locale",
@@ -842,6 +831,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"locale\" character varying(10) DEFAULT 'en'::character varying NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -850,9 +841,7 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              pos: 34,
              not_null: true
            }}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.message_id",
@@ -863,9 +852,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"message_id\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.message_tags",
@@ -876,9 +865,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"message_tags\" jsonb DEFAULT '{}'::jsonb",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 18, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 18, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.opened_at",
@@ -888,11 +877,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"opened_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 25, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.provider",
@@ -902,6 +891,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"provider\" character varying(255) DEFAULT 'unknown'::character varying NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -910,9 +901,7 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              pos: 19,
              not_null: true
            }}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.queued_at",
@@ -922,11 +911,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"queued_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 28, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.rejected_at",
@@ -937,11 +926,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"rejected_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 29, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.retry_count",
@@ -952,9 +941,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"retry_count\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 12, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 12, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.s3_key",
@@ -964,9 +953,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"s3_key\" text",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "text", pos: 37, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "text", pos: 37, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.sent_at",
@@ -976,11 +965,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"sent_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 15, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.size_bytes",
@@ -991,9 +980,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"size_bytes\" integer",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "integer", pos: 11, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "integer", pos: 11, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.status",
@@ -1003,6 +992,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"status\" character varying(255) DEFAULT 'sent'::character varying NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -1011,9 +1002,7 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              pos: 14,
              not_null: true
            }}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.subject",
@@ -1023,9 +1012,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"subject\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 4, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 4, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.template_name",
@@ -1036,9 +1025,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"template_name\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 8, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 8, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.template_source",
@@ -1049,9 +1038,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"template_source\" character varying(16)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(16)", pos: 39, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(16)", pos: 39, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.template_uuid",
@@ -1062,9 +1051,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"template_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 38, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 38, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.to",
@@ -1074,9 +1063,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"to\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.updated_at",
@@ -1087,11 +1076,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 21, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_logs.user_uuid",
@@ -1101,9 +1090,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"user_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 33, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 33, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_logs.uuid",
@@ -1113,11 +1102,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 32, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_metrics.inserted_at",
@@ -1128,11 +1117,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_metrics ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 5, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_metrics.metadata",
@@ -1143,9 +1132,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_metrics ADD COLUMN IF NOT EXISTS \"metadata\" jsonb DEFAULT '{}'::jsonb",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 3, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 3, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_metrics.metric_date",
@@ -1156,9 +1145,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_metrics ADD COLUMN IF NOT EXISTS \"metric_date\" date DEFAULT CURRENT_DATE NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "CURRENT_DATE", type: "date", pos: 4, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "CURRENT_DATE", type: "date", pos: 4, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_metrics.metric_key",
@@ -1169,9 +1158,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_metrics ADD COLUMN IF NOT EXISTS \"metric_key\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_metrics.updated_at",
@@ -1182,11 +1171,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_metrics ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 6, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_metrics.uuid",
@@ -1196,11 +1185,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_metrics ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 7, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_metrics.value",
@@ -1210,9 +1199,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_metrics ADD COLUMN IF NOT EXISTS \"value\" bigint DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "bigint", pos: 2, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "bigint", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.aws_message_id",
@@ -1224,9 +1213,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"aws_message_id\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 1, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.error_message",
@@ -1238,9 +1227,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"error_message\" text",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "text", pos: 7, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "text", pos: 7, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.event_data",
@@ -1252,9 +1241,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"event_data\" jsonb DEFAULT '{}'::jsonb NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 3, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 3, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.event_type",
@@ -1266,9 +1255,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"event_type\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.inserted_at",
@@ -1280,11 +1269,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 8, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.matched",
@@ -1296,9 +1285,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"matched\" boolean DEFAULT false NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 5, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "false", type: "boolean", pos: 5, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.matched_at",
@@ -1310,11 +1299,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"matched_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 6, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.matched_email_log_uuid",
@@ -1330,9 +1319,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"matched_email_log_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 11, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 11, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.received_at",
@@ -1344,11 +1333,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"received_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 4, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.updated_at",
@@ -1360,11 +1349,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 9, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_orphaned_events.uuid",
@@ -1375,299 +1364,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 10, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.category",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "category", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"category\" character varying(255) DEFAULT 'transactional'::character varying NOT NULL",
-        since: 1,
-        class: :column,
-        revisions: [
-          {1,
-           %{
-             default: "'transactional'::character varying",
-             type: "character varying(255)",
-             pos: 9,
-             not_null: true
-           }}
-        ],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.created_by_user_uuid",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_email_templates", column: "created_by_user_uuid", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"created_by_user_uuid\" uuid",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 17, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.description",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_email_templates", column: "description", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"description\" jsonb",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "jsonb", pos: 5, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.display_name",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_email_templates", column: "display_name", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"display_name\" jsonb",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "jsonb", pos: 4, not_null: true}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.html_body",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "html_body", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"html_body\" jsonb",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "jsonb", pos: 7, not_null: true}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.inserted_at",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_email_templates", column: "inserted_at", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone",
-        since: 1,
-        class: :column,
-        revisions: [
-          {1, %{default: nil, type: "timestamp with time zone", pos: 19, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.is_system",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "is_system", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"is_system\" boolean DEFAULT false NOT NULL",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 16, not_null: true}}],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.last_used_at",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_email_templates", column: "last_used_at", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"last_used_at\" timestamp with time zone",
-        since: 1,
-        class: :column,
-        revisions: [
-          {1, %{default: nil, type: "timestamp with time zone", pos: 14, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.metadata",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "metadata", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"metadata\" jsonb DEFAULT '{}'::jsonb",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 12, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.name",
-        owner: :phoenix_kit_emails,
-        check: {:catalog, %{table: "phoenix_kit_email_templates", column: "name", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"name\" character varying(255)",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 2, not_null: true}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.slug",
-        owner: :phoenix_kit_emails,
-        check: {:catalog, %{table: "phoenix_kit_email_templates", column: "slug", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"slug\" character varying(255)",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: true}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.status",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "status", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"status\" character varying(255) DEFAULT 'draft'::character varying NOT NULL",
-        since: 1,
-        class: :column,
-        revisions: [
-          {1,
-           %{
-             default: "'draft'::character varying",
-             type: "character varying(255)",
-             pos: 10,
-             not_null: true
-           }}
-        ],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.subject",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "subject", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"subject\" jsonb",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "jsonb", pos: 6, not_null: true}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.text_body",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "text_body", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"text_body\" jsonb",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "jsonb", pos: 8, not_null: true}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.updated_at",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "updated_at", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone",
-        since: 1,
-        class: :column,
-        revisions: [
-          {1, %{default: nil, type: "timestamp with time zone", pos: 20, not_null: true}}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.updated_by_user_uuid",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_email_templates", column: "updated_by_user_uuid", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"updated_by_user_uuid\" uuid",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 18, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.usage_count",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{table: "phoenix_kit_email_templates", column: "usage_count", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"usage_count\" integer DEFAULT 0 NOT NULL",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 13, not_null: true}}],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.uuid",
-        owner: :phoenix_kit_emails,
-        check: {:catalog, %{table: "phoenix_kit_email_templates", column: "uuid", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
-        since: 1,
-        class: :column,
-        revisions: [
-          {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.variables",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "variables", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"variables\" jsonb DEFAULT '{}'::jsonb",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 11, not_null: false}}],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "column:phoenix_kit_email_templates.version",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog, %{table: "phoenix_kit_email_templates", column: "version", kind: :column}},
-        create:
-          "ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD COLUMN IF NOT EXISTS \"version\" integer DEFAULT 1 NOT NULL",
-        since: 1,
-        class: :column,
-        revisions: [{1, %{default: "1", type: "integer", pos: 15, not_null: true}}],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verifications.attempts",
@@ -1679,9 +1380,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"attempts\" integer DEFAULT 1 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "1", type: "integer", pos: 16, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "1", type: "integer", pos: 16, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.catch_all",
@@ -1693,9 +1394,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"catch_all\" boolean",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "boolean", pos: 7, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "boolean", pos: 7, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.checked_at",
@@ -1707,11 +1408,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"checked_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 17, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verifications.curse",
@@ -1722,9 +1423,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"curse\" boolean DEFAULT false NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 12, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "false", type: "boolean", pos: 12, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.disposable",
@@ -1736,9 +1437,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"disposable\" boolean DEFAULT false NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 10, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "false", type: "boolean", pos: 10, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.domain",
@@ -1749,9 +1450,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"domain\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.email",
@@ -1762,9 +1463,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"email\" public.citext",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "public.citext", pos: 2, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "public.citext", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.fake",
@@ -1775,9 +1476,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"fake\" boolean DEFAULT false NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 11, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "false", type: "boolean", pos: 11, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.free",
@@ -1788,9 +1489,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"free\" boolean DEFAULT false NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 8, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "false", type: "boolean", pos: 8, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.inserted_at",
@@ -1802,11 +1503,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 18, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verifications.level",
@@ -1817,9 +1518,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"level\" character varying(16)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(16)", pos: 6, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(16)", pos: 6, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.log",
@@ -1830,9 +1531,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"log\" jsonb DEFAULT '[]'::jsonb NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'[]'::jsonb", type: "jsonb", pos: 15, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "'[]'::jsonb", type: "jsonb", pos: 15, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.mx",
@@ -1843,11 +1544,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"mx\" character varying(255)",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "character varying(255)", pos: 14, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verifications.reason",
@@ -1858,9 +1559,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"reason\" character varying(64)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(64)", pos: 5, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(64)", pos: 5, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.role",
@@ -1871,9 +1572,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"role\" boolean DEFAULT false NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 9, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "false", type: "boolean", pos: 9, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.status",
@@ -1884,9 +1585,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"status\" character varying(16)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(16)", pos: 4, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(16)", pos: 4, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.typo",
@@ -1897,9 +1598,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"typo\" boolean DEFAULT false NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "false", type: "boolean", pos: 13, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "false", type: "boolean", pos: 13, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verifications.updated_at",
@@ -1911,11 +1612,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 19, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verifications.uuid",
@@ -1926,11 +1627,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batch_items.batch_uuid",
@@ -1942,9 +1643,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD COLUMN IF NOT EXISTS \"batch_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batch_items.email",
@@ -1956,9 +1657,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD COLUMN IF NOT EXISTS \"email\" public.citext",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "public.citext", pos: 3, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "public.citext", pos: 3, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batch_items.inserted_at",
@@ -1970,11 +1671,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 6, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batch_items.next_attempt_at",
@@ -1990,11 +1691,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD COLUMN IF NOT EXISTS \"next_attempt_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 5, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batch_items.state",
@@ -2006,6 +1707,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD COLUMN IF NOT EXISTS \"state\" character varying(16) DEFAULT 'pending'::character varying NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -2014,9 +1717,7 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              pos: 4,
              not_null: true
            }}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batch_items.updated_at",
@@ -2028,11 +1729,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 7, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batch_items.uuid",
@@ -2044,11 +1745,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.awaiting_smtp",
@@ -2060,9 +1761,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"awaiting_smtp\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 14, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 14, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.counts",
@@ -2074,9 +1775,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"counts\" jsonb DEFAULT '{}'::jsonb NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 8, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 8, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.created_by_uuid",
@@ -2088,9 +1789,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"created_by_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 9, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 9, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.finished_at",
@@ -2102,11 +1803,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"finished_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 11, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.inserted_at",
@@ -2118,11 +1819,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 12, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.processed",
@@ -2134,9 +1835,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"processed\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 7, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 7, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.source_ref",
@@ -2148,9 +1849,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"source_ref\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.source_type",
@@ -2162,9 +1863,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"source_type\" character varying(32)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(32)", pos: 2, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(32)", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.started_at",
@@ -2176,11 +1877,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"started_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 10, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.state",
@@ -2191,6 +1892,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"state\" character varying(16) DEFAULT 'queued'::character varying NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -2199,9 +1902,7 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              pos: 5,
              not_null: true
            }}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.title",
@@ -2212,9 +1913,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"title\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 4, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 4, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.total",
@@ -2225,9 +1926,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"total\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 6, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 6, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.updated_at",
@@ -2239,11 +1940,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 13, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_batches.uuid",
@@ -2254,11 +1955,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.blocks",
@@ -2270,9 +1971,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"blocks\" jsonb DEFAULT '{}'::jsonb NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 10, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "'{}'::jsonb", type: "jsonb", pos: 10, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.catch_all",
@@ -2284,9 +1985,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"catch_all\" boolean",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "boolean", pos: 5, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "boolean", pos: 5, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.catch_all_checked_at",
@@ -2302,11 +2003,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"catch_all_checked_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 6, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.domain",
@@ -2318,9 +2019,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"domain\" character varying(253)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(253)", pos: 1, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(253)", pos: 1, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.grey_at",
@@ -2332,11 +2033,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"grey_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 8, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.grey_message",
@@ -2348,9 +2049,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"grey_message\" text",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "text", pos: 7, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "text", pos: 7, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.has_mx",
@@ -2362,9 +2063,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"has_mx\" boolean",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "boolean", pos: 3, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "boolean", pos: 3, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.last_smtp_at",
@@ -2376,11 +2077,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"last_smtp_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 9, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.mx",
@@ -2391,9 +2092,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"mx\" jsonb",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "jsonb", pos: 2, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "jsonb", pos: 2, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.mx_checked_at",
@@ -2405,11 +2106,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"mx_checked_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 4, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_domains.paused_until",
@@ -2421,11 +2122,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD COLUMN IF NOT EXISTS \"paused_until\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 11, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.api_key_uuid",
@@ -2437,9 +2138,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"api_key_uuid\" uuid",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "uuid", pos: 2, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "uuid", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.fail_domains",
@@ -2451,9 +2152,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"fail_domains\" jsonb DEFAULT '[]'::jsonb NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "'[]'::jsonb", type: "jsonb", pos: 16, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "'[]'::jsonb", type: "jsonb", pos: 16, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.fail_streak",
@@ -2465,9 +2166,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"fail_streak\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 15, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 15, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.helo_auto",
@@ -2479,9 +2180,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"helo_auto\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 7, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 7, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.inserted_at",
@@ -2493,11 +2194,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 17, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.jobs_done",
@@ -2509,9 +2210,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"jobs_done\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 11, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 11, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.last_error",
@@ -2523,9 +2224,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"last_error\" text",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "text", pos: 12, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "text", pos: 12, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.last_seen_at",
@@ -2537,11 +2238,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"last_seen_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 10, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.name",
@@ -2552,9 +2253,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"name\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 3, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.os",
@@ -2565,9 +2266,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"os\" character varying(255)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 5, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(255)", pos: 5, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.pause_reason",
@@ -2579,11 +2280,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"pause_reason\" character varying(255)",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "character varying(255)", pos: 14, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.paused_until",
@@ -2595,11 +2296,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"paused_until\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 13, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.port25",
@@ -2611,6 +2312,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"port25\" character varying(16) DEFAULT 'unknown'::character varying NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -2619,9 +2322,7 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              pos: 8,
              not_null: true
            }}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.port25_checked_at",
@@ -2637,11 +2338,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"port25_checked_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 9, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.public_ip",
@@ -2653,9 +2354,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"public_ip\" character varying(45)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(45)", pos: 6, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(45)", pos: 6, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.updated_at",
@@ -2667,11 +2368,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 18, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.uuid",
@@ -2682,11 +2383,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_runners.version",
@@ -2698,9 +2399,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD COLUMN IF NOT EXISTS \"version\" character varying(32)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(32)", pos: 4, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(32)", pos: 4, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.attempts",
@@ -2712,9 +2413,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"attempts\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 6, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 6, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.checked_as",
@@ -2726,9 +2427,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"checked_as\" character varying(320)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(320)", pos: 3, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(320)", pos: 3, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.domain",
@@ -2740,9 +2441,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"domain\" character varying(253)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(253)", pos: 4, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(253)", pos: 4, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.email",
@@ -2754,9 +2455,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"email\" public.citext",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "public.citext", pos: 2, not_null: true}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "public.citext", pos: 2, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.grey_attempts",
@@ -2768,9 +2469,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"grey_attempts\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 7, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 7, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.inserted_at",
@@ -2782,11 +2483,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"inserted_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 15, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.last_reason",
@@ -2798,9 +2499,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"last_reason\" character varying(64)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(64)", pos: 14, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(64)", pos: 14, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.lease_expires_at",
@@ -2816,11 +2517,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"lease_expires_at\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 13, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.lease_expiries",
@@ -2836,9 +2537,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"lease_expiries\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 9, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 9, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.lease_token",
@@ -2850,9 +2551,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"lease_token\" character varying(64)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(64)", pos: 11, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(64)", pos: 11, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.leased_by",
@@ -2864,9 +2565,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"leased_by\" character varying(64)",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: nil, type: "character varying(64)", pos: 12, not_null: false}}],
+        backfill: nil,
         presence: :required,
-        backfill: nil
+        revisions: [{1, %{default: nil, type: "character varying(64)", pos: 12, not_null: false}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.not_before",
@@ -2878,11 +2579,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"not_before\" timestamp with time zone",
         since: 1,
         class: :column,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1, %{default: nil, type: "timestamp with time zone", pos: 10, not_null: false}}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.state",
@@ -2894,6 +2595,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"state\" character varying(16) DEFAULT 'queued'::character varying NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -2902,9 +2605,7 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              pos: 5,
              not_null: true
            }}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.transport_attempts",
@@ -2920,9 +2621,9 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"transport_attempts\" integer DEFAULT 0 NOT NULL",
         since: 1,
         class: :column,
-        revisions: [{1, %{default: "0", type: "integer", pos: 8, not_null: true}}],
+        backfill: :default,
         presence: :required,
-        backfill: :default
+        revisions: [{1, %{default: "0", type: "integer", pos: 8, not_null: true}}]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.updated_at",
@@ -2934,11 +2635,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"updated_at\" timestamp with time zone DEFAULT now() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "now()", type: "timestamp with time zone", pos: 16, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "column:phoenix_kit_email_verify_smtp_queue.uuid",
@@ -2950,11 +2651,11 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD COLUMN IF NOT EXISTS \"uuid\" uuid DEFAULT __SCHEMA__.uuid_generate_v7() NOT NULL",
         since: 1,
         class: :column,
+        backfill: :default,
+        presence: :required,
         revisions: [
           {1, %{default: "__SCHEMA__.uuid_generate_v7()", type: "uuid", pos: 1, not_null: true}}
-        ],
-        presence: :required,
-        backfill: :default
+        ]
       },
       %{
         id: "index:idx_email_logs_locale",
@@ -2966,6 +2667,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS idx_email_logs_locale ON __SCHEMA__.phoenix_kit_email_logs USING btree (locale)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -2973,15 +2676,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["locale"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX idx_email_logs_locale ON __SCHEMA__.phoenix_kit_email_logs USING btree (locale)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE INDEX idx_email_logs_locale ON __SCHEMA__.phoenix_kit_email_logs USING btree (locale)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_blocklist_email_expires_idx",
@@ -2997,6 +2698,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_email_expires_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (email, expires_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3004,15 +2707,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["email", "expires_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_blocklist_email_expires_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (email, expires_at)",
              predicate: nil,
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_blocklist_email_expires_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (email, expires_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_blocklist_email_uidx",
@@ -3028,6 +2729,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_email_uidx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (email)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3035,15 +2738,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["email"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_blocklist_email_uidx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (email)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_blocklist_email_uidx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (email)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_blocklist_expires_at_idx",
@@ -3059,6 +2760,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_expires_at_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (expires_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3066,15 +2769,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["expires_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_blocklist_expires_at_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (expires_at)",
              predicate: nil,
              opclasses: ["timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_blocklist_expires_at_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (expires_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_blocklist_reason_inserted_idx",
@@ -3090,6 +2791,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_reason_inserted_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (reason, inserted_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3097,15 +2800,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["reason", "inserted_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_blocklist_reason_inserted_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (reason, inserted_at)",
              predicate: nil,
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_blocklist_reason_inserted_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (reason, inserted_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_blocklist_user_uuid_idx",
@@ -3121,6 +2822,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (user_uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3128,15 +2831,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["user_uuid"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_blocklist_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (user_uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_blocklist_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (user_uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_blocklist_uuid_idx",
@@ -3152,6 +2853,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_blocklist_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3159,15 +2862,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["uuid"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_blocklist_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_blocklist_uuid_idx ON __SCHEMA__.phoenix_kit_email_blocklist USING btree (uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_events_email_log_uuid_idx",
@@ -3183,6 +2884,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_events_email_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3190,15 +2893,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["email_log_uuid"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_events_email_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_events_email_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_events_log_uuid_event_type_index",
@@ -3214,6 +2915,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_log_uuid_event_type_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type) WHERE ((event_type)::text <> ALL (ARRAY[('open'::character varying)::text, ('click'::character varying)::text]))",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3221,16 +2924,14 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["email_log_uuid", "event_type"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_events_log_uuid_event_type_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type) WHERE ((event_type)::text <> ALL (ARRAY[('open'::character varying)::text, ('click'::character varying)::text]))",
              predicate:
                "((event_type)::text <> ALL (ARRAY[('open'::character varying)::text, ('click'::character varying)::text]))",
              opclasses: ["uuid_ops", "text_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_events_log_uuid_event_type_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type) WHERE ((event_type)::text <> ALL (ARRAY[('open'::character varying)::text, ('click'::character varying)::text]))",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_events_log_uuid_type_occurred_index",
@@ -3246,6 +2947,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_log_uuid_type_occurred_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type, occurred_at) WHERE ((event_type)::text = ANY (ARRAY[('open'::character varying)::text, ('click'::character varying)::text]))",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3253,16 +2956,14 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["email_log_uuid", "event_type", "occurred_at"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_events_log_uuid_type_occurred_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type, occurred_at) WHERE ((event_type)::text = ANY (ARRAY[('open'::character varying)::text, ('click'::character varying)::text]))",
              predicate:
                "((event_type)::text = ANY (ARRAY[('open'::character varying)::text, ('click'::character varying)::text]))",
              opclasses: ["uuid_ops", "text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_events_log_uuid_type_occurred_index ON __SCHEMA__.phoenix_kit_email_events USING btree (email_log_uuid, event_type, occurred_at) WHERE ((event_type)::text = ANY (ARRAY[('open'::character varying)::text, ('click'::character varying)::text]))",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_events_occurred_at_idx",
@@ -3278,6 +2979,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_events_occurred_at_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (occurred_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3285,15 +2988,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["occurred_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_events_occurred_at_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (occurred_at)",
              predicate: nil,
              opclasses: ["timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_events_occurred_at_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (occurred_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_events_type_occurred_at_idx",
@@ -3309,6 +3010,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_events_type_occurred_at_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (event_type, occurred_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3316,15 +3019,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["event_type", "occurred_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_events_type_occurred_at_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (event_type, occurred_at)",
              predicate: nil,
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_events_type_occurred_at_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (event_type, occurred_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_events_uuid_idx",
@@ -3340,6 +3041,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_events_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3347,15 +3050,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["uuid"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_events_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_events_uuid_idx ON __SCHEMA__.phoenix_kit_email_events USING btree (uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_archived_at_idx",
@@ -3371,6 +3072,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_archived_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (archived_at) WHERE (archived_at IS NOT NULL)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3378,15 +3081,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["archived_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_archived_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (archived_at) WHERE (archived_at IS NOT NULL)",
              predicate: "(archived_at IS NOT NULL)",
              opclasses: ["timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_archived_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (archived_at) WHERE (archived_at IS NOT NULL)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_aws_message_id_index",
@@ -3402,6 +3103,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_aws_message_id_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3409,15 +3112,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["aws_message_id"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_logs_aws_message_id_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
              predicate: "(aws_message_id IS NOT NULL)",
              opclasses: ["text_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_logs_aws_message_id_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_aws_message_id_uidx",
@@ -3433,6 +3134,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_aws_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3440,15 +3143,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["aws_message_id"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_logs_aws_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
              predicate: "(aws_message_id IS NOT NULL)",
              opclasses: ["text_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_logs_aws_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (aws_message_id) WHERE (aws_message_id IS NOT NULL)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_campaign_id_idx",
@@ -3464,6 +3165,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_campaign_id_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (campaign_id)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3471,15 +3174,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["campaign_id"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_campaign_id_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (campaign_id)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_campaign_id_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (campaign_id)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_campaign_id_trgm_index",
@@ -3495,6 +3196,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_campaign_id_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (campaign_id public.gin_trgm_ops)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3502,15 +3205,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["campaign_id"],
              unique: false,
              method: "gin",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_campaign_id_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (campaign_id public.gin_trgm_ops)",
              predicate: nil,
              opclasses: ["gin_trgm_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_campaign_id_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (campaign_id public.gin_trgm_ops)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_compress_scan_index",
@@ -3526,6 +3227,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_compress_scan_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at) WHERE (body_full IS NOT NULL)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3533,15 +3236,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["sent_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_compress_scan_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at) WHERE (body_full IS NOT NULL)",
              predicate: "(body_full IS NOT NULL)",
              opclasses: ["timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_compress_scan_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at) WHERE (body_full IS NOT NULL)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_integration_uuid_idx",
@@ -3557,6 +3258,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_integration_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (integration_uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3564,15 +3267,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["integration_uuid"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_integration_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (integration_uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_integration_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (integration_uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_message_id_uidx",
@@ -3588,6 +3289,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3595,15 +3298,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["message_id"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_logs_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_logs_message_id_uidx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_message_ids_idx",
@@ -3619,6 +3320,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_message_ids_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id, aws_message_id)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3626,15 +3329,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["message_id", "aws_message_id"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_message_ids_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id, aws_message_id)",
              predicate: nil,
              opclasses: ["text_ops", "text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_message_ids_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (message_id, aws_message_id)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_provider_sent_at_idx",
@@ -3650,6 +3351,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_provider_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (provider, sent_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3657,15 +3360,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["provider", "sent_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_provider_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (provider, sent_at)",
              predicate: nil,
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_provider_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (provider, sent_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_sent_at_idx",
@@ -3681,6 +3382,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3688,15 +3391,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["sent_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at)",
              predicate: nil,
              opclasses: ["timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (sent_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_status_sent_at_idx",
@@ -3712,6 +3413,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_status_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (status, sent_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3719,15 +3422,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["status", "sent_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_status_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (status, sent_at)",
              predicate: nil,
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_status_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (status, sent_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_subject_trgm_index",
@@ -3743,6 +3444,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_subject_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (subject public.gin_trgm_ops)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3750,15 +3453,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["subject"],
              unique: false,
              method: "gin",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_subject_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (subject public.gin_trgm_ops)",
              predicate: nil,
              opclasses: ["gin_trgm_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_subject_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (subject public.gin_trgm_ops)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_template_clicked_index",
@@ -3774,6 +3475,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_template_clicked_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, clicked_at) WHERE (clicked_at IS NOT NULL)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3781,15 +3484,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["template_name", "clicked_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_template_clicked_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, clicked_at) WHERE (clicked_at IS NOT NULL)",
              predicate: "(clicked_at IS NOT NULL)",
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_template_clicked_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, clicked_at) WHERE (clicked_at IS NOT NULL)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_template_name_idx",
@@ -3805,6 +3506,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_template_name_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3812,15 +3515,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["template_name"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_template_name_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_template_name_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_template_opened_index",
@@ -3836,6 +3537,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_template_opened_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, opened_at) WHERE (opened_at IS NOT NULL)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3843,15 +3546,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["template_name", "opened_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_template_opened_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, opened_at) WHERE (opened_at IS NOT NULL)",
              predicate: "(opened_at IS NOT NULL)",
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_template_opened_index ON __SCHEMA__.phoenix_kit_email_logs USING btree (template_name, opened_at) WHERE (opened_at IS NOT NULL)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_to_sent_at_idx",
@@ -3867,6 +3568,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_to_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (\"to\", sent_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3874,15 +3577,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["\"to\"", "sent_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_to_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (\"to\", sent_at)",
              predicate: nil,
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_to_sent_at_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (\"to\", sent_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_to_trgm_index",
@@ -3898,6 +3599,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_to_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (\"to\" public.gin_trgm_ops)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3905,15 +3608,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["\"to\""],
              unique: false,
              method: "gin",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_to_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (\"to\" public.gin_trgm_ops)",
              predicate: nil,
              opclasses: ["gin_trgm_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_to_trgm_index ON __SCHEMA__.phoenix_kit_email_logs USING gin (\"to\" public.gin_trgm_ops)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_user_uuid_idx",
@@ -3929,6 +3630,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_logs_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (user_uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3936,15 +3639,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["user_uuid"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_logs_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (user_uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_logs_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (user_uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_logs_uuid_idx",
@@ -3960,6 +3661,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_logs_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3967,15 +3670,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["uuid"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_logs_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_logs_uuid_idx ON __SCHEMA__.phoenix_kit_email_logs USING btree (uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_metrics_date_idx",
@@ -3991,6 +3692,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_metrics_date_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_date)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -3998,15 +3701,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["metric_date"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_metrics_date_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_date)",
              predicate: nil,
              opclasses: ["date_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_metrics_date_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_date)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_metrics_key_date_uidx",
@@ -4022,6 +3723,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_metrics_key_date_uidx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_key, metric_date)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4029,15 +3732,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["metric_key", "metric_date"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_metrics_key_date_uidx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_key, metric_date)",
              predicate: nil,
              opclasses: ["text_ops", "date_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_metrics_key_date_uidx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (metric_key, metric_date)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_metrics_uuid_idx",
@@ -4053,6 +3754,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_metrics_uuid_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4060,15 +3763,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["uuid"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_metrics_uuid_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_metrics_uuid_idx ON __SCHEMA__.phoenix_kit_email_metrics USING btree (uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_orphaned_events_matched_log_uuid_idx",
@@ -4084,6 +3785,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_orphaned_events_matched_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched_email_log_uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4091,15 +3794,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["matched_email_log_uuid"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_orphaned_events_matched_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched_email_log_uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_orphaned_events_matched_log_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched_email_log_uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_orphaned_events_uuid_idx",
@@ -4115,6 +3816,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_orphaned_events_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4122,418 +3825,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["uuid"],
              unique: true,
              method: "btree",
+             predicate: nil,
+             opclasses: ["uuid_ops"],
              definition:
                "CREATE UNIQUE INDEX phoenix_kit_email_orphaned_events_uuid_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_category_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_category_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_category_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (category)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["category"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_category_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (category)",
-             predicate: nil,
-             opclasses: ["text_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_category_status_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_category_status_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_category_status_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (category, status)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["category", "status"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_category_status_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (category, status)",
-             predicate: nil,
-             opclasses: ["text_ops", "text_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_created_by_user_uuid_idx",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_created_by_user_uuid_idx",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_created_by_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (created_by_user_uuid)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["created_by_user_uuid"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_created_by_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (created_by_user_uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_inserted_at_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_inserted_at_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_inserted_at_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (inserted_at)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["inserted_at"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_inserted_at_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (inserted_at)",
-             predicate: nil,
-             opclasses: ["timestamptz_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_is_system_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_is_system_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_is_system_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (is_system)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["is_system"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_is_system_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (is_system)",
-             predicate: nil,
-             opclasses: ["bool_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_last_used_at_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_last_used_at_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_last_used_at_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (last_used_at)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["last_used_at"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_last_used_at_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (last_used_at)",
-             predicate: nil,
-             opclasses: ["timestamptz_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_name_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_name_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_templates_name_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (name)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["name"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_templates_name_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (name)",
-             predicate: nil,
-             opclasses: ["text_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_slug_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_slug_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_templates_slug_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (slug)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["slug"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_templates_slug_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (slug)",
-             predicate: nil,
-             opclasses: ["text_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_status_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_status_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_status_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (status)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["status"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_status_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (status)",
-             predicate: nil,
-             opclasses: ["text_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_status_is_system_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_status_is_system_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_status_is_system_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (status, is_system)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["status", "is_system"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_status_is_system_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (status, is_system)",
-             predicate: nil,
-             opclasses: ["text_ops", "bool_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_updated_by_user_uuid_idx",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_updated_by_user_uuid_idx",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_updated_by_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (updated_by_user_uuid)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["updated_by_user_uuid"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_updated_by_user_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (updated_by_user_uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_usage_count_index",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_usage_count_index",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE INDEX IF NOT EXISTS phoenix_kit_email_templates_usage_count_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (usage_count)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["usage_count"],
-             unique: false,
-             method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_templates_usage_count_index ON __SCHEMA__.phoenix_kit_email_templates USING btree (usage_count)",
-             predicate: nil,
-             opclasses: ["int4_ops"],
-             name_template: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "index:phoenix_kit_email_templates_uuid_idx",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "__PK_NAME_EXEMPT__phoenix_kit_email_templates_uuid_idx",
-             table: "phoenix_kit_email_templates",
-             kind: :index
-           }},
-        create:
-          "CREATE UNIQUE INDEX IF NOT EXISTS __PK_NAME_EXEMPT__phoenix_kit_email_templates_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (uuid)",
-        since: 1,
-        class: :index,
-        revisions: [
-          {1,
-           %{
-             table: "phoenix_kit_email_templates",
-             keys: ["uuid"],
-             unique: true,
-             method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX __PK_NAME_EXEMPT__phoenix_kit_email_templates_uuid_idx ON __SCHEMA__.phoenix_kit_email_templates USING btree (uuid)",
-             predicate: nil,
-             opclasses: ["uuid_ops"],
-             name_template: :exempt
-           }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verifications_domain_idx",
@@ -4549,6 +3847,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verifications_domain_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (domain)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4556,15 +3856,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["domain"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verifications_domain_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (domain)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verifications_domain_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (domain)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verifications_email_idx",
@@ -4580,6 +3878,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verifications_email_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (email)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4587,15 +3887,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["email"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_verifications_email_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (email)",
              predicate: nil,
              opclasses: ["citext_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_verifications_email_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (email)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verifications_status_idx",
@@ -4611,6 +3909,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verifications_status_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (status)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4618,15 +3918,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["status"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verifications_status_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (status)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verifications_status_idx ON __SCHEMA__.phoenix_kit_email_verifications USING btree (status)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_batch_items_awaiting_idx",
@@ -4642,6 +3940,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batch_items_awaiting_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (email) WHERE ((state)::text = 'awaiting_smtp'::text)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4649,15 +3949,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["email"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verify_batch_items_awaiting_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (email) WHERE ((state)::text = 'awaiting_smtp'::text)",
              predicate: "((state)::text = 'awaiting_smtp'::text)",
              opclasses: ["citext_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verify_batch_items_awaiting_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (email) WHERE ((state)::text = 'awaiting_smtp'::text)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_batch_items_member_idx",
@@ -4673,6 +3971,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_batch_items_member_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, email)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4680,15 +3980,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["batch_uuid", "email"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_verify_batch_items_member_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, email)",
              predicate: nil,
              opclasses: ["uuid_ops", "citext_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_verify_batch_items_member_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, email)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_batch_items_state_idx",
@@ -4704,6 +4002,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batch_items_state_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, state)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4711,15 +4011,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["batch_uuid", "state"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verify_batch_items_state_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, state)",
              predicate: nil,
              opclasses: ["uuid_ops", "text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verify_batch_items_state_idx ON __SCHEMA__.phoenix_kit_email_verify_batch_items USING btree (batch_uuid, state)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_batches_source_idx",
@@ -4735,6 +4033,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batches_source_idx ON __SCHEMA__.phoenix_kit_email_verify_batches USING btree (source_type, source_ref)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4742,15 +4042,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["source_type", "source_ref"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verify_batches_source_idx ON __SCHEMA__.phoenix_kit_email_verify_batches USING btree (source_type, source_ref)",
              predicate: nil,
              opclasses: ["text_ops", "text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verify_batches_source_idx ON __SCHEMA__.phoenix_kit_email_verify_batches USING btree (source_type, source_ref)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_batches_state_idx",
@@ -4766,6 +4064,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_batches_state_idx ON __SCHEMA__.phoenix_kit_email_verify_batches USING btree (state)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4773,15 +4073,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["state"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verify_batches_state_idx ON __SCHEMA__.phoenix_kit_email_verify_batches USING btree (state)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verify_batches_state_idx ON __SCHEMA__.phoenix_kit_email_verify_batches USING btree (state)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_runners_key_idx",
@@ -4797,6 +4095,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_runners_key_idx ON __SCHEMA__.phoenix_kit_email_verify_runners USING btree (api_key_uuid)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4804,15 +4104,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["api_key_uuid"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_verify_runners_key_idx ON __SCHEMA__.phoenix_kit_email_verify_runners USING btree (api_key_uuid)",
              predicate: nil,
              opclasses: ["uuid_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_verify_runners_key_idx ON __SCHEMA__.phoenix_kit_email_verify_runners USING btree (api_key_uuid)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_smtp_queue_domain_idx",
@@ -4828,6 +4126,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_domain_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (domain, state)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4835,15 +4135,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["domain", "state"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verify_smtp_queue_domain_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (domain, state)",
              predicate: nil,
              opclasses: ["text_ops", "text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verify_smtp_queue_domain_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (domain, state)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_smtp_queue_lease_idx",
@@ -4859,6 +4157,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_lease_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (lease_token) WHERE (lease_token IS NOT NULL)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4866,15 +4166,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["lease_token"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verify_smtp_queue_lease_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (lease_token) WHERE (lease_token IS NOT NULL)",
              predicate: "(lease_token IS NOT NULL)",
              opclasses: ["text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verify_smtp_queue_lease_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (lease_token) WHERE (lease_token IS NOT NULL)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_smtp_queue_live_email_idx",
@@ -4890,6 +4188,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE UNIQUE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_live_email_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (email) WHERE ((state)::text = ANY ((ARRAY['queued'::character varying, 'leased'::character varying])::text[]))",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4897,16 +4197,14 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["email"],
              unique: true,
              method: "btree",
-             definition:
-               "CREATE UNIQUE INDEX phoenix_kit_email_verify_smtp_queue_live_email_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (email) WHERE ((state)::text = ANY ((ARRAY['queued'::character varying, 'leased'::character varying])::text[]))",
              predicate:
                "((state)::text = ANY ((ARRAY['queued'::character varying, 'leased'::character varying])::text[]))",
              opclasses: ["citext_ops"],
+             definition:
+               "CREATE UNIQUE INDEX phoenix_kit_email_verify_smtp_queue_live_email_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (email) WHERE ((state)::text = ANY ((ARRAY['queued'::character varying, 'leased'::character varying])::text[]))",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_email_verify_smtp_queue_state_idx",
@@ -4922,6 +4220,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_email_verify_smtp_queue_state_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (state, not_before)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4929,15 +4229,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["state", "not_before"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_email_verify_smtp_queue_state_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (state, not_before)",
              predicate: nil,
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_email_verify_smtp_queue_state_idx ON __SCHEMA__.phoenix_kit_email_verify_smtp_queue USING btree (state, not_before)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_orphaned_events_aws_id_idx",
@@ -4953,6 +4251,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_orphaned_events_aws_id_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (aws_message_id)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4960,15 +4260,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["aws_message_id"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_orphaned_events_aws_id_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (aws_message_id)",
              predicate: nil,
              opclasses: ["text_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_orphaned_events_aws_id_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (aws_message_id)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_orphaned_events_matched_idx",
@@ -4984,6 +4282,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_orphaned_events_matched_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -4991,15 +4291,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["matched"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_orphaned_events_matched_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched)",
              predicate: nil,
              opclasses: ["bool_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_orphaned_events_matched_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (matched)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "index:phoenix_kit_orphaned_events_type_received_idx",
@@ -5015,6 +4313,8 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "CREATE INDEX IF NOT EXISTS phoenix_kit_orphaned_events_type_received_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (event_type, received_at)",
         since: 1,
         class: :index,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
@@ -5022,15 +4322,13 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
              keys: ["event_type", "received_at"],
              unique: false,
              method: "btree",
-             definition:
-               "CREATE INDEX phoenix_kit_orphaned_events_type_received_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (event_type, received_at)",
              predicate: nil,
              opclasses: ["text_ops", "timestamptz_ops"],
+             definition:
+               "CREATE INDEX phoenix_kit_orphaned_events_type_received_idx ON __SCHEMA__.phoenix_kit_email_orphaned_events USING btree (event_type, received_at)",
              name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_blocklist.phoenix_kit_email_blocklist_pkey",
@@ -5046,21 +4344,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_blocklist_pkey'\n      AND t.relname = 'phoenix_kit_email_blocklist'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_blocklist ADD CONSTRAINT phoenix_kit_email_blocklist_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_events.phoenix_kit_email_events_pkey",
@@ -5076,21 +4374,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_events_pkey'\n      AND t.relname = 'phoenix_kit_email_events'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD CONSTRAINT phoenix_kit_email_events_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_logs.phoenix_kit_email_logs_pkey",
@@ -5106,21 +4404,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_logs_pkey'\n      AND t.relname = 'phoenix_kit_email_logs'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_logs ADD CONSTRAINT phoenix_kit_email_logs_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_metrics.phoenix_kit_email_metrics_pkey",
@@ -5136,21 +4434,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_metrics_pkey'\n      AND t.relname = 'phoenix_kit_email_metrics'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_metrics ADD CONSTRAINT phoenix_kit_email_metrics_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_orphaned_events.phoenix_kit_email_orphaned_events_pkey",
@@ -5166,51 +4464,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_orphaned_events_pkey'\n      AND t.relname = 'phoenix_kit_email_orphaned_events'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_orphaned_events ADD CONSTRAINT phoenix_kit_email_orphaned_events_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
-           }}
-        ],
-        presence: :required,
-        backfill: nil
-      },
-      %{
-        id: "constraint:phoenix_kit_email_templates.phoenix_kit_email_templates_pkey",
-        owner: :phoenix_kit_emails,
-        check:
-          {:catalog,
-           %{
-             name: "phoenix_kit_email_templates_pkey",
-             table: "phoenix_kit_email_templates",
-             kind: :constraint
-           }},
-        create:
-          "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_templates_pkey'\n      AND t.relname = 'phoenix_kit_email_templates'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_templates ADD CONSTRAINT phoenix_kit_email_templates_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
-        since: 1,
-        class: :constraint,
-        revisions: [
-          {1,
-           %{
-             type: "p",
-             columns: ["uuid"],
+             on_update: nil,
              definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
-             foreign_table: nil,
-             foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_verifications.phoenix_kit_email_verifications_pkey",
@@ -5226,21 +4494,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_verifications_pkey'\n      AND t.relname = 'phoenix_kit_email_verifications'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_verifications ADD CONSTRAINT phoenix_kit_email_verifications_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id:
@@ -5257,21 +4525,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_verify_batch_items_pkey'\n      AND t.relname = 'phoenix_kit_email_verify_batch_items'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD CONSTRAINT phoenix_kit_email_verify_batch_items_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_verify_batches.phoenix_kit_email_verify_batches_pkey",
@@ -5287,21 +4555,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_verify_batches_pkey'\n      AND t.relname = 'phoenix_kit_email_verify_batches'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batches ADD CONSTRAINT phoenix_kit_email_verify_batches_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_verify_domains.phoenix_kit_email_verify_domains_pkey",
@@ -5317,21 +4585,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_verify_domains_pkey'\n      AND t.relname = 'phoenix_kit_email_verify_domains'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_domains ADD CONSTRAINT phoenix_kit_email_verify_domains_pkey PRIMARY KEY (domain);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["domain"],
-             definition: "PRIMARY KEY (domain)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (domain)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_verify_runners.phoenix_kit_email_verify_runners_pkey",
@@ -5347,21 +4615,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_verify_runners_pkey'\n      AND t.relname = 'phoenix_kit_email_verify_runners'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_runners ADD CONSTRAINT phoenix_kit_email_verify_runners_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id:
@@ -5378,21 +4646,21 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'phoenix_kit_email_verify_smtp_queue_pkey'\n      AND t.relname = 'phoenix_kit_email_verify_smtp_queue'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_smtp_queue ADD CONSTRAINT phoenix_kit_email_verify_smtp_queue_pkey PRIMARY KEY (uuid);\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "p",
              columns: ["uuid"],
-             definition: "PRIMARY KEY (uuid)",
-             name_template: nil,
+             on_delete: nil,
              foreign_table: nil,
              foreign_columns: nil,
-             on_delete: nil,
-             on_update: nil
+             on_update: nil,
+             definition: "PRIMARY KEY (uuid)",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_events.fk_email_events_email_log_uuid",
@@ -5408,22 +4676,22 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'fk_email_events_email_log_uuid'\n      AND t.relname = 'phoenix_kit_email_events'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_events ADD CONSTRAINT fk_email_events_email_log_uuid FOREIGN KEY (email_log_uuid) REFERENCES __SCHEMA__.phoenix_kit_email_logs(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "f",
              columns: ["email_log_uuid"],
-             definition:
-               "FOREIGN KEY (email_log_uuid) REFERENCES __SCHEMA__.phoenix_kit_email_logs(uuid) ON DELETE CASCADE",
-             name_template: nil,
+             on_delete: "c",
              foreign_table: "phoenix_kit_email_logs",
              foreign_columns: ["uuid"],
-             on_delete: "c",
-             on_update: "a"
+             on_update: "a",
+             definition:
+               "FOREIGN KEY (email_log_uuid) REFERENCES __SCHEMA__.phoenix_kit_email_logs(uuid) ON DELETE CASCADE",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       },
       %{
         id: "constraint:phoenix_kit_email_verify_batch_items.fk_email_verify_batch_items_batch",
@@ -5439,22 +4707,22 @@ defmodule PhoenixKit.Modules.Emails.ExpectedSchema do
           "DO $$\nBEGIN\n  IF NOT EXISTS (\n    SELECT 1\n    FROM pg_constraint c\n    JOIN pg_class t ON t.oid = c.conrelid\n    JOIN pg_namespace n ON n.oid = t.relnamespace\n    WHERE c.conname = 'fk_email_verify_batch_items_batch'\n      AND t.relname = 'phoenix_kit_email_verify_batch_items'\n      AND n.nspname = '__SCHEMA__'\n  ) THEN\n    ALTER TABLE __SCHEMA__.phoenix_kit_email_verify_batch_items ADD CONSTRAINT fk_email_verify_batch_items_batch FOREIGN KEY (batch_uuid) REFERENCES __SCHEMA__.phoenix_kit_email_verify_batches(uuid) ON DELETE CASCADE;\n  END IF;\nEND\n$$",
         since: 1,
         class: :constraint,
+        backfill: nil,
+        presence: :required,
         revisions: [
           {1,
            %{
              type: "f",
              columns: ["batch_uuid"],
-             definition:
-               "FOREIGN KEY (batch_uuid) REFERENCES __SCHEMA__.phoenix_kit_email_verify_batches(uuid) ON DELETE CASCADE",
-             name_template: nil,
+             on_delete: "c",
              foreign_table: "phoenix_kit_email_verify_batches",
              foreign_columns: ["uuid"],
-             on_delete: "c",
-             on_update: "a"
+             on_update: "a",
+             definition:
+               "FOREIGN KEY (batch_uuid) REFERENCES __SCHEMA__.phoenix_kit_email_verify_batches(uuid) ON DELETE CASCADE",
+             name_template: nil
            }}
-        ],
-        presence: :required,
-        backfill: nil
+        ]
       }
     ]
   end

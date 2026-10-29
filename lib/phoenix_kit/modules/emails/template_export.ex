@@ -205,6 +205,35 @@ defmodule PhoenixKit.Modules.Emails.TemplateExport do
   def existing_document_notice(_path, _html_mode, _raw_html_supported?), do: nil
 
   @doc """
+  The ACTIVE legacy row called `name`, read straight from
+  `phoenix_kit_email_templates`, or `nil`.
+
+  Core 3.0 no longer reads the table, so this is for tools that help an
+  operator carry an old edit forward (the templates editor's "start from the
+  database template"). `nil` also covers a table that is absent (a fresh
+  install never creates it) and any database error: a helper must not take the
+  page down. Read-only.
+  """
+  @spec active_template(String.t()) :: Template.t() | nil
+  def active_template(name) when is_binary(name) do
+    import Ecto.Query, only: [from: 2]
+    repo = PhoenixKit.RepoHelper.repo()
+
+    %{rows: [[present?]]} =
+      repo.query!("SELECT to_regclass('phoenix_kit_email_templates') IS NOT NULL", [])
+
+    if present? do
+      repo.one(from(t in Template, where: t.name == ^name and t.status == "active", limit: 1))
+    end
+  rescue
+    _ -> nil
+  catch
+    :exit, _ -> nil
+  end
+
+  def active_template(_name), do: nil
+
+  @doc """
   The `:html` mode the mix task uses when it is not told one: `:body` when the
   loaded core has `PhoenixKit.Email.Layout` to wrap a fragment, `:document`
   otherwise.

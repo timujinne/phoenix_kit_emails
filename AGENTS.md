@@ -4,7 +4,7 @@ This file provides guidance to AI agents working with code in this repository.
 
 ## Project Overview
 
-PhoenixKit Emails — an Elixir module for email tracking, analytics, templates, and AWS SES/SNS/SQS integration, built as a pluggable module for the PhoenixKit framework. Provides admin LiveViews for managing email logs, templates, metrics, queue, and blocklist. Implements the `PhoenixKit.Email.Provider` behaviour (14 callbacks) for unified email provider integration.
+PhoenixKit Emails — an Elixir module for email tracking, analytics, templates, and AWS SES/SNS/SQS integration, built as a pluggable module for the PhoenixKit framework. Provides admin LiveViews for managing email logs, templates, metrics, queue, and blocklist. Implements the `PhoenixKit.Email.Provider` behaviour (the template callbacks are gone in core 3.0) for unified email provider integration.
 
 ## Commands
 
@@ -30,17 +30,17 @@ This is a **library** (not a standalone Phoenix app) that provides email trackin
 
 - **Log** — email log record with status, recipient, subject, body, headers, provider info
 - **Event** — delivery/bounce/complaint/open/click events from AWS SES
-- **Template** — email templates with name, subject, body, locale support
+- **Template** — the retired database template row, read-only (the export task and `TemplateExport.active_template/1`)
 - **EmailLogData** — structured email data for log entries
 
 ### Provider Integration
 
-`Provider` implements `PhoenixKit.Email.Provider` (14 callbacks) — the unified email provider interface. Delegates to `Interceptor` (before/after send hooks) and `Templates` (template rendering). Registered on startup via `ApplicationIntegration.register()` which sets `:email_provider` in the application env.
+`Provider` implements `PhoenixKit.Email.Provider` (the template callbacks are gone in core 3.0) — the unified email provider interface. Delegates to `Interceptor` (before/after send hooks) and `Templates` (template rendering). Registered on startup via `ApplicationIntegration.register()` which sets `:email_provider` in the application env.
 
 ### Contexts
 
 - **Emails** (main module) — system config, log CRUD, event management, analytics/metrics, maintenance
-- **Templates** — template CRUD, rendering with variable substitution, locale support
+- **Templates** — the `send_email/4` facade (billing calls it), plus the legacy shipped defaults and a read-only dump of the legacy table for `mix phoenix_kit_emails.templates.export`
 - **Interceptor** — before-send logging, after-send status updates, rate limit checks
 - **Metrics** — engagement metrics, campaign stats, provider performance
 - **Archiver** — cleanup old logs, compress bodies, S3 archival
@@ -117,7 +117,7 @@ config :my_app, Oban, queues: [email_verification: 5, ...]
 
 ### Web Layer
 
-- **Admin** (9 LiveViews): Metrics (dashboard), Emails (list), Details (single email), Templates (list), TemplateEditor (create/edit), Queue, Blocklist, Settings, EmailTracking
+- **Admin** (7 LiveViews): Metrics (dashboard), Emails (list), Details (single email), Queue, Blocklist, Settings, EmailTracking
 - **Public** (3 Controllers): `WebhookController` (AWS SNS webhook), `ExportController` (CSV/JSON export), `RunnerScriptController` (the SMTP runner script, admin only)
 - **Routes**: `route_module/0` provides public routes (webhook + export); admin routes auto-generated from `admin_tabs/0`
 - **Paths**: Centralized path helpers in `Paths` module — always use these instead of hardcoding URLs
@@ -173,9 +173,9 @@ lib/
     ├── provider.ex                  # PhoenixKit.Email.Provider implementation
     ├── log.ex                       # Log Ecto schema
     ├── event.ex                     # Event Ecto schema
-    ├── template.ex                  # Template Ecto schema
+    ├── template.ex                  # Legacy template row (read-only)
     ├── email_log_data.ex            # EmailLogData struct
-    ├── templates.ex                 # Templates context (CRUD, rendering)
+    ├── templates.ex                 # send_email/4 + legacy defaults/rows for the export
     ├── interceptor.ex               # Before/after send hooks
     ├── queue.ex                     # Send-queue decision (maybe_enqueue/2) + settings
     ├── send_job.ex                  # Oban worker that delivers one queued message
@@ -199,8 +199,6 @@ lib/
         ├── metrics.ex               # Dashboard LiveView
         ├── emails.ex                # Emails list LiveView
         ├── details.ex               # Email details LiveView
-        ├── templates.ex             # Templates list LiveView
-        ├── template_editor.ex       # Template editor LiveView
         ├── queue.ex                 # Queue LiveView
         ├── blocklist.ex             # Blocklist LiveView
         ├── settings.ex              # Settings LiveView

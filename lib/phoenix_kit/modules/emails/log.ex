@@ -1172,21 +1172,12 @@ defmodule PhoenixKit.Modules.Emails.Log do
         )
 
       {:source_module, source_module}, query when is_binary(source_module) ->
-        # Filter by source_module through template relationship
-        # Find all templates with this source_module in metadata
-        template_names_subquery =
-          from(t in PhoenixKit.Modules.Emails.Template,
-            where: fragment("? ->> ? = ?", t.metadata, "source_module", ^source_module),
-            select: t.name
-          )
-
-        # Filter logs where template_name matches any template with this source_module
-        # Also fallback to message_tags for emails sent with explicit source_module
+        # The sender records its module in message_tags (templates used to
+        # carry one in a database row; that layer is retired).
         where(
           query,
           [log: l],
-          l.template_name in subquery(template_names_subquery) or
-            fragment("? ->> ? = ?", l.message_tags, "source_module", ^source_module)
+          fragment("? ->> ? = ?", l.message_tags, "source_module", ^source_module)
         )
 
       {:from_date, from_date}, query ->
